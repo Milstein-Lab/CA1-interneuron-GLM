@@ -1,5 +1,8 @@
 NDNFindivsomata_GLM.mat
 SSTindivsomata_GLM.mat
+EC_GLM.mat
+
 .idea
 .ipynb_checkpoints
-EC_GLM.mat
+.gitignore~
+..gitignore.un~
