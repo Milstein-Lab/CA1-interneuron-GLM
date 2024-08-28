@@ -3,6 +3,7 @@ SSTindivsomata_GLM.mat
 EC_GLM.mat
 
 figures/*
+__pycache__/*
 
 .idea
 .ipynb_checkpoints

@@ -86,7 +86,6 @@ def load_data(filepath):
 
 
 def fit_GLM(reorganized_data, quintile=None):
-
     GLM_params = {}
     for animal in reorganized_data:
         GLM_params[animal] = {}
@@ -117,7 +116,6 @@ def fit_GLM(reorganized_data, quintile=None):
                 'weights': ridge_cv.coef_,
                 'intercept': ridge_cv.intercept_,
                 'alpha': ridge_cv.alpha_,
-                'cv_results': ridge_cv.cv_values_ if hasattr(ridge_cv, 'cv_values_') else None,
                 'R2': ridge_cv.score(design_matrix_X, neuron_activity),
                 'model': ridge_cv
             }
@@ -125,20 +123,19 @@ def fit_GLM(reorganized_data, quintile=None):
     return GLM_params
 
 
-def plot_example_neuron_variables(example_variables, variable_list, weights, ax=None):
+def plot_example_neuron_variables(example_variables, variable_list, weights, ax):
     variable_list = variable_list[1:]
 
     fig = ax.get_figure()
     height_ratios = np.ones(example_variables.shape[1])
     height_ratios[-5:] = 0.5
     axes = gs.GridSpecFromSubplotSpec(nrows=example_variables.shape[1], ncols=1, subplot_spec=ax, hspace=0.5, height_ratios=height_ratios)
-    
     for i in range(example_variables.shape[1]):
         ax = fig.add_subplot(axes[i])
         ax.plot(example_variables[:, i])
         ax.set_ylabel(variable_list[i])
         ax.set_xticks([])
-        ax.scatter([50],[0.3], c='k', s=weights[i]*200)
+        ax.scatter([50],[0.3], c='k', s=abs(weights[i])*200)
     ax.set_xlabel('Position', labelpad=-10)
     ax.set_xticks([0,50])
 
@@ -160,22 +157,34 @@ def plot_example_neuron(example_animal, reorganized_data, GLM_params, variable_l
     print("R2:", GLM_params[example_animal][example_neuron]['R2'])
     print("alpha:", GLM_params[example_animal][example_neuron]['alpha'])
 
-    if trial is None:
-        example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
-        example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
-        example_neuron_activity = example_data[:, 0]
-        example_variables = example_data[:, 1:]
-    else:
-        example_trial = trial
-        example_data = reorganized_data[example_animal][example_neuron][:,:,1:]
-        example_data = (example_data - np.nanmin(example_data, axis=0)) / (np.nanmax(example_data, axis=0) - np.nanmin(example_data, axis=0))
-        example_neuron_activity = example_data[:, 0, example_trial]
-        example_variables = example_data[:, 1:, example_trial]
+    example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
+    example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
+    example_neuron_activity = example_data[:, 0]
+    example_variables = example_data[:, 1:]
+    
+    # if trial is None:
+    #     example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
+    #     example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
+    #     example_neuron_activity = example_data[:, 0]
+    #     example_variables = example_data[:, 1:]
+    # else:
+    #     example_trial = trial
+    #     example_data = reorganized_data[example_animal][example_neuron][:,:,1:]
+    #     example_data = (example_data - np.nanmin(example_data, axis=0)) / (np.nanmax(example_data, axis=0) - np.nanmin(example_data, axis=0))
+    #     example_neuron_activity = example_data[:, 0, example_trial]
+    #     example_variables = example_data[:, 1:, example_trial]
+
+    # Check if the neuron activity contains nans
+    if np.isnan(example_neuron_activity).any():
+        print("Warning: Neuron activity contains NaNs")
+        return
 
     weights = GLM_params[example_animal][example_neuron]['weights']
 
-    fig = plt.figure(figsize=(10,5))
+    # return example_variables, variable_list, weights
 
+    fig = plt.figure(figsize=(10,5))
+        
     axes = gs.GridSpec(nrows=1, ncols=3)
     ax = fig.add_subplot(axes[0,0])
     ax.axis('off')
@@ -190,10 +199,16 @@ def plot_example_neuron(example_animal, reorganized_data, GLM_params, variable_l
     y2 = np.linspace(-3.3, -5.5, 5).tolist()
     y = y1 + y2
     for i,w in enumerate(weights):
-        ax.plot([0,1], [y[i],-3.5], color='black', linewidth=abs(w)*5)
+        ax.plot([0,1], [y[i],-3.5], color='black', linewidth=abs(w)*3)
 
 
     # Plot prediction vs actual neuron activity
+    example_trial = trial
+    example_data = reorganized_data[example_animal][example_neuron][:,:,1:]
+    example_data = (example_data - np.nanmin(example_data, axis=0)) / (np.nanmax(example_data, axis=0) - np.nanmin(example_data, axis=0))
+    example_neuron_activity = example_data[:, 0, example_trial]
+    example_variables = example_data[:, 1:, example_trial]
+    
     glm_model = GLM_params[example_animal][example_neuron]['model']
     predicted_activity = glm_model.predict(example_variables)
     pred_norm = (predicted_activity - np.min(predicted_activity)) / (np.max(predicted_activity) - np.min(predicted_activity))
