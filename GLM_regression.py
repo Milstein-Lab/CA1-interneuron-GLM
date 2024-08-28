@@ -106,7 +106,6 @@ def fit_GLM(reorganized_data):
                                     'cv_results': np.mean(ridge_cv.cv_results_, axis=0),
                                     'R2': ridge_cv.score(design_matrix_X, neuron_activity),
                                     'model': ridge_cv}
-            
     return GLM_params
             
 
