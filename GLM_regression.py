@@ -109,40 +109,89 @@ def fit_GLM(reorganized_data):
     return GLM_params
             
 
-def plot_example_neuron(reorganized_data, variable_list, model_name, save=False, fig=None, ax=None):
-    example_neuron = 0
-    example_animal = 'animal_1'
+def plot_example_neuron_variables(example_variables, variable_list, weights, ax=None):
+    variable_list = variable_list[1:]
 
-    example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
-    example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
-    example_neuron_activity = example_data[:, 0]
-    example_variables = example_data[:, 1:]
-
-    if ax:
-        assert fig is not None, "Must specify both fig and ax"
-        axes1 = gs.GridSpecFromSubplotSpec(nrows=example_variables.shape[1]-5, ncols=1, subplot_spec=ax, bottom=0.5)
-        axes2 = gs.GridSpecFromSubplotSpec(nrows=5, ncols=1, subplot_spec=ax, top=0.5)
-    else:
-        fig = plt.figure(figsize=(6, 8))
-        axes1 = gs.GridSpec(nrows=example_variables.shape[1]-5, ncols=1, figure=fig, bottom=0.5)
-        axes2 = gs.GridSpec(nrows=5, ncols=1, figure=fig, top=0.5)
-
+    fig = ax.get_figure()
+    height_ratios = np.ones(example_variables.shape[1])
+    height_ratios[-5:] = 0.5
+    axes = gs.GridSpecFromSubplotSpec(nrows=example_variables.shape[1], ncols=1, subplot_spec=ax, hspace=0.5, height_ratios=height_ratios)
+    
     for i in range(example_variables.shape[1]):
-        if i < example_variables.shape[1]-5:
-            ax = fig.add_subplot(axes1[i])
-        else:
-            ax = fig.add_subplot(axes2[i])
+        ax = fig.add_subplot(axes[i])
         ax.plot(example_variables[:, i])
-        ax.set_ylabel(variable_list[i+1])
-        ax.vlines(25, 0, 1, linestyles='--', color='r')
-        if i == example_variables.shape[1] - 1:
-            ax.set_xlabel('Position')
-            ax.set_xticks([0,50])
-        else:
-            ax.set_xticks([])
+        ax.set_ylabel(variable_list[i])
+        ax.set_xticks([])
+        ax.scatter([50],[0.3], c='k', s=weights[i]*200)
+    ax.set_xlabel('Position', labelpad=-10)
+    ax.set_xticks([0,50])
 
-    if save:
-        fig.savefig(f"figures/{model_name[:-4]}_example_{example_animal}_neuron{example_neuron}.png", dpi=300)
+    # Draw vertical line across all plots (remove axes and make the background transparent)
+    ax = fig.add_subplot(axes[:])
+    ax.vlines(24.5, 0, 1, linestyles='--', color='r')
+    ax.set_xlim([0, 49])
+    ax.set_ylim([0, 1])
+    ax.axis('off')
+    ax.patch.set_alpha(0)
+
+
+def plot_example_neuron(example_animal, reorganized_data, GLM_params, variable_list, example_neuron=None, trial=None):
+
+    # Pick neuron with the highest R2 value
+    if example_neuron is None:
+        R2_values = [GLM_params[example_animal][i]['R2'] for i in GLM_params[example_animal]]
+        example_neuron = np.argmax(R2_values)
+    print("R2:", GLM_params[example_animal][example_neuron]['R2'])
+    print("alpha:", GLM_params[example_animal][example_neuron]['alpha'])
+
+    if trial is None:
+        example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
+        example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
+        example_neuron_activity = example_data[:, 0]
+        example_variables = example_data[:, 1:]
+    else:
+        example_trial = trial
+        example_data = reorganized_data[example_animal][example_neuron][:,:,1:]
+        example_data = (example_data - np.nanmin(example_data, axis=0)) / (np.nanmax(example_data, axis=0) - np.nanmin(example_data, axis=0))
+        example_neuron_activity = example_data[:, 0, example_trial]
+        example_variables = example_data[:, 1:, example_trial]
+
+    weights = GLM_params[example_animal][example_neuron]['weights']
+
+    fig = plt.figure(figsize=(10,5))
+
+    axes = gs.GridSpec(nrows=1, ncols=3)
+    ax = fig.add_subplot(axes[0,0])
+    ax.axis('off')
+    plot_example_neuron_variables(example_variables, variable_list, weights, ax=ax)
+
+
+    # Plot a series of horizontal lines, with linewidth proportional to weight
+    axes = gs.GridSpec(nrows=1, ncols=1, left=0.36, right=0.54, top=0.82, bottom=0.08)
+    ax = fig.add_subplot(axes[0])
+    ax.axis('off')
+    y1 = np.linspace(-1, -2.8, 3).tolist()
+    y2 = np.linspace(-3.3, -5.5, 5).tolist()
+    y = y1 + y2
+    for i,w in enumerate(weights):
+        ax.plot([0,1], [y[i],-3.5], color='black', linewidth=abs(w)*5)
+
+
+    # Plot prediction vs actual neuron activity
+    glm_model = GLM_params[example_animal][example_neuron]['model']
+    predicted_activity = glm_model.predict(example_variables)
+    pred_norm = (predicted_activity - np.min(predicted_activity)) / (np.max(predicted_activity) - np.min(predicted_activity))
+    actual_norm = (example_neuron_activity - np.min(example_neuron_activity)) / (np.max(example_neuron_activity) - np.min(example_neuron_activity))
+
+    axes = gs.GridSpec(nrows=1, ncols=1, left=0.6, right=1, top=0.7, bottom=0.2)
+    ax = fig.add_subplot(axes[0])
+    ax.plot(pred_norm, label='GLM prediction', c='gray', linestyle='--')
+    ax.plot(actual_norm, label='Actual activity', c='k')
+    ax.set_xlabel("Position")
+    ax.set_xticks([0,50])
+    ax.set_ylabel("Normalized activity")
+    ax.legend(loc='upper right', bbox_to_anchor=(1, 1.2))
+
 
 
 def plot_GLM_summary_data(GLM_params, variable_list, model_name, save=False, ax=None):
@@ -189,22 +238,22 @@ def plot_GLM_summary_data(GLM_params, variable_list, model_name, save=False, ax=
 
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    datasets = ["SSTindivsomata_GLM.mat"]#, "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
+#     datasets = ["SSTindivsomata_GLM.mat"]#, "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
 
-    for dataset_path in datasets:
-        reorganized_data, variable_list = load_data(dataset_path)
-        GLM_params = fit_GLM(reorganized_data)
+#     for dataset_path in datasets:
+#         reorganized_data, variable_list = load_data(dataset_path)
+#         GLM_params = fit_GLM(reorganized_data)
         
-        fig = plt.figure(figsize=(10,5))
-        axes = gs.GridSpec(nrows=1, ncols=3)
-        fig.suptitle(dataset_path)
+#         fig = plt.figure(figsize=(10,5))
+#         axes = gs.GridSpec(nrows=1, ncols=3)
+#         fig.suptitle(dataset_path)
 
-        ax = fig.add_subplot(axes[0,0])
-        plot_example_neuron(reorganized_data, variable_list, model_name=dataset_path, fig=fig, ax=ax)
+#         ax = fig.add_subplot(axes[0,0])
+#         plot_example_neuron(reorganized_data, variable_list, model_name=dataset_path, fig=fig, ax=ax)
         
-        ax = fig.add_subplot(axes[0,2])
-        plot_GLM_summary_data(GLM_params, variable_list, dataset_path, ax=ax)
+#         ax = fig.add_subplot(axes[0,2])
+#         plot_GLM_summary_data(GLM_params, variable_list, dataset_path, ax=ax)
 
-        fig.savefig(f"figures/{dataset_path[:-4]}.png", dpi=300)
+#         fig.savefig(f"figures/{dataset_path[:-4]}.png", dpi=300)
