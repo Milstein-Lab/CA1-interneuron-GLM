@@ -85,29 +85,45 @@ def load_data(filepath):
     return reorganized_data, variable_list
 
 
-def fit_GLM(reorganized_data):
-    GLM_params = {}
+def fit_GLM(reorganized_data, quintile=None):
 
+    GLM_params = {}
     for animal in reorganized_data:
         GLM_params[animal] = {}
-        for i,neuron in enumerate(reorganized_data[animal]):
-            flattened_data = neuron.reshape(neuron.shape[0]*neuron.shape[2], neuron.shape[1]) # Combine trials and spatial bins into a single dimension
-            flattened_data = flattened_data[~np.isnan(flattened_data).any(axis=1)] # Remove rows with NaNs
-            flattened_data = (flattened_data - np.min(flattened_data, axis=0)) / (np.max(flattened_data, axis=0) - np.min(flattened_data, axis=0)) # Normalize between 0 and 1 
+        for i, neuron in enumerate(reorganized_data[animal]):
+            num_trials = neuron.shape[2]
+
+            quintile_indices = [(i * num_trials) // 5 for i in
+                                range(6)]
+
+            if quintile is not None:
+                start_idx = quintile_indices[quintile - 1]
+                end_idx = quintile_indices[quintile]
+                trials = neuron[:, :, start_idx:end_idx]
+            else:
+                trials = neuron
+
+            flattened_data = trials.reshape(trials.shape[0] * trials.shape[2], trials.shape[1])
+            flattened_data = flattened_data[~np.isnan(flattened_data).any(axis=1)]
+            flattened_data = (flattened_data - np.min(flattened_data, axis=0)) / (
+                    np.max(flattened_data, axis=0) - np.min(flattened_data, axis=0))
 
             design_matrix_X = flattened_data[:, 1:]
             neuron_activity = flattened_data[:, 0]
-            ridge_cv = RidgeCV(alphas=[0.1, 1, 10, 100, 1000, 5000], store_cv_results=True)
+            ridge_cv = RidgeCV(alphas=[0.1, 1, 10, 100, 1000, 5000], cv=None)
             ridge_cv.fit(design_matrix_X, neuron_activity)
 
-            GLM_params[animal][i] = {'weights': ridge_cv.coef_, 
-                                    'intercept': ridge_cv.intercept_, 
-                                    'alpha': ridge_cv.alpha_, 
-                                    'cv_results': np.mean(ridge_cv.cv_results_, axis=0),
-                                    'R2': ridge_cv.score(design_matrix_X, neuron_activity),
-                                    'model': ridge_cv}
+            GLM_params[animal][i] = {
+                'weights': ridge_cv.coef_,
+                'intercept': ridge_cv.intercept_,
+                'alpha': ridge_cv.alpha_,
+                'cv_results': ridge_cv.cv_values_ if hasattr(ridge_cv, 'cv_values_') else None,
+                'R2': ridge_cv.score(design_matrix_X, neuron_activity),
+                'model': ridge_cv
+            }
+
     return GLM_params
-            
+
 
 def plot_example_neuron(reorganized_data, variable_list, model_name, save=False, fig=None, ax=None):
     example_neuron = 0
@@ -195,7 +211,7 @@ if __name__ == "__main__":
 
     for dataset_path in datasets:
         reorganized_data, variable_list = load_data(dataset_path)
-        GLM_params = fit_GLM(reorganized_data)
+        GLM_params = fit_GLM(reorganized_data, quintile=1)
         
         fig = plt.figure(figsize=(10,5))
         axes = gs.GridSpec(nrows=1, ncols=3)
