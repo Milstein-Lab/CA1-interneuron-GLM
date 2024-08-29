@@ -97,15 +97,15 @@ def fit_GLM(reorganized_data, quintile=None, regression='lasso', alphas=None):
                 neuron_data = neuron_data[:, :, start_idx:end_idx]
 
             flattened_data = []
-            for i in range(neuron_data.shape[1]):
-                if i == 0: # Z-score the neuron activity (df/f)
-                    neuron_data[:,i] = (neuron_data[:,i] - np.mean(neuron_data[:,i])) / np.std(neuron_data[:,i])
+            for var_idx in range(neuron_data.shape[1]):
+                if var_idx == 0: # Z-score the neuron activity (df/f)
+                    neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.nanmean(neuron_data[:,var_idx])) / np.nanstd(neuron_data[:,var_idx])
                 else: # Normalize the other variables to [0,1]
-                    neuron_data[:,i] = (neuron_data[:,i] - np.min(neuron_data[:,i])) / (np.max(neuron_data[:,i]) - np.min(neuron_data[:,i]))
-                flattened_data.append(neuron_data[:,i].flatten())
+                    neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.nanmin(neuron_data[:,var_idx])) / (np.nanmax(neuron_data[:,var_idx]) - np.nanmin(neuron_data[:,var_idx]))
+                flattened_data.append(neuron_data[:,var_idx].flatten())
             flattened_data = np.stack(flattened_data, axis=1)
             flattened_data = flattened_data[~np.isnan(flattened_data).any(axis=1)]
-             
+
             design_matrix_X = flattened_data[:, 1:]
             neuron_activity = flattened_data[:, 0]
 
@@ -175,11 +175,9 @@ def plot_example_neuron(animal, reorganized_data, GLM_params, variable_list, neu
             neuron_data[:,i] = (neuron_data[:,i] - np.min(neuron_data[:,i])) / (np.max(neuron_data[:,i]) - np.min(neuron_data[:,i]))
         flattened_data.append(neuron_data[:,i].flatten())
     flattened_data = np.stack(flattened_data, axis=1)
-    flattened_data = flattened_data[~np.isnan(flattened_data).any(axis=1)]
         
-    # design_matrix_X = flattened_data[:, 1:]
-    # neuron_activity = flattened_data[:, 0]
-
+    input_variables = neuron_data[:,1:,:]
+    neuron_activity = neuron_data[:,0 ,:]
 
     fig = plt.figure(figsize=(10,5))
     
@@ -206,8 +204,9 @@ def plot_example_neuron(animal, reorganized_data, GLM_params, variable_list, neu
 
     # Plot prediction vs actual neuron activity
     glm_model = GLM_params[animal][neuron]['model']
+    flattened_input_variables = flattened_data[:,1:]
     predicted_activity = glm_model.predict(flattened_input_variables)
-    predicted_activity = predicted_activity.reshape(input_variables.shape[0], input_variables.shape[2])
+    predicted_activity = predicted_activity.reshape(neuron_activity.shape)
 
     avg_predicted_activity = np.mean(predicted_activity, axis=1)
     std_predicted_activity = np.std(predicted_activity, axis=1)
@@ -224,10 +223,8 @@ def plot_example_neuron(animal, reorganized_data, GLM_params, variable_list, neu
 
     ax.plot(avg_predicted_activity, label='GLM prediction', c='gray', linestyle='--')
     ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity-std_predicted_activity, avg_predicted_activity+std_predicted_activity, alpha=0.2, color='gray')
-
     ax.plot(avg_neuron_activity, label='Actual activity', c='k')
     ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-std_neuron_activity, avg_neuron_activity+std_neuron_activity, alpha=0.2, color='k')
-
     ax.set_xlabel("Position")
     ax.set_xticks([0,50])
     ax.set_ylabel("dF/F activity")
