@@ -87,6 +87,8 @@ def load_data(filepath):
 
 from sklearn.linear_model import LassoCV, RidgeCV
 
+from sklearn.linear_model import LassoCV, RidgeCV
+
 def fit_GLM(reorganized_data, quintile=None, regression='lasso', alphas=None):
     GLM_params = {}
     for animal in reorganized_data:
@@ -106,14 +108,16 @@ def fit_GLM(reorganized_data, quintile=None, regression='lasso', alphas=None):
             flattened_data = trials.reshape(trials.shape[0] * trials.shape[2], trials.shape[1])
             flattened_data = flattened_data[~np.isnan(flattened_data).any(axis=1)]
 
+            # Z-score the neural activity
             neuron_activity = flattened_data[:, 0]
-            neuron_activity = (neuron_activity - np.mean(neuron_activity)) / np.std(neuron_activity)
+            neuron_activity_zscored = (neuron_activity - np.mean(neuron_activity)) / np.std(neuron_activity)
 
+            # Min-max normalize the other variables
             other_variables = flattened_data[:, 1:]
-            other_variables = (other_variables - np.min(other_variables, axis=0)) / (
+            other_variables_normalized = (other_variables - np.min(other_variables, axis=0)) / (
                     np.max(other_variables, axis=0) - np.min(other_variables, axis=0))
 
-            design_matrix_X = other_variables
+            design_matrix_X = other_variables_normalized
 
             if regression == 'lasso':
                 model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
@@ -122,55 +126,20 @@ def fit_GLM(reorganized_data, quintile=None, regression='lasso', alphas=None):
             else:
                 raise ValueError("Regression type must be 'lasso' or 'ridge'")
 
-            model.fit(design_matrix_X, neuron_activity)
+            model.fit(design_matrix_X, neuron_activity_zscored)
 
             GLM_params[animal][i] = {
                 'weights': model.coef_,
                 'intercept': model.intercept_,
-                'alpha': model.alpha_ if regression == 'ridge' else model.alpha_,
-                'R2': model.score(design_matrix_X, neuron_activity),
+                'alpha': model.alpha_ if regression == 'ridge' else None,
+                'R2': model.score(design_matrix_X, neuron_activity_zscored),
                 'model': model
             }
 
     return GLM_params
 
 
-# def fit_GLM(reorganized_data, quintile=None):
-#     GLM_params = {}
-#     for animal in reorganized_data:
-#         GLM_params[animal] = {}
-#         for i, neuron in enumerate(reorganized_data[animal]):
-#             num_trials = neuron.shape[2]
-#
-#             quintile_indices = [(i * num_trials) // 5 for i in
-#                                 range(6)]
-#
-#             if quintile is not None:
-#                 start_idx = quintile_indices[quintile - 1]
-#                 end_idx = quintile_indices[quintile]
-#                 trials = neuron[:, :, start_idx:end_idx]
-#             else:
-#                 trials = neuron
-#
-#             flattened_data = trials.reshape(trials.shape[0] * trials.shape[2], trials.shape[1])
-#             flattened_data = flattened_data[~np.isnan(flattened_data).any(axis=1)]
-#             flattened_data = (flattened_data - np.min(flattened_data, axis=0)) / (
-#                     np.max(flattened_data, axis=0) - np.min(flattened_data, axis=0))
-#
-#             design_matrix_X = flattened_data[:, 1:]
-#             neuron_activity = flattened_data[:, 0]
-#             ridge_cv = RidgeCV(alphas=[0.1, 1, 10, 100, 1000, 5000], cv=None)
-#             ridge_cv.fit(design_matrix_X, neuron_activity)
-#
-#             GLM_params[animal][i] = {
-#                 'weights': ridge_cv.coef_,
-#                 'intercept': ridge_cv.intercept_,
-#                 'alpha': ridge_cv.alpha_,
-#                 'R2': ridge_cv.score(design_matrix_X, neuron_activity),
-#                 'model': ridge_cv
-#             }
-#
-#     return GLM_params
+
 
 
 def plot_example_neuron_variables(example_variables, variable_list, weights, ax):
@@ -197,82 +166,62 @@ def plot_example_neuron_variables(example_variables, variable_list, weights, ax)
     ax.axis('off')
     ax.patch.set_alpha(0)
 
-
-def plot_example_neuron(example_animal, reorganized_data, GLM_params, variable_list, example_neuron=None, trial=None):
-
-    # Pick neuron with the highest R2 value
+def plot_example_neuron(example_animal, reorganized_data, GLM_params, variable_list, example_neuron=None):
+    # Pick neuron with the highest R2 value if no neuron is specified
     if example_neuron is None:
         R2_values = [GLM_params[example_animal][i]['R2'] for i in GLM_params[example_animal]]
         example_neuron = np.argmax(R2_values)
     print("R2:", GLM_params[example_animal][example_neuron]['R2'])
     print("alpha:", GLM_params[example_animal][example_neuron]['alpha'])
 
-    example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
-    example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
-    example_neuron_activity = example_data[:, 0]
-    example_variables = example_data[:, 1:]
-    
-    # if trial is None:
-    #     example_data = np.nanmean(reorganized_data[example_animal][example_neuron][:,:,1:], axis=2)
-    #     example_data = (example_data - np.min(example_data, axis=0)) / (np.max(example_data, axis=0) - np.min(example_data, axis=0))
-    #     example_neuron_activity = example_data[:, 0]
-    #     example_variables = example_data[:, 1:]
-    # else:
-    #     example_trial = trial
-    #     example_data = reorganized_data[example_animal][example_neuron][:,:,1:]
-    #     example_data = (example_data - np.nanmin(example_data, axis=0)) / (np.nanmax(example_data, axis=0) - np.nanmin(example_data, axis=0))
-    #     example_neuron_activity = example_data[:, 0, example_trial]
-    #     example_variables = example_data[:, 1:, example_trial]
-
-    # Check if the neuron activity contains nans
-    if np.isnan(example_neuron_activity).any():
-        print("Warning: Neuron activity contains NaNs")
-        return
-
-    weights = GLM_params[example_animal][example_neuron]['weights']
-
-    # return example_variables, variable_list, weights
-
-    fig = plt.figure(figsize=(10,5))
-        
-    axes = gs.GridSpec(nrows=1, ncols=3)
-    ax = fig.add_subplot(axes[0,0])
-    ax.axis('off')
-    plot_example_neuron_variables(example_variables, variable_list, weights, ax=ax)
-
-
-    # Plot a series of horizontal lines, with linewidth proportional to weight
-    axes = gs.GridSpec(nrows=1, ncols=1, left=0.36, right=0.54, top=0.82, bottom=0.08)
-    ax = fig.add_subplot(axes[0])
-    ax.axis('off')
-    y1 = np.linspace(-1, -2.8, 3).tolist()
-    y2 = np.linspace(-3.3, -5.5, 5).tolist()
-    y = y1 + y2
-    for i,w in enumerate(weights):
-        ax.plot([0,1], [y[i],-3.5], color='black', linewidth=abs(w)*3)
-
-
-    # Plot prediction vs actual neuron activity
-    example_trial = trial
-    example_data = reorganized_data[example_animal][example_neuron][:,:,1:]
-    example_data = (example_data - np.nanmin(example_data, axis=0)) / (np.nanmax(example_data, axis=0) - np.nanmin(example_data, axis=0))
-    example_neuron_activity = example_data[:, 0, example_trial]
-    example_variables = example_data[:, 1:, example_trial]
-    
+    # Extract the model for the selected neuron
     glm_model = GLM_params[example_animal][example_neuron]['model']
-    predicted_activity = glm_model.predict(example_variables)
-    pred_norm = (predicted_activity - np.min(predicted_activity)) / (np.max(predicted_activity) - np.min(predicted_activity))
-    actual_norm = (example_neuron_activity - np.min(example_neuron_activity)) / (np.max(example_neuron_activity) - np.min(example_neuron_activity))
 
-    axes = gs.GridSpec(nrows=1, ncols=1, left=0.6, right=1, top=0.7, bottom=0.2)
-    ax = fig.add_subplot(axes[0])
+    # Initialize arrays to hold the predicted and actual values across all trials
+    num_trials = reorganized_data[example_animal][example_neuron].shape[2]
+    all_predicted_activity = np.zeros((reorganized_data[example_animal][example_neuron].shape[0], num_trials))
+    all_actual_activity = np.zeros((reorganized_data[example_animal][example_neuron].shape[0], num_trials))
+
+    for trial in range(num_trials):
+        example_data = reorganized_data[example_animal][example_neuron][:, :, trial]
+
+        # Separate and normalize the data
+        example_neuron_activity = example_data[:, 0]
+        example_neuron_activity_zscored = (example_neuron_activity - np.mean(example_neuron_activity)) / np.std(example_neuron_activity)
+
+        example_variables = example_data[:, 1:]
+        example_variables_normalized = (example_variables - np.min(example_variables, axis=0)) / (
+                np.max(example_variables, axis=0) - np.min(example_variables, axis=0))
+
+        # Make sure there are no NaNs in the variables
+        nan_mask = ~np.isnan(example_variables_normalized).any(axis=1)
+        example_neuron_activity_zscored = example_neuron_activity_zscored[nan_mask]
+        example_variables_normalized = example_variables_normalized[nan_mask]
+
+        # Predict activity using the GLM model
+        predicted_activity = glm_model.predict(example_variables_normalized)
+
+        # Store the predictions and actual activities
+        all_predicted_activity[nan_mask, trial] = predicted_activity
+        all_actual_activity[nan_mask, trial] = example_neuron_activity_zscored
+
+    # Average the predicted and actual activity across trials
+    mean_predicted_activity = np.nanmean(all_predicted_activity, axis=1)
+    mean_actual_activity = np.nanmean(all_actual_activity, axis=1)
+
+    # Normalize the predictions and actual activities for plotting
+    pred_norm = (mean_predicted_activity - np.min(mean_predicted_activity)) / (np.max(mean_predicted_activity) - np.min(mean_predicted_activity))
+    actual_norm = (mean_actual_activity - np.min(mean_actual_activity)) / (np.max(mean_actual_activity) - np.min(mean_actual_activity))
+
+    # Plot the data
+    fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(pred_norm, label='GLM prediction', c='gray', linestyle='--')
     ax.plot(actual_norm, label='Actual activity', c='k')
     ax.set_xlabel("Position")
-    ax.set_xticks([0,50])
+    ax.set_xticks([0, 50])
     ax.set_ylabel("Normalized activity")
     ax.legend(loc='upper right', bbox_to_anchor=(1, 1.2))
-
+    plt.show()
 
 
 def plot_GLM_summary_data(GLM_params, variable_list, model_name, save=False, ax=None):
