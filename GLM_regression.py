@@ -168,34 +168,51 @@ def plot_example_neuron_variables(example_variables, variable_list, ax, weights=
 def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal='best', neuron='best', model_name=None):
 
     if animal == 'best':
-        R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
+        best_R2 = -np.inf
+        best_neuron = None
+        best_animal = None
+        for animal_key in GLM_params:
+            R2_values = [GLM_params[animal_key][i]['R2'] for i in GLM_params[animal_key]]
+            max_R2 = max(R2_values)
+            if max_R2 > best_R2:
+                best_R2 = max_R2
+                best_neuron = np.argmax(R2_values)
+                best_animal = animal_key
+        animal = best_animal
+        neuron = best_neuron
+        print(f"Best neuron across all animals: {neuron}")
+        print(f"Animal with best neuron: {animal}")
+        print(f"R2: {best_R2}")
 
-    # Pick neuron with the highest R2 value
-    if neuron == 'best':
+    elif neuron == 'best':
         R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
         neuron = np.argmax(R2_values)
-    print("Best neuron:", neuron)
-    print("R2:", GLM_params[animal][neuron]['R2'])
-    print("alpha:", GLM_params[animal][neuron]['alpha'])
-    
-    neuron_data = reorganized_data[animal][neuron][:,:,1:]  
-    neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
+        print(f"Best neuron within {animal}: {neuron}")
+        print(f"R2: {GLM_params[animal][neuron]['R2']}")
+
+    else:
+        print(f"Selected neuron: {neuron}")
+        print(f"Animal: {animal}")
+        print(f"R2: {GLM_params[animal][neuron]['R2']}")
+
+    neuron_data = reorganized_data[animal][neuron][:, :, 1:]
+    neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
 
     flattened_data = []
     for i in range(neuron_data.shape[1]):
-        if i == 0: # Z-score the neuron activity (df/f)
-            neuron_data[:,i] = (neuron_data[:,i] - np.mean(neuron_data[:,i])) / np.std(neuron_data[:,i])
-        else: # Normalize the other variables to [0,1]
-            neuron_data[:,i] = (neuron_data[:,i] - np.min(neuron_data[:,i])) / (np.max(neuron_data[:,i]) - np.min(neuron_data[:,i]))
-        flattened_data.append(neuron_data[:,i].flatten())
+        if i == 0:  # Z-score the neuron activity (df/f)
+            neuron_data[:, i] = (neuron_data[:, i] - np.mean(neuron_data[:, i])) / np.std(neuron_data[:, i])
+        else:  # Normalize the other variables to [0,1]
+            neuron_data[:, i] = (neuron_data[:, i] - np.min(neuron_data[:, i])) / (
+                        np.max(neuron_data[:, i]) - np.min(neuron_data[:, i]))
+        flattened_data.append(neuron_data[:, i].flatten())
     flattened_data = np.stack(flattened_data, axis=1)
-        
-    input_variables = neuron_data[:,1:,:]
-    neuron_activity = neuron_data[:,0 ,:]
 
-    fig = plt.figure(figsize=(10,8))
-    
-    # Plot input variables
+    input_variables = neuron_data[:, 1:, :]
+    neuron_activity = neuron_data[:, 0, :]
+
+    fig = plt.figure(figsize=(10, 8))
+
     axes = gs.GridSpec(nrows=1, ncols=1, left=0, right=0.3, bottom=0.5)
     ax = fig.add_subplot(axes[0])
     ax.axis('off')
@@ -225,7 +242,6 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal='bes
     ax.plot([0,0], [0,0], color='deepskyblue', linewidth=1.5, label='Negative weights')
     ax.plot([0,0], [0,0], color='black', linewidth=1.5, label='Positive weights')
     ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
-
 
     # Plot prediction vs actual neuron activity
     glm_model = GLM_params[animal][neuron]['model']
