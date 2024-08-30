@@ -167,6 +167,9 @@ def plot_example_neuron_variables(example_variables, variable_list, ax, weights=
 
 def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal='best', neuron='best', model_name=None):
 
+    if animal == 'best':
+        R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
+
     # Pick neuron with the highest R2 value
     if neuron == 'best':
         R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
@@ -347,10 +350,102 @@ def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
             ax.text(0.1, 0., f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
 
 
+def calculate_delta_weights(reorganized_data, GLM_params_first, GLM_params_last):
+    delta_weights = {}
+
+    for animal in reorganized_data:
+        delta_weights[animal] = []
+        for i in range(len(GLM_params_first[animal])):
+            weights_first = GLM_params_first[animal][i]['weights']
+            weights_last = GLM_params_last[animal][i]['weights']
+
+            delta = weights_last - weights_first
+            delta_weights[animal].append(delta)
+
+    return delta_weights
+
+
+def plot_delta_weights_summary(delta_weights, variable_list, model_name=None, save=False, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+
+    animal_averages = []
+    jitter = 0.25
+
+    for animal_key in delta_weights:
+        neuron_weights = []
+        for neuron_nr in range(len(delta_weights[animal_key])):
+            neuron_weights.append(delta_weights[animal_key][neuron_nr])
+            jittered_x = np.arange(len(variable_list)) + np.random.uniform(0.1, jitter, len(variable_list))
+            ax.scatter(jittered_x, delta_weights[animal_key][neuron_nr], color='grey', alpha=0.2, s=10)
+
+        neuron_weights = np.array(neuron_weights)
+        mean_weights = np.mean(neuron_weights, axis=0)
+        animal_averages.append(mean_weights)
+        ax.scatter(range(len(variable_list)), mean_weights, color='black', label=f'Animal {animal_key}', s=20)
+
+    animal_averages = np.array(animal_averages)
+    global_mean = np.mean(animal_averages, axis=0)
+    global_std = np.std(animal_averages, axis=0)
+    global_sem = global_std / np.sqrt(len(animal_averages))
+    ax.errorbar(np.arange(len(variable_list)) - 0.15, global_mean, yerr=global_std, fmt='o', color='red', ecolor='red',
+                capsize=5, label='Average of all animals', markersize=7)
+
+    absolute_distances = np.abs(global_mean)
+    max_index = np.argmax(absolute_distances)
+    second_max_index = np.argsort(absolute_distances)[-2]
+
+    ax.set_xticks(range(len(variable_list)), variable_list, rotation=45, ha='right')
+    ax.set_ylabel('Δ Weights (Last Quintile - First Quintile)')
+    ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
+    ax.set_xlim([-0.5, len(variable_list) - 0.5])
+
+    if model_name is not None and save:
+        fig.savefig(f"{model_name}_delta_weights.png", dpi=300)
+
+    return max_index, second_max_index
+
+
+def get_delta_weights_and_plot(filepath_list):
+    for filepath in filepath_list:
+        reorganized_data, variable_list = load_data(filepath)
+
+        GLM_params_first = fit_GLM(reorganized_data, quintile=1, regression='ridge')
+        GLM_params_last = fit_GLM(reorganized_data, quintile=5, regression='ridge')
+
+        delta_weights = calculate_delta_weights(reorganized_data, GLM_params_first, GLM_params_last)
+
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        max_index, second_max_index = plot_delta_weights_summary(delta_weights, variable_list[1:],
+                                                                 model_name=filepath.split('.')[0], ax=ax)
+
+
+        x_data = np.concatenate([np.array(delta_weights[animal])[:, max_index] for animal in delta_weights])
+        y_data = np.concatenate([np.array(delta_weights[animal])[:, second_max_index] for animal in delta_weights])
+
+
+        fig, ax2 = plt.subplots(figsize=(7, 5))
+        ax2.scatter(x_data, y_data, color='blue', alpha=0.6)
+        ax2.set_xlabel(f"Δ {variable_list[1:][max_index]}")
+        ax2.set_ylabel(f"Δ {variable_list[1:][second_max_index]}")
+        ax2.axhline(0, color='gray', linestyle='--')
+        ax2.axvline(0, color='gray', linestyle='--')
+
+
+        m, b = np.polyfit(x_data, y_data, 1)
+        ax2.plot(x_data, m * x_data + b, color='red', linestyle='--')
+        ax2.set_title(f'2D Scatter Plot of Most Differing Variables - {filepath}')
+
+        plt.show()
+
 
 if __name__ == "__main__":
 
     datasets = ["SSTindivsomata_GLM.mat"]#, "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
+
+    filepath_list = ["SSTindivsomata_GLM.mat", "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
+    get_delta_weights_and_plot(filepath_list)
 
     for dataset_path in datasets:
         reorganized_data, variable_list = load_data(dataset_path)
