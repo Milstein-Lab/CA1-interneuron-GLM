@@ -170,6 +170,9 @@ def plot_example_neuron_variables(example_variables, variable_list, weights, ax)
 
 def plot_example_neuron(reorganized_data, GLM_params, variable_list, neuron='best', animal='best', model_name=None):
 
+    if animal == 'best':
+        R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
+
     # Pick neuron with the highest R2 value
     if neuron == 'best':
         R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
