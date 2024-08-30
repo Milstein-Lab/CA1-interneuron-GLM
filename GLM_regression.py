@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV
+import scipy.stats as stats
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -23,7 +24,7 @@ def load_data(filepath):
     data_dict = mat73.loadmat(filepath)
 
     # Define new position variables to use as input for the GLM
-    num_spatial_bins = 5
+    num_spatial_bins = 10
     position_matrix = np.zeros((50, num_spatial_bins))
     bin_size = 50//num_spatial_bins
     for i in range(num_spatial_bins):
@@ -76,8 +77,7 @@ def load_data(filepath):
             expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], combined_matrix.shape[2], axis=2) # Copy along the 'trials' dimension
             expanded_position_matrix = np.roll(expanded_position_matrix, 5, axis=0)
             combined_matrix = np.concatenate((combined_matrix, expanded_position_matrix), axis=1)
-            variable_list.extend(['#1', '#2', '#3', '#4', '#5']) if neuron_idx == 1 and animal_idx == 0 else None
-            
+            variable_list.extend([f'#{i}' for i in range(1, 11)]) if neuron_idx == 1 and animal_idx == 0 else None
             neuron_list.append(combined_matrix)
 
         reorganized_data[f'animal_{animal_idx + 1}'] = neuron_list
@@ -252,8 +252,8 @@ def plot_example_neuron(animal, reorganized_data, GLM_params, variable_list, neu
     ax = fig.add_subplot(axes[0])
     ax.plot(avg_predicted_activity, label='GLM prediction', c='gray', linestyle='--')
     ax.plot(avg_neuron_activity, label='Actual activity', c='k')
-    # ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity-std_predicted_activity, avg_predicted_activity+std_predicted_activity, alpha=0.1, color='gray')
-    # ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-std_neuron_activity, avg_neuron_activity+std_neuron_activity, alpha=0.1, color='k')
+    ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity-std_predicted_activity, avg_predicted_activity+std_predicted_activity, alpha=0.1, color='gray')
+    ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-std_neuron_activity, avg_neuron_activity+std_neuron_activity, alpha=0.1, color='k')
     ax.set_xlabel("Position")
     ax.set_xticks([0,50])
     ax.set_ylabel("dF/F activity (Z-scored)")
@@ -262,7 +262,7 @@ def plot_example_neuron(animal, reorganized_data, GLM_params, variable_list, neu
     # Plot summary data
     axes = gs.GridSpec(nrows=1, ncols=1, top=0.45, bottom=0.2, left=0.3, right=1)
     ax = fig.add_subplot(axes[0])
-    plot_GLM_summary_data(GLM_params, variable_list, model_name="tests", save=False, ax=ax)
+    plot_GLM_summary_data(GLM_params, variable_list, ax=ax)
 
     axes = gs.GridSpec(nrows=1, ncols=1, top=0.45, bottom=0.2, left=0., right=0.2)
     ax = fig.add_subplot(axes[0])
@@ -272,7 +272,7 @@ def plot_example_neuron(animal, reorganized_data, GLM_params, variable_list, neu
         fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{neuron}.png", bbox_inches='tight', dpi=300)
 
 
-def plot_GLM_summary_data(GLM_params, variable_list, model_name, save=False, ax=None):
+def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     if ax is None:
         fig, ax = plt.subplots(1,1)
 
@@ -308,32 +308,47 @@ def plot_GLM_summary_data(GLM_params, variable_list, model_name, save=False, ax=
     ax.set_xlim([-0.5,len(variable_list[1:])-0.5])
 
 
-def plot_R2_distribution(GLM_params, ax=None):
+def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
     if ax is None:
         fig, ax = plt.subplots(1,1)
     else:
         fig = ax.get_figure()
 
-    all_R2_values = []
-    animal_avg_R2_values = []
-    for animal in GLM_params:
-        animal_R2_values = []
-        for neuron in GLM_params[animal]:
-            all_R2_values.append(GLM_params[animal][neuron]['R2_trialavg'])
-            animal_R2_values.append(GLM_params[animal][neuron]['R2_trialavg'])
-        animal_avg_R2_values.append(np.mean(animal_R2_values))
-    all_R2_values = np.array(all_R2_values)
+    model_list = [GLM_params]
+    if GLM_params2 is not None:
+        model_list.append(GLM_params2)
 
-    jitter = 0.2
-    jittered_x = np.ones(all_R2_values.shape) + np.random.uniform(0.1, jitter, all_R2_values.shape)
-    ax.scatter(jittered_x, all_R2_values, color='grey', alpha=0.2, s=10)
-    ax.scatter(np.ones(len(animal_avg_R2_values)), animal_avg_R2_values, color='black', label='Average R2 value', s=20)
-    ax.errorbar(0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red', 
-                capsize=5, label='Average of all animals', markersize=7)
+    all_R2_values = {}
+    for i, model_params in enumerate(model_list, start=1):
+        all_R2_values[i] = []
+        animal_avg_R2_values = []
+        for animal in model_params:
+            animal_R2_values = []
+            for neuron in model_params[animal]:
+                all_R2_values[i].append(model_params[animal][neuron]['R2_trialavg'])
+                animal_R2_values.append(model_params[animal][neuron]['R2_trialavg'])
+            animal_avg_R2_values.append(np.mean(animal_R2_values))
+        all_R2_values[i] = np.array(all_R2_values[i])
+
+        jitter = 0.2
+        jittered_x = i*np.ones(all_R2_values[i].shape) + np.random.uniform(0.1, jitter, all_R2_values[i].shape)
+        ax.scatter(jittered_x, all_R2_values[i], color='grey', alpha=0.2, s=10)
+        ax.scatter(i*np.ones(len(animal_avg_R2_values)), animal_avg_R2_values, color='black', label='Average R2 value', s=20)
+        ax.errorbar(i*0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red', 
+                    capsize=5, label='Average of all animals', markersize=7)
+        
     ax.set_ylabel("R² value")
-    ax.set_xlim([0.8,2])
+    ax.set_xlim([0.8,2*i])
     ax.set_xticks([])
     ax.spines['bottom'].set_visible(False)
+
+    # Statistical test
+    if len(model_list) == 2:
+        t, p = stats.ttest_ind(all_R2_values[1], all_R2_values[2])
+        if p < 0.001:
+            ax.text(0.1, 0., f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
+        else:
+            ax.text(0.1, 0., f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
 
 
 
