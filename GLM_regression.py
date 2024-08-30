@@ -338,16 +338,20 @@ def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
     ax.set_ylabel("R² value")
     ax.set_xlim([0.8,2*i])
     ax.set_ylim([0,1])
-    ax.set_xticks([])
-    ax.spines['bottom'].set_visible(False)
+    if GLM_params2 is not None:
+        ax.set_xticks([0.8, i+0.2])
+        ax.set_xticklabels(['First quintile', 'Last quintile'])
+    else:
+        ax.set_xticks([])
+        ax.spines['bottom'].set_visible(False)
 
     # Statistical test
     if len(model_list) == 2:
         t, p = stats.ttest_ind(all_R2_values[1], all_R2_values[2])
         if p < 0.001:
-            ax.text(0.1, 0., f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
+            ax.text(0.1, 0.2, f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
         else:
-            ax.text(0.1, 0., f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
+            ax.text(0.1, 0.2, f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
 
 
 def calculate_delta_weights(reorganized_data, GLM_params_first, GLM_params_last):
@@ -371,6 +375,7 @@ def plot_delta_weights_summary(delta_weights, variable_list, model_name=None, sa
 
     animal_averages = []
     jitter = 0.25
+    variable_list = variable_list[1:]
 
     for animal_key in delta_weights:
         neuron_weights = []
@@ -382,23 +387,26 @@ def plot_delta_weights_summary(delta_weights, variable_list, model_name=None, sa
         neuron_weights = np.array(neuron_weights)
         mean_weights = np.mean(neuron_weights, axis=0)
         animal_averages.append(mean_weights)
-        ax.scatter(range(len(variable_list)), mean_weights, color='black', label=f'Animal {animal_key}', s=20)
+        ax.scatter(range(len(variable_list)), mean_weights, color='black', s=20)
 
     animal_averages = np.array(animal_averages)
     global_mean = np.mean(animal_averages, axis=0)
     global_std = np.std(animal_averages, axis=0)
     global_sem = global_std / np.sqrt(len(animal_averages))
     ax.errorbar(np.arange(len(variable_list)) - 0.15, global_mean, yerr=global_std, fmt='o', color='red', ecolor='red',
-                capsize=5, label='Average of all animals', markersize=7)
+                capsize=5, markersize=7)
 
     absolute_distances = np.abs(global_mean)
     max_index = np.argmax(absolute_distances)
     second_max_index = np.argsort(absolute_distances)[-2]
 
     ax.set_xticks(range(len(variable_list)), variable_list, rotation=45, ha='right')
-    ax.set_ylabel('Δ Weights (Last Quintile - First Quintile)')
+    ax.set_ylabel('Δ Weights\n(Last - First Quintile)')
     ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
     ax.set_xlim([-0.5, len(variable_list) - 0.5])
+
+    if model_name is not None:
+        ax.set_title(model_name)
 
     if model_name is not None and save:
         fig.savefig(f"{model_name}_delta_weights.png", dpi=300)
@@ -417,7 +425,7 @@ def get_delta_weights_and_plot(filepath_list):
 
 
         fig, ax = plt.subplots(figsize=(10, 5))
-        max_index, second_max_index = plot_delta_weights_summary(delta_weights, variable_list[1:],
+        max_index, second_max_index = plot_delta_weights_summary(delta_weights, variable_list,
                                                                  model_name=filepath.split('.')[0], ax=ax)
 
 
