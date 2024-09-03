@@ -5,6 +5,7 @@ import matplotlib.gridspec as gs
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV
 import scipy.stats as stats
 import pandas as pd
+import copy
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -172,16 +173,16 @@ def compute_residual_activity(GLM_params, reorganized_data):
     return residual_activity
 
 
-def remove_variables_from_glm(GLM_params, vars_to_remove):
-    GLM_params_deepcopy = deepcopy(GLM_params)
+def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
+    GLM_params = copy.deepcopy(GLM_params)
+
+    vars_to_remove = [variable_list[1:].index(var) for var in vars_to_remove]
 
     modified_GLM_params = {}
 
     for animal_key, neurons in GLM_params.items():
         modified_GLM_params[animal_key] = {}
         for neuron_idx, params in neurons.items():
-            print(f"Original weights for neuron {neuron_idx} in animal {animal_key}: {params['weights']}")
-
             new_params = params.copy()
 
             for var in vars_to_remove:
@@ -190,8 +191,6 @@ def remove_variables_from_glm(GLM_params, vars_to_remove):
             new_params['model'].coef_[vars_to_remove] = 0
 
             modified_GLM_params[animal_key][neuron_idx] = new_params
-
-            print(f"Modified weights for neuron {neuron_idx} in animal {animal_key}: {new_params['weights']}")
 
     return modified_GLM_params
 
