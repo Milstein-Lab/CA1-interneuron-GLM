@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV
 import scipy.stats as stats
+import pandas as pd
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -84,6 +85,23 @@ def load_data(filepath):
     return reorganized_data, variable_list
 
 
+def normalize_data(neuron_data):
+    for var_idx in range(neuron_data.shape[1]):
+        if var_idx == 0: # Z-score the neuron activity (df/f)
+            neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.mean(neuron_data[:,var_idx])) / np.std(neuron_data[:,var_idx])
+        else: # Normalize the other variables to [0,1]
+            neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.min(neuron_data[:,var_idx])) / (np.max(neuron_data[:,var_idx]) - np.min(neuron_data[:,var_idx]))
+    return neuron_data
+
+
+def flatten_data(neuron_data):
+    flattened_data = []
+    for var_idx in range(neuron_data.shape[1]):
+        flattened_data.append(neuron_data[:,var_idx].flatten())
+    flattened_data = np.stack(flattened_data, axis=1)
+    return flattened_data
+
+
 def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
     GLM_params = {}
     for animal in reorganized_data:
@@ -97,14 +115,8 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
                 neuron_data = neuron_data[:, :, start_idx:end_idx]
 
             neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
-            flattened_data = []
-            for var_idx in range(neuron_data.shape[1]):
-                if var_idx == 0: # Z-score the neuron activity (df/f)
-                    neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.mean(neuron_data[:,var_idx])) / np.std(neuron_data[:,var_idx])
-                else: # Normalize the other variables to [0,1]
-                    neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.min(neuron_data[:,var_idx])) / (np.max(neuron_data[:,var_idx]) - np.min(neuron_data[:,var_idx]))
-                flattened_data.append(neuron_data[:,var_idx].flatten())
-            flattened_data = np.stack(flattened_data, axis=1)
+            neuron_data = normalize_data(neuron_data)
+            flattened_data = flatten_data(neuron_data)
             design_matrix_X = flattened_data[:,1:]
             neuron_activity = flattened_data[:,0]
 
@@ -136,6 +148,28 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
             }
 
     return GLM_params
+
+
+def compute_residual_activity(GLM_params, reorganized_data):
+    residual_activity = {}
+    for animal in GLM_params:
+        residual_activity[animal] = {}
+        for neuron in GLM_params[animal]:
+            # Pre-process the data
+            neuron_data = reorganized_data[animal][neuron]
+            neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
+            neuron_data = normalize_data(neuron_data)
+            flattened_data = flatten_data(neuron_data)
+            neuron_activity = neuron_data[:,0,:]
+
+            # Predict activity and compute residuals
+            glm_model = GLM_params[animal][neuron]['model']
+            flattened_input_variables = flattened_data[:,1:]
+            predicted_activity = glm_model.predict(flattened_input_variables)
+            predicted_activity = predicted_activity.reshape(neuron_activity.shape)
+            residual_activity[animal][neuron] = neuron_activity - predicted_activity
+
+    return residual_activity
 
 
 def remove_variables_from_glm(GLM_params, vars_to_remove):
@@ -189,52 +223,57 @@ def plot_example_neuron_variables(example_variables, variable_list, ax, weights=
     ax.patch.set_alpha(0)
 
 
-def plot_example_neuron(reorganized_data, GLM_params, variable_list, neuron='best', animal='best', model_name=None):
-    if animal == 'best':
-        best_R2 = -np.inf
-        best_neuron = None
-        best_animal = None
-        for animal_key in GLM_params:
-            R2_values = [GLM_params[animal_key][i]['R2'] for i in GLM_params[animal_key]]
-            max_R2 = max(R2_values)
-            if max_R2 > best_R2:
-                best_R2 = max_R2
-                best_neuron = np.argmax(R2_values)
-                best_animal = animal_key
-        animal = best_animal
-        neuron = best_neuron
-        print(f"Best neuron across all animals: {neuron}")
-        print(f"Animal with best neuron: {animal}")
-        print(f"R2: {best_R2}")
+def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, neuron=None):
 
-    elif neuron == 'best':
-        R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
-        neuron = np.argmax(R2_values)
-        print(f"Best neuron within {animal}: {neuron}")
-        print(f"R2: {GLM_params[animal][neuron]['R2']}")
+    variable_list = variable_list[1:]
 
-    else:
-        print(f"Selected neuron: {neuron}")
-        print(f"Animal: {animal}")
-        print(f"R2: {GLM_params[animal][neuron]['R2']}")
-
-    weights = GLM_params[animal][neuron]['weights']
-
-    neuron_data = reorganized_data[animal][neuron][:, :, 1:]
-    neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
-
+    # Flatten the dictionary and convert to a DataFrame
     flattened_data = []
-    for i in range(neuron_data.shape[1]):
-        if i == 0:  # Z-score the neuron activity (df/f)
-            neuron_data[:, i] = (neuron_data[:, i] - np.mean(neuron_data[:, i])) / np.std(neuron_data[:, i])
-        else:  # Normalize the other variables to [0,1]
-            neuron_data[:, i] = (neuron_data[:, i] - np.min(neuron_data[:, i])) / (
-                        np.max(neuron_data[:, i]) - np.min(neuron_data[:, i]))
-        flattened_data.append(neuron_data[:, i].flatten())
-    flattened_data = np.stack(flattened_data, axis=1)
 
-    input_variables = neuron_data[:, 1:, :]
-    neuron_activity = neuron_data[:, 0, :]
+    for animal_id, results in GLM_params.items():
+        for neuron_id, metrics in results.items():
+            row = {'animal': animal_id, 'neuron': neuron_id}
+            row.update(metrics)
+            flattened_data.append(row)
+
+    df = pd.DataFrame(flattened_data)
+
+    if sort_by in variable_list: # Sort by R2 and weight magnitude
+        var_idx = variable_list.index(sort_by)
+        df[f'{sort_by}_weight_magnitude'] = df['weights'].apply(lambda w: np.abs(w[var_idx])) # Add a column for the magnitude of the specified weight
+        df_sorted = df.sort_values(by=[f'{sort_by}_weight_magnitude', 'R2'], ascending=[False, False])
+        top_neuron = df_sorted.iloc[0]
+        top_neuron_weight = top_neuron['weights'][var_idx]
+        print(f"Top neuron for {sort_by}, with weight: {top_neuron_weight}")
+    else:
+        if sort_by != 'R2':
+            raise ValueError(f"Invalid sort_by value: {sort_by}. Must be one of {variable_list} or 'R2'")
+        df_sorted = df.sort_values(by=sort_by, ascending=False)
+
+    if animal is not None:
+        df_sorted = df_sorted[df_sorted['animal'] == animal]
+
+    if neuron is not None:
+        df_sorted = df_sorted[df_sorted['neuron'] == neuron]
+
+    top_neuron = df_sorted.iloc[0]
+    animal, neuron = top_neuron['animal'], top_neuron['neuron']
+
+    return animal, neuron
+
+
+def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None, neuron=None, model_name=None, sort_by='R2'):
+
+    animal, neuron = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, neuron=neuron)
+    print(f"Best neuron: {neuron}, {animal}")
+
+    neuron_data = reorganized_data[animal][neuron]
+    neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0, 1))]
+    neuron_data = normalize_data(neuron_data)
+    flattened_data = flatten_data(neuron_data)
+
+    input_variables = neuron_data[:,1:,:]
+    neuron_activity = neuron_data[:,0,:]
 
     fig = plt.figure(figsize=(10, 8))
 
@@ -242,36 +281,43 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, neuron='bes
     ax = fig.add_subplot(axes[0])
     ax.axis('off')
     avg_variables = np.mean(input_variables, axis=2)
-    plot_example_neuron_variables(avg_variables, variable_list, ax=ax, weights=weights)
+    plot_example_neuron_variables(avg_variables, variable_list, ax=ax)
 
+
+    # Plot weights as lines across the figure
     axes = gs.GridSpec(nrows=1, ncols=1, left=0.3, right=0.54, bottom=0.5)
     ax = fig.add_subplot(axes[0])
     ax.axis('off')
     y1 = np.linspace(-0.54, -1.86, 3).tolist()
     y2 = np.linspace(-2.28, -6, 10).tolist()
     y = y1 + y2
+    weights = GLM_params[animal][neuron]['weights']
     w_max = np.max(np.abs(weights))
-    for i, w in enumerate(weights):
-        if abs(w) < 0.05:
-            line, = ax.plot([0, 1], [y[i], -3.4], color='lightgray', linestyle='--', linewidth=1)
+    for i,w in enumerate(weights):
+        if abs(w)<0.05:
+            line, = ax.plot([0,1], [y[i],-3.4], color='lightgray', linestyle='--', linewidth=1)
         elif w < 0:
-            line, = ax.plot([0, 1], [y[i], -3.4], color='deepskyblue', linewidth=abs(w / w_max) * 4)
+            line, = ax.plot([0,1], [y[i],-3.4], color='deepskyblue', linewidth=abs(w/w_max)*4)
         else:
-            line, = ax.plot([0, 1], [y[i], -3.4], color='black', linewidth=abs(w / w_max) * 4)
+            line, = ax.plot([0,1], [y[i],-3.4], color='black', linewidth=abs(w/w_max)*4)
         line.set_solid_capstyle('round')
-    ax.set_ylim([-6, 0])
-    ax.plot([0, 0], [0, 0], color='lightgray', linewidth=1.1, linestyle='--', label='Small weights')
-    ax.plot([0, 0], [0, 0], color='deepskyblue', linewidth=1.1, label='Negative weights')
-    ax.plot([0, 0], [0, 0], color='black', linewidth=1.1, label='Positive weights')
-    ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2,
-              borderpad=0)
+    ax.set_ylim([-6,0])
+    ax.plot([0,0], [0,0], color='lightgray', linewidth=1.5, linestyle='--', label='Small weights')
+    ax.plot([0,0], [0,0], color='deepskyblue', linewidth=1.5, label='Negative weights')
+    ax.plot([0,0], [0,0], color='black', linewidth=1.5, label='Positive weights')
+    ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
+    max_weight = np.max(weights)
+    min_weight = np.min(weights)
+    ax.text(1, -5.6, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
+    ax.text(1, -6, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
 
+    # Plot prediction vs actual neuron activity
     glm_model = GLM_params[animal][neuron]['model']
-    flattened_input_variables = flattened_data[:, 1:]
+    flattened_input_variables = flattened_data[:,1:]
     predicted_activity = glm_model.predict(flattened_input_variables)
 
-    pearson_R = np.corrcoef(predicted_activity, flattened_data[:, 0])[0, 1]
-    print("pearson R2 overall:", pearson_R ** 2)
+    pearson_R = np.corrcoef(predicted_activity, flattened_data[:,0])[0,1]
+    print("pearson R2 overall:", pearson_R**2)
 
     predicted_activity = predicted_activity.reshape(neuron_activity.shape)
     avg_predicted_activity = np.mean(predicted_activity, axis=1)
@@ -281,22 +327,21 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, neuron='bes
     std_neuron_activity = np.std(neuron_activity, axis=1)
     sem_neuron_activity = std_neuron_activity / np.sqrt(neuron_activity.shape[1])
 
-    pearson_R = np.corrcoef(avg_predicted_activity, avg_neuron_activity)[0, 1]
-    print("pearson R2 average:", pearson_R ** 2)
+    pearson_R = np.corrcoef(avg_predicted_activity, avg_neuron_activity)[0,1]
+    print("pearson R2 average:", pearson_R**2)
 
     axes = gs.GridSpec(nrows=1, ncols=1, left=0.61, right=1, top=0.8, bottom=0.55)
     ax = fig.add_subplot(axes[0])
     ax.plot(avg_predicted_activity, label='GLM prediction', c='gray', linestyle='--')
     ax.plot(avg_neuron_activity, label='Actual activity', c='k')
-    ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity - sem_neuron_activity,
-                    avg_neuron_activity + sem_neuron_activity, alpha=0.1, color='k')
-    ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity - sem_predicted_activity,
-                    avg_predicted_activity + sem_predicted_activity, alpha=0.1, color='gray')
+    ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-sem_neuron_activity, avg_neuron_activity+sem_neuron_activity, alpha=0.1, color='k')
+    ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity-sem_predicted_activity, avg_predicted_activity+sem_predicted_activity, alpha=0.1, color='gray')
     ax.set_xlabel("Position")
-    ax.set_xticks([0, 50])
+    ax.set_xticks([0,50])
     ax.set_ylabel("dF/F activity (Z-scored)")
     ax.legend(loc='upper right', bbox_to_anchor=(1, 1.2))
 
+    # Plot summary data
     axes = gs.GridSpec(nrows=1, ncols=1, top=0.45, bottom=0.2, left=0.3, right=1)
     ax = fig.add_subplot(axes[0])
     plot_GLM_summary_data(GLM_params, variable_list, ax=ax)
@@ -307,6 +352,7 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, neuron='bes
 
     if model_name is not None:
         fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{neuron}.png", bbox_inches='tight', dpi=300)
+
 
 def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     if ax is None:
@@ -376,16 +422,20 @@ def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
     ax.set_ylabel("R² value")
     ax.set_xlim([0.8,2*i])
     ax.set_ylim([0,1])
-    ax.set_xticks([])
-    ax.spines['bottom'].set_visible(False)
+    if GLM_params2 is not None:
+        ax.set_xticks([0.8, i+0.2])
+        ax.set_xticklabels(['First quintile', 'Last quintile'])
+    else:
+        ax.set_xticks([])
+        ax.spines['bottom'].set_visible(False)
 
     # Statistical test
     if len(model_list) == 2:
         t, p = stats.ttest_ind(all_R2_values[1], all_R2_values[2])
         if p < 0.001:
-            ax.text(0.1, 0., f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
+            ax.text(0.1, 0.2, f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
         else:
-            ax.text(0.1, 0., f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
+            ax.text(0.1, 0.2, f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
 
 
 def calculate_delta_weights(reorganized_data, GLM_params_first, GLM_params_last):
@@ -409,6 +459,7 @@ def plot_delta_weights_summary(delta_weights, variable_list, model_name=None, sa
 
     animal_averages = []
     jitter = 0.25
+    variable_list = variable_list[1:]
 
     for animal_key in delta_weights:
         neuron_weights = []
@@ -420,23 +471,26 @@ def plot_delta_weights_summary(delta_weights, variable_list, model_name=None, sa
         neuron_weights = np.array(neuron_weights)
         mean_weights = np.mean(neuron_weights, axis=0)
         animal_averages.append(mean_weights)
-        ax.scatter(range(len(variable_list)), mean_weights, color='black', label=f'Animal {animal_key}', s=20)
+        ax.scatter(range(len(variable_list)), mean_weights, color='black', s=20)
 
     animal_averages = np.array(animal_averages)
     global_mean = np.mean(animal_averages, axis=0)
     global_std = np.std(animal_averages, axis=0)
     global_sem = global_std / np.sqrt(len(animal_averages))
     ax.errorbar(np.arange(len(variable_list)) - 0.15, global_mean, yerr=global_std, fmt='o', color='red', ecolor='red',
-                capsize=5, label='Average of all animals', markersize=7)
+                capsize=5, markersize=7)
 
     absolute_distances = np.abs(global_mean)
     max_index = np.argmax(absolute_distances)
     second_max_index = np.argsort(absolute_distances)[-2]
 
     ax.set_xticks(range(len(variable_list)), variable_list, rotation=45, ha='right')
-    ax.set_ylabel('Δ Weights (Last Quintile - First Quintile)')
+    ax.set_ylabel('Δ Weights\n(Last - First Quintile)')
     ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
     ax.set_xlim([-0.5, len(variable_list) - 0.5])
+
+    if model_name is not None:
+        ax.set_title(model_name)
 
     if model_name is not None and save:
         fig.savefig(f"{model_name}_delta_weights.png", dpi=300)
@@ -455,7 +509,7 @@ def get_delta_weights_and_plot(filepath_list):
 
 
         fig, ax = plt.subplots(figsize=(10, 5))
-        max_index, second_max_index = plot_delta_weights_summary(delta_weights, variable_list[1:],
+        max_index, second_max_index = plot_delta_weights_summary(delta_weights, variable_list,
                                                                  model_name=filepath.split('.')[0], ax=ax)
 
 
