@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV
 import scipy.stats as stats
+import pandas as pd
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -165,35 +166,49 @@ def plot_example_neuron_variables(example_variables, variable_list, ax, weights=
     ax.patch.set_alpha(0)
 
 
-def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal='best', neuron='best', model_name=None):
+def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, neuron=None):
 
-    if animal == 'best':
-        best_R2 = -np.inf
-        best_neuron = None
-        best_animal = None
-        for animal_key in GLM_params:
-            R2_values = [GLM_params[animal_key][i]['R2'] for i in GLM_params[animal_key]]
-            max_R2 = max(R2_values)
-            if max_R2 > best_R2:
-                best_R2 = max_R2
-                best_neuron = np.argmax(R2_values)
-                best_animal = animal_key
-        animal = best_animal
-        neuron = best_neuron
-        print(f"Best neuron across all animals: {neuron}")
-        print(f"Animal with best neuron: {animal}")
-        print(f"R2: {best_R2}")
+    variable_list = variable_list[1:]
+    
+    # Flatten the dictionary and convert to a DataFrame
+    flattened_data = []
 
-    elif neuron == 'best':
-        R2_values = [GLM_params[animal][i]['R2'] for i in GLM_params[animal]]
-        neuron = np.argmax(R2_values)
-        print(f"Best neuron within {animal}: {neuron}")
-        print(f"R2: {GLM_params[animal][neuron]['R2']}")
+    for animal_id, results in GLM_params.items():
+        for neuron_id, metrics in results.items():
+            row = {'animal': animal_id, 'neuron': neuron_id}
+            row.update(metrics)
+            flattened_data.append(row)
 
+    df = pd.DataFrame(flattened_data)
+
+    if sort_by in variable_list: # Sort by R2 and weight magnitude
+        var_idx = variable_list.index(sort_by)
+        df[f'{sort_by}_weight_magnitude'] = df['weights'].apply(lambda w: np.abs(w[var_idx])) # Add a column for the magnitude of the specified weight
+        df_sorted = df.sort_values(by=[f'{sort_by}_weight_magnitude', 'R2'], ascending=[False, False])
+        top_neuron = df_sorted.iloc[0]
+        top_neuron_weight = top_neuron['weights'][var_idx]
+        print(f"Top neuron for {sort_by}, with weight: {top_neuron_weight}")
     else:
-        print(f"Selected neuron: {neuron}")
-        print(f"Animal: {animal}")
-        print(f"R2: {GLM_params[animal][neuron]['R2']}")
+        if sort_by != 'R2':
+            raise ValueError(f"Invalid sort_by value: {sort_by}. Must be one of {variable_list} or 'R2'")
+        df_sorted = df.sort_values(by=sort_by, ascending=False)
+
+    if animal is not None:
+        df_sorted = df_sorted[df_sorted['animal'] == animal]
+
+    if neuron is not None:
+        df_sorted = df_sorted[df_sorted['neuron'] == neuron]
+
+    top_neuron = df_sorted.iloc[0]
+    animal, neuron = top_neuron['animal'], top_neuron['neuron']
+
+    return animal, neuron
+
+
+def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None, neuron=None, model_name=None, sort_by='R2'):
+
+    animal, neuron = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, neuron=neuron)
+    print(f"Best neuron: {neuron}, {animal}")
 
     neuron_data = reorganized_data[animal][neuron][:, :, 1:]
     neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
@@ -242,6 +257,10 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal='bes
     ax.plot([0,0], [0,0], color='deepskyblue', linewidth=1.5, label='Negative weights')
     ax.plot([0,0], [0,0], color='black', linewidth=1.5, label='Positive weights')
     ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
+    max_weight = np.max(weights)
+    min_weight = np.min(weights)
+    ax.text(1, -5.5, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
+    ax.text(1, -6, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
 
     # Plot prediction vs actual neuron activity
     glm_model = GLM_params[animal][neuron]['model']
