@@ -85,6 +85,23 @@ def load_data(filepath):
     return reorganized_data, variable_list
 
 
+def normalize_data(neuron_data):
+    for var_idx in range(neuron_data.shape[1]):
+        if var_idx == 0: # Z-score the neuron activity (df/f)
+            neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.mean(neuron_data[:,var_idx])) / np.std(neuron_data[:,var_idx])
+        else: # Normalize the other variables to [0,1]
+            neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.min(neuron_data[:,var_idx])) / (np.max(neuron_data[:,var_idx]) - np.min(neuron_data[:,var_idx]))
+    return neuron_data
+
+
+def flatten_data(neuron_data):
+    flattened_data = []
+    for var_idx in range(neuron_data.shape[1]):
+        flattened_data.append(neuron_data[:,var_idx].flatten())
+    flattened_data = np.stack(flattened_data, axis=1)
+    return flattened_data
+
+
 def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
     GLM_params = {}
     for animal in reorganized_data:
@@ -98,14 +115,8 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
                 neuron_data = neuron_data[:, :, start_idx:end_idx]
 
             neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
-            flattened_data = []
-            for var_idx in range(neuron_data.shape[1]):
-                if var_idx == 0: # Z-score the neuron activity (df/f)
-                    neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.mean(neuron_data[:,var_idx])) / np.std(neuron_data[:,var_idx])
-                else: # Normalize the other variables to [0,1]
-                    neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.min(neuron_data[:,var_idx])) / (np.max(neuron_data[:,var_idx]) - np.min(neuron_data[:,var_idx]))
-                flattened_data.append(neuron_data[:,var_idx].flatten())
-            flattened_data = np.stack(flattened_data, axis=1)
+            neuron_data = normalize_data(neuron_data)
+            flattened_data = flatten_data(neuron_data)
             design_matrix_X = flattened_data[:,1:]
             neuron_activity = flattened_data[:,0]
 
@@ -137,6 +148,28 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
             }
 
     return GLM_params
+
+
+def compute_residual_activity(GLM_params, reorganized_data):
+    residual_activity = {}
+    for animal in GLM_params:
+        residual_activity[animal] = {}
+        for neuron in GLM_params[animal]:
+            # Pre-process the data
+            neuron_data = reorganized_data[animal][neuron]
+            neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
+            neuron_data = normalize_data(neuron_data)
+            flattened_data = flatten_data(neuron_data)
+            neuron_activity = neuron_data[:,0,:]
+
+            # Predict activity and compute residuals
+            glm_model = GLM_params[animal][neuron]['model']
+            flattened_input_variables = flattened_data[:,1:]
+            predicted_activity = glm_model.predict(flattened_input_variables)
+            predicted_activity = predicted_activity.reshape(neuron_activity.shape)
+            residual_activity[animal][neuron] = neuron_activity - predicted_activity
+
+    return residual_activity
 
 
 def plot_example_neuron_variables(example_variables, variable_list, ax, weights=None):
@@ -210,21 +243,13 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None
     animal, neuron = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, neuron=neuron)
     print(f"Best neuron: {neuron}, {animal}")
 
-    neuron_data = reorganized_data[animal][neuron][:, :, 1:]
-    neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
+    neuron_data = reorganized_data[animal][neuron]
+    neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0, 1))]
+    neuron_data = normalize_data(neuron_data)
+    flattened_data = flatten_data(neuron_data)
 
-    flattened_data = []
-    for i in range(neuron_data.shape[1]):
-        if i == 0:  # Z-score the neuron activity (df/f)
-            neuron_data[:, i] = (neuron_data[:, i] - np.mean(neuron_data[:, i])) / np.std(neuron_data[:, i])
-        else:  # Normalize the other variables to [0,1]
-            neuron_data[:, i] = (neuron_data[:, i] - np.min(neuron_data[:, i])) / (
-                        np.max(neuron_data[:, i]) - np.min(neuron_data[:, i]))
-        flattened_data.append(neuron_data[:, i].flatten())
-    flattened_data = np.stack(flattened_data, axis=1)
-
-    input_variables = neuron_data[:, 1:, :]
-    neuron_activity = neuron_data[:, 0, :]
+    input_variables = neuron_data[:,1:,:]
+    neuron_activity = neuron_data[:,0,:]
 
     fig = plt.figure(figsize=(10, 8))
 
@@ -259,7 +284,7 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None
     ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
     max_weight = np.max(weights)
     min_weight = np.min(weights)
-    ax.text(1, -5.5, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
+    ax.text(1, -5.6, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
     ax.text(1, -6, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
 
     # Plot prediction vs actual neuron activity
