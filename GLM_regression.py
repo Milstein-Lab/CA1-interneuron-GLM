@@ -125,6 +125,111 @@ def get_quintile_indices(num_trials, quintile=None):
     return start_idx,end_idx
 
 
+# Load the datasets
+filepaths = {
+    'NDNF': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\NDNFindivsomata_GLM.mat",
+    'EC': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_GLM.mat",
+    'SST': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\SSTindivsomata_GLM.mat"
+}
+
+
+def compare_temporal_correlation(reorganized_data):
+    r_all_neurons = []
+    r_per_animal = []
+    r_dict = {}
+
+    def compute_r_consecutive_pairs(neuron_activity):
+        r_values = []
+        for col in range(neuron_activity.shape[1] - 1):
+            X = neuron_activity[:, col]
+            Y = neuron_activity[:, col + 1]
+            if np.std(X) > 0 and np.std(Y) > 0:
+                r = np.corrcoef(X, Y)[0, 1]
+            else:
+                r = np.nan  # Handle cases with no variability
+            r_values.append(r)
+        return r_values
+
+    for animal_key in reorganized_data.keys():
+        animal_data = reorganized_data[animal_key]
+        num_neurons = len(animal_data)
+        r_animal_neurons = []
+        r_dict[animal_key] = {}
+
+        for neuron_idx in range(num_neurons):
+            neuron_data = animal_data[neuron_idx]
+            neuron_activity = neuron_data[:, 0, :]
+
+            # Remove trials with NaNs
+            valid_trials_mask = ~np.isnan(neuron_activity).any(axis=0)
+            neuron_activity = neuron_activity[:, valid_trials_mask]
+
+            # Remove bins with NaNs
+            valid_bins_mask = ~np.isnan(neuron_activity).any(axis=1)
+            neuron_activity = neuron_activity[valid_bins_mask, :]
+
+            if neuron_activity.shape[1] > 1:
+                r_values = compute_r_consecutive_pairs(neuron_activity)
+                mean_r_value = np.nanmean(r_values)
+                r_animal_neurons.append(mean_r_value)
+                r_all_neurons.append(mean_r_value)
+                r_dict[animal_key][f'neuron_{neuron_idx + 1}'] = mean_r_value
+
+        r_per_animal.append(np.nanmean(r_animal_neurons))
+
+    return r_all_neurons, r_per_animal, r_dict
+
+
+def plot_temporal_correlation(output_to_plot='r', data_to_plot='all'):
+    overall_r_per_dataset = {}
+    per_animal_r_per_dataset = {}
+
+    for label, filepath in filepaths.items():
+        if data_to_plot == 'all' or data_to_plot.lower() == label.lower():
+            reorganized_data, _ = preprocess_data(filepath)
+            r_all_neurons, r_per_animal, _ = compare_temporal_correlation(reorganized_data)
+
+            if output_to_plot.lower() == 'r2':
+                r_all_neurons = np.array(r_all_neurons) ** 2
+                r_per_animal = np.array(r_per_animal) ** 2
+
+            overall_r_per_dataset[label] = r_all_neurons
+            per_animal_r_per_dataset[label] = r_per_animal
+
+    plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot)
+
+
+def plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot):
+    dataset_labels = list(overall_r_per_dataset.keys())
+    plt.figure(figsize=(10, 5))
+    x_positions = np.arange(len(dataset_labels))
+    jitter_strength = 0.05
+
+    for i, label in enumerate(dataset_labels):
+        all_neurons_r = overall_r_per_dataset[label]
+        per_animal_r = per_animal_r_per_dataset[label]
+
+        jitter_neuron = np.random.normal(0, jitter_strength, size=len(all_neurons_r))
+        jitter_animal = np.random.normal(0, jitter_strength, size=len(per_animal_r))
+
+        plt.scatter(np.full(len(all_neurons_r), i) + jitter_neuron, all_neurons_r, color='grey', alpha=0.5,
+                    label='Neurons' if i == 0 else "")
+
+        plt.scatter(np.full(len(per_animal_r), i) + jitter_animal, per_animal_r, color='k',
+                    label='Per Animal' if i == 0 else "")
+
+        mean_r = np.mean(all_neurons_r)
+        error = sem(all_neurons_r)
+        plt.errorbar(i, mean_r, yerr=error, fmt='o', color='r', label='Overall' if i == 0 else "")
+
+    plt.xticks(x_positions, dataset_labels)
+    plt.ylabel(f'{output_to_plot.upper()} value')
+    plt.title(f'Average {output_to_plot.upper()} for NDNF, EC, and SST Neurons with SEM')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
 def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=True, alphas=None):
     GLM_params = {}
     for animal in reorganized_data:
@@ -599,6 +704,13 @@ if __name__ == "__main__":
     datasets = ["SSTindivsomata_GLM.mat"]#, "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
 
     filepath_list = ["SSTindivsomata_GLM.mat", "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
+
+    filepaths = {
+        'NDNF': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\NDNFindivsomata_GLM.mat",
+        'EC': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_GLM.mat",
+        'SST': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\SSTindivsomata_GLM.mat"
+    }
+
     get_delta_weights_and_plot(filepath_list)
 
     # variable_list: ['Activity', 'Licks', 'R_loc', 'Speed', '#1', '#2', '#3', '#4', '#5', '#6', '#7', '#8', '#9', '#10']
