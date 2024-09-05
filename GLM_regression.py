@@ -22,7 +22,7 @@ plt.rcParams.update({'font.size': 10,
 
 
 
-def load_data(filepath):
+def preprocess_data(filepath, normalize=True):
     data_dict = mat73.loadmat(filepath)
 
     # Define new position variables to use as input for the GLM
@@ -43,9 +43,14 @@ def load_data(filepath):
     
         for neuron_idx in range(1, num_neurons):
             neuron_data = []
+            delta_f = data_dict['animal']['ShiftR'][animal_idx][:, :, neuron_idx]
+            velocity = data_dict['animal']['ShiftRunning'][animal_idx]
+            bin_size_cm = 180/50
 
             # Neuron activity
-            neuron_data.append(data_dict['animal']['ShiftR'][animal_idx][:, :, neuron_idx]) 
+            # neuron_data.append(delta_f/velocity * bin_size_cm) 
+            neuron_data.append(delta_f) 
+
             variable_list.append('Activity') if neuron_idx == 1 and animal_idx == 0 else None
             
             # Lick rate
@@ -57,8 +62,12 @@ def load_data(filepath):
             variable_list.append('R_loc') if neuron_idx == 1 and animal_idx == 0 else None
 
             # Running speed
-            neuron_data.append(data_dict['animal']['ShiftRunning'][animal_idx])
+            neuron_data.append(velocity)
             variable_list.append('Speed') if neuron_idx == 1 and animal_idx == 0 else None
+
+            # # Running 1/speed
+            # neuron_data.append(1/velocity)
+            # variable_list.append('1/Speed') if neuron_idx == 1 and animal_idx == 0 else None
 
             ####################################################
             # TODO: EC_GLM.mat has a data mismatch (missing trial in neuron activity). Check with Christine
@@ -79,6 +88,12 @@ def load_data(filepath):
             expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], combined_matrix.shape[2], axis=2) # Copy along the 'trials' dimension
             combined_matrix = np.concatenate((combined_matrix, expanded_position_matrix), axis=1)
             variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if neuron_idx == 1 and animal_idx == 0 else None
+            
+            # Filter out NaN trials
+            neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
+
+            if normalize:
+                combined_matrix = normalize_data(combined_matrix)
             neuron_list.append(combined_matrix)
 
         reorganized_data[f'animal_{animal_idx + 1}'] = neuron_list
@@ -103,20 +118,28 @@ def flatten_data(neuron_data):
     return flattened_data
 
 
-def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
+def get_quintile_indices(num_trials, quintile=None):
+    quintile_indices = [(i * num_trials) // 5 for i in range(6)]
+    start_idx = quintile_indices[quintile - 1]
+    end_idx = quintile_indices[quintile]
+    return start_idx,end_idx
+
+
+def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=True, alphas=None):
     GLM_params = {}
     for animal in reorganized_data:
         GLM_params[animal] = {}
         for i, neuron_data in enumerate(reorganized_data[animal]):
-            num_trials = neuron_data.shape[2]
-            quintile_indices = [(i * num_trials) // 5 for i in range(6)]
+            neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
+
             if quintile is not None:
-                start_idx = quintile_indices[quintile - 1]
-                end_idx = quintile_indices[quintile]
+                num_trials = neuron_data.shape[2]
+                start_idx,end_idx = get_quintile_indices(num_trials, quintile)
                 neuron_data = neuron_data[:, :, start_idx:end_idx]
 
-            neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
-            neuron_data = normalize_data(neuron_data)
+            if renormalize:
+                neuron_data = normalize_data(neuron_data)
+
             flattened_data = flatten_data(neuron_data)
             design_matrix_X = flattened_data[:,1:]
             neuron_activity = flattened_data[:,0]
@@ -151,14 +174,20 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', alphas=None):
     return GLM_params
 
 
-def compute_residual_activity(GLM_params, reorganized_data):
+def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
     residual_activity = {}
+    avg_residuals = []
     for animal in GLM_params:
         residual_activity[animal] = {}
         for neuron in GLM_params[animal]:
             # Pre-process the data
             neuron_data = reorganized_data[animal][neuron]
             neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
+            if quintile is not None:
+                num_trials = neuron_data.shape[2]
+                start_idx,end_idx = get_quintile_indices(num_trials, quintile)
+                neuron_data = neuron_data[:, :, start_idx:end_idx]
+
             neuron_data = normalize_data(neuron_data)
             flattened_data = flatten_data(neuron_data)
             neuron_activity = neuron_data[:,0,:]
@@ -170,7 +199,11 @@ def compute_residual_activity(GLM_params, reorganized_data):
             predicted_activity = predicted_activity.reshape(neuron_activity.shape)
             residual_activity[animal][neuron] = neuron_activity - predicted_activity
 
-    return residual_activity
+            avg_residuals.append(np.mean(residual_activity[animal][neuron], axis=1))
+
+    avg_residuals = np.array(avg_residuals)
+
+    return residual_activity, avg_residuals
 
 
 def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
@@ -193,33 +226,6 @@ def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
             modified_GLM_params[animal_key][neuron_idx] = new_params
 
     return modified_GLM_params
-
-
-def plot_example_neuron_variables(example_variables, variable_list, ax, weights=None):
-    variable_list = variable_list[1:]
-
-    fig = ax.get_figure()
-    height_ratios = np.ones(example_variables.shape[1])
-    height_ratios[-10:] = 0.5
-    axes = gs.GridSpecFromSubplotSpec(nrows=example_variables.shape[1], ncols=1, subplot_spec=ax, hspace=0.5, height_ratios=height_ratios)
-    for i in range(example_variables.shape[1]):
-        ax = fig.add_subplot(axes[i])
-        ax.plot(example_variables[:, i], color='k')
-        ax.set_ylabel(variable_list[i], rotation=0, ha='right', va='center', labelpad=0)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        if weights is not None:
-            ax.scatter([50],[0.3], c='k', s=abs(weights[i])*20)
-    ax.set_xlabel('Position', labelpad=-10)
-    ax.set_xticks([0,50])
-
-    # Draw vertical line across all plots (remove axes and make the background transparent)
-    ax = fig.add_subplot(axes[:])
-    ax.vlines(24.5, 0, 1, linestyles='--', color='r')
-    ax.set_xlim([0, 49])
-    ax.set_ylim([0, 1])
-    ax.axis('off')
-    ax.patch.set_alpha(0)
 
 
 def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, neuron=None):
@@ -261,8 +267,7 @@ def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, neuron=N
     return animal, neuron
 
 
-def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None, neuron=None, model_name=None, sort_by='R2'):
-
+def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2', animal=None, neuron=None, ax=None):
     animal, neuron = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, neuron=neuron)
     print(f"Best neuron: {neuron}, {animal}")
 
@@ -274,43 +279,75 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None
     input_variables = neuron_data[:,1:,:]
     neuron_activity = neuron_data[:,0,:]
 
-    fig = plt.figure(figsize=(10, 8))
+    if ax is None:
+        fig = plt.figure(figsize=(14, 4))
+        ax_ = fig.add_subplot(111)
+    else:
+        fig = ax.get_figure()
+        ax_ = ax
+    ax_.axis('off')
 
-    axes = gs.GridSpec(nrows=1, ncols=1, left=0, right=0.3, bottom=0.5)
+    axes = gs.GridSpecFromSubplotSpec(nrows=1, ncols=3, subplot_spec=ax_, wspace=0., width_ratios=[0.3, 0.22, 0.48])
     ax = fig.add_subplot(axes[0])
     ax.axis('off')
     avg_variables = np.mean(input_variables, axis=2)
-    plot_example_neuron_variables(avg_variables, variable_list, ax=ax)
+    def plot_example_neuron_variables(variables, variable_list, ax, fig, weights=None):
+        variable_list = variable_list[1:]
+        height_ratios = np.ones(variables.shape[1])
+        height_ratios[-10:] = 0.5
+        axes = gs.GridSpecFromSubplotSpec(nrows=variables.shape[1], ncols=1, subplot_spec=ax, hspace=0.5, height_ratios=height_ratios)
+        for i in range(variables.shape[1]):
+            ax = fig.add_subplot(axes[i])
+            ax.plot(variables[:, i], color='k', linewidth=1)
+            ax.set_ylabel(variable_list[i], rotation=0, ha='right', va='center', labelpad=0)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if weights is not None:
+                ax.scatter([50],[0.3], c='k', s=abs(weights[i])*20)
+        ax.set_xlabel('Position', labelpad=-10)
+        ax.set_xticks([0,50])
 
+        # Draw vertical line across all plots (remove axes and make the background transparent)
+        ax = fig.add_subplot(axes[:])
+        ax.vlines(24.5, 0, 1, linestyles='--', color='r')
+        ax.set_xlim([0, 49])
+        ax.set_ylim([0, 1])
+        ax.axis('off')
+        ax.patch.set_alpha(0)
+    plot_example_neuron_variables(avg_variables, variable_list, ax, fig)
 
-    # Plot weights as lines across the figure
-    axes = gs.GridSpec(nrows=1, ncols=1, left=0.3, right=0.54, bottom=0.5)
-    ax = fig.add_subplot(axes[0])
+    ax = fig.add_subplot(axes[1])
     ax.axis('off')
-    y1 = np.linspace(-0.54, -1.86, 3).tolist()
-    y2 = np.linspace(-2.28, -6, 10).tolist()
-    y = y1 + y2
-    weights = GLM_params[animal][neuron]['weights']
-    w_max = np.max(np.abs(weights))
-    for i,w in enumerate(weights):
-        if abs(w)<0.05:
-            line, = ax.plot([0,1], [y[i],-3.4], color='lightgray', linestyle='--', linewidth=1)
-        elif w < 0:
-            line, = ax.plot([0,1], [y[i],-3.4], color='deepskyblue', linewidth=abs(w/w_max)*4)
+    def plot_weight_lines(GLM_params, animal, neuron, ax):
+        weights = GLM_params[animal][neuron]['weights']
+        if len(weights) > 13:
+            line_spacing = -np.ones(len(weights)) * 1.4
         else:
-            line, = ax.plot([0,1], [y[i],-3.4], color='black', linewidth=abs(w/w_max)*4)
-        line.set_solid_capstyle('round')
-    ax.set_ylim([-6,0])
-    ax.plot([0,0], [0,0], color='lightgray', linewidth=1.5, linestyle='--', label='Small weights')
-    ax.plot([0,0], [0,0], color='deepskyblue', linewidth=1.5, label='Negative weights')
-    ax.plot([0,0], [0,0], color='black', linewidth=1.5, label='Positive weights')
-    ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
-    max_weight = np.max(weights)
-    min_weight = np.min(weights)
-    ax.text(1, -5.6, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
-    ax.text(1, -6, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
+            line_spacing = -np.ones(len(weights)) * 1.45
+        line_spacing[-10:] *= 0.615
+        y = np.cumsum(line_spacing) - 0.4/line_spacing[0]
+        w_max = np.max(np.abs(weights))
+        for i,w in enumerate(weights):
+            if abs(w)<0.05:
+                line, = ax.plot([0,1], [y[i],-len(weights)/2], color='lightgray', linestyle='--', linewidth=1)
+            elif w < 0:
+                line, = ax.plot([0,1], [y[i],-len(weights)/2], color='deepskyblue', linewidth=abs(w/w_max)*4)
+            else:
+                line, = ax.plot([0,1], [y[i],-len(weights)/2], color='black', linewidth=abs(w/w_max)*4)
+            line.set_solid_capstyle('round')
+        ax.set_ylim([-len(weights),0])
 
-    # Plot prediction vs actual neuron activity
+        ax.plot([0,0], [0,0], color='lightgray', linewidth=1.5, linestyle='--', label='Small weights')
+        ax.plot([0,0], [0,0], color='deepskyblue', linewidth=1.5, label='Negative weights')
+        ax.plot([0,0], [0,0], color='black', linewidth=1.5, label='Positive weights')
+        ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
+        max_weight = np.max(weights)
+        min_weight = np.min(weights)
+        ax.text(1, -13, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
+        ax.text(1, -12, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
+    plot_weight_lines(GLM_params, animal, neuron, ax)
+
+    # # Plot prediction vs actual neuron activity
     glm_model = GLM_params[animal][neuron]['model']
     flattened_input_variables = flattened_data[:,1:]
     predicted_activity = glm_model.predict(flattened_input_variables)
@@ -329,8 +366,8 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None
     pearson_R = np.corrcoef(avg_predicted_activity, avg_neuron_activity)[0,1]
     print("pearson R2 average:", pearson_R**2)
 
-    axes = gs.GridSpec(nrows=1, ncols=1, left=0.61, right=1, top=0.8, bottom=0.55)
-    ax = fig.add_subplot(axes[0])
+    axes = gs.GridSpecFromSubplotSpec(nrows=3, ncols=3, subplot_spec=ax_, wspace=0., width_ratios=[0.3, 0.3, 0.4], height_ratios=[0.2,1,0.2])
+    ax = fig.add_subplot(axes[1,2])
     ax.plot(avg_predicted_activity, label='GLM prediction', c='gray', linestyle='--')
     ax.plot(avg_neuron_activity, label='Actual activity', c='k')
     ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-sem_neuron_activity, avg_neuron_activity+sem_neuron_activity, alpha=0.1, color='k')
@@ -339,18 +376,6 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, animal=None
     ax.set_xticks([0,50])
     ax.set_ylabel("dF/F activity (Z-scored)")
     ax.legend(loc='upper right', bbox_to_anchor=(1, 1.2))
-
-    # Plot summary data
-    axes = gs.GridSpec(nrows=1, ncols=1, top=0.45, bottom=0.2, left=0.3, right=1)
-    ax = fig.add_subplot(axes[0])
-    plot_GLM_summary_data(GLM_params, variable_list, ax=ax)
-
-    axes = gs.GridSpec(nrows=1, ncols=1, top=0.45, bottom=0.2, left=0., right=0.2)
-    ax = fig.add_subplot(axes[0])
-    plot_R2_distribution(GLM_params, ax=ax)
-
-    if model_name is not None:
-        fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{neuron}.png", bbox_inches='tight', dpi=300)
 
 
 def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
@@ -389,15 +414,16 @@ def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     ax.set_xlim([-0.5,len(variable_list[1:])-0.5])
 
 
-def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
+def plot_R2_distribution(GLM_params, ax=None, title=None):
     if ax is None:
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1,1, figsize=(4,5))
     else:
         fig = ax.get_figure()
 
-    model_list = [GLM_params]
-    if GLM_params2 is not None:
-        model_list.append(GLM_params2)
+    if isinstance(GLM_params, list):
+        model_list = GLM_params
+    else:
+        model_list = [GLM_params]
 
     all_R2_values = {}
     for i, model_params in enumerate(model_list, start=1):
@@ -421,9 +447,15 @@ def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
     ax.set_ylabel("R² value")
     ax.set_xlim([0.8,2*i])
     ax.set_ylim([0,1])
-    if GLM_params2 is not None:
-        ax.set_xticks([0.8, i+0.2])
-        ax.set_xticklabels(['First quintile', 'Last quintile'])
+    if len(model_list) > 1:
+        # ax.set_xticks([0.8, i+0.2])
+        # ax.set_xticklabels(['First quintile', 'Last quintile'])
+        ax.set_xticks([1, 2, 3])
+        ax.set_xticklabels(['All data', 'No licks', 'No Reward loc'])
+        ax.set_xlim([0.8,3.2])
+        if title is not None:
+            fig.suptitle(title)
+            fig.savefig(f"figures/R2_distribution_{title}.png", bbox_inches='tight')
     else:
         ax.set_xticks([])
         ax.spines['bottom'].set_visible(False)
@@ -435,6 +467,29 @@ def plot_R2_distribution(GLM_params, GLM_params2=None, ax=None):
             ax.text(0.1, 0.2, f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
         else:
             ax.text(0.1, 0.2, f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
+
+
+def plot_combined_figure(reorganized_data, GLM_params, variable_list, sort_by='R2', animal=None, neuron=None, model_name=None, ):
+    animal, neuron = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, neuron=neuron)
+
+    fig = plt.figure(figsize=(10,6))
+    axes = gs.GridSpec(nrows=1, ncols=1, top=1, bottom=0.5, left=0, right=1)
+    ax = fig.add_subplot(axes[0])
+    plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by=sort_by, animal=animal, neuron=neuron, ax=ax)
+
+    # Plot R2 distribution
+    axes = gs.GridSpec(nrows=1, ncols=1, top=0.4, bottom=0, left=0., right=0.2)
+    ax = fig.add_subplot(axes[0])
+    plot_R2_distribution(GLM_params, ax=ax)
+
+    # Plot summary data
+    axes = gs.GridSpec(nrows=1, ncols=1, top=0.4, bottom=0, left=0.3, right=1)
+    ax = fig.add_subplot(axes[0])
+    plot_GLM_summary_data(GLM_params, variable_list, ax=ax)
+
+    if model_name is not None:
+        fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{neuron}.png", bbox_inches='tight', dpi=300)
+        fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{neuron}.svg", bbox_inches='tight', dpi=300)
 
 
 def calculate_delta_weights(reorganized_data, GLM_params_first, GLM_params_last):
