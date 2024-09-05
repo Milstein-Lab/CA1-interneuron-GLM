@@ -38,9 +38,9 @@ def preprocess_data(filepath, normalize=True):
 
     for animal_idx in range(num_animals):
         neuron_list = []
-        
+
         num_neurons = data_dict['animal']['ShiftR'][animal_idx].shape[2]
-    
+
         for neuron_idx in range(1, num_neurons):
             neuron_data = []
             delta_f = data_dict['animal']['ShiftR'][animal_idx][:, :, neuron_idx]
@@ -48,13 +48,13 @@ def preprocess_data(filepath, normalize=True):
             bin_size_cm = 180/50
 
             # Neuron activity
-            # neuron_data.append(delta_f/velocity * bin_size_cm) 
-            neuron_data.append(delta_f) 
+            # neuron_data.append(delta_f/velocity * bin_size_cm)
+            neuron_data.append(delta_f)
 
             variable_list.append('Activity') if neuron_idx == 1 and animal_idx == 0 else None
-            
+
             # Lick rate
-            neuron_data.append(data_dict['animal']['ShiftLrate'][animal_idx])  
+            neuron_data.append(data_dict['animal']['ShiftLrate'][animal_idx])
             variable_list.append('Licks') if neuron_idx == 1 and animal_idx == 0 else None
 
             # Reward location (valve opening)
@@ -78,8 +78,8 @@ def preprocess_data(filepath, normalize=True):
 
             neuron_data = np.stack(neuron_data, axis=1)
 
-            # # Add variable for actual reward delivered (licks at reward location)   
-            # licking_on_reward = data_dict['animal']['ShiftLrate'][animal_idx] * data_dict['animal']['ShiftV'][animal_idx]      
+            # # Add variable for actual reward delivered (licks at reward location)
+            # licking_on_reward = data_dict['animal']['ShiftLrate'][animal_idx] * data_dict['animal']['ShiftV'][animal_idx]
             # licking_on_reward_expanded = licking_on_reward[:, np.newaxis, :num_trials]
             # neuron_data = np.concatenate((neuron_data, licking_on_reward_expanded), axis=1)
             # variable_list.append('R+Lick') if neuron_idx == 1 and animal_idx == 0 else None
@@ -88,7 +88,7 @@ def preprocess_data(filepath, normalize=True):
             expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], neuron_data.shape[2], axis=2) # Copy along the 'trials' dimension
             neuron_data = np.concatenate((neuron_data, expanded_position_matrix), axis=1)
             variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if neuron_idx == 1 and animal_idx == 0 else None
-            
+
             # Filter out NaN trials
             neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
 
@@ -323,7 +323,7 @@ def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
                 params['model'].intercept_ = 0
                 params['intercept'] = 0
             modified_GLM_params[animal_key][neuron_idx] = params
-            
+
     return modified_GLM_params
 
 
@@ -477,40 +477,57 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
 
 def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     if ax is None:
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1, 1)
 
     animal_averages = []
     animal_stds = []
     jitter = 0.25
 
+    intercepts = []
+
     for animal_key in GLM_params:
         neuron_weights = []
+        intercepts_per_animal = []
         for neuron_nr in range(len(GLM_params[animal_key])):
-            neuron_weights.append(GLM_params[animal_key][neuron_nr]['weights'])        
-            jittered_x = np.arange(len(variable_list[1:])) + np.random.uniform(0.1, jitter, len(variable_list[1:]))
-            ax.scatter(jittered_x, GLM_params[animal_key][neuron_nr]['weights'], color='grey', alpha=0.2, s=10)
-        
+            neuron_weights.append(GLM_params[animal_key][neuron_nr]['weights'])
+            intercepts_per_animal.append(GLM_params[animal_key][neuron_nr]['intercept'])  # Add intercept
+            jittered_x = np.arange(len(variable_list)) + np.random.uniform(-jitter, jitter,
+                                                                           len(variable_list))  # Jitter around each x tick
+
+            ax.scatter(jittered_x, list(GLM_params[animal_key][neuron_nr]['weights']) + [
+                GLM_params[animal_key][neuron_nr]['intercept']],
+                       color='grey', alpha=0.2, s=10)  # Include intercept at the end
+
         neuron_weights = np.array(neuron_weights)
         mean_weights = np.mean(neuron_weights, axis=0)
         std_weights = np.std(neuron_weights, axis=0)
+        intercepts.append(np.mean(intercepts_per_animal))
         animal_averages.append(mean_weights)
         animal_stds.append(std_weights)
-        ax.scatter(range(len(variable_list[1:])), mean_weights, color='black', label=f'Animal {animal_key}', s=20)
+
+        ax.scatter(np.arange(len(variable_list)), list(mean_weights) + [np.mean(intercepts_per_animal)], color='black',
+                   label=f'Animal {animal_key}', s=20)
 
     animal_averages = np.array(animal_averages)
     animal_stds = np.array(animal_stds)
 
     global_mean = np.mean(animal_averages, axis=0)
     global_std = np.std(animal_averages, axis=0)
-    ax.errorbar(np.arange(len(variable_list[1:]))-0.15, global_mean, yerr=global_std, fmt='o', color='red', ecolor='red', 
-                capsize=5, label='Average of all animals', markersize=7)
 
-    ax.set_xticks(range(len(variable_list[1:])), variable_list[1:], rotation=45, ha='right')
+    ax.errorbar(np.arange(len(variable_list)), list(global_mean) + [np.mean(intercepts)],
+                yerr=list(global_std) + [np.std(intercepts)],
+                fmt='o', color='red', ecolor='red', capsize=5, label='Average of all animals', markersize=7)
+
+    xtick_positions = np.arange(len(variable_list))
+    xtick_labels = variable_list[1:] + ['Intercept']
+
+    ax.set_xticks(xtick_positions)
+    ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
+
     ax.set_ylabel('Weights')
-    ax.hlines(0, 0, len(variable_list[1:]), linestyles='--', color='black', alpha=0.5)
-    ax.set_xlim([-0.5,len(variable_list[1:])-0.5])
-
-
+    ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
+    ax.set_xlim([-0.5, len(variable_list) - 0.5])
+    plt.tight_layout()
 
 
 def get_GLM_R2(GLM_params):
@@ -552,9 +569,9 @@ def plot_R2_distribution(GLM_params, ax=None, title=None):
         jittered_x = i*np.ones(all_R2_values[i].shape) + np.random.uniform(0.1, jitter, all_R2_values[i].shape)
         ax.scatter(jittered_x, all_R2_values[i], color='grey', alpha=0.2, s=10)
         ax.scatter(i*np.ones(len(animal_avg_R2_values)), animal_avg_R2_values, color='black', label='Average R2 value', s=20)
-        ax.errorbar(i*0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red', 
+        ax.errorbar(i*0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red',
                     capsize=5, label='Average of all animals', markersize=7)
-        
+
     ax.set_ylabel("R² value")
     ax.set_xlim([0.8,2*i])
     ax.set_ylim([0,1])
@@ -605,7 +622,7 @@ def plot_combined_figure(reorganized_data, GLM_params, variable_list, sort_by='R
 
 def calculate_delta_weights(GLM_params_first, GLM_params_last):
     assert GLM_params_first.keys() == GLM_params_last.keys(), "Animal keys do not match between the two GLM parameters dictionaries."
-    
+
     delta_weights = {}
 
     for animal in GLM_params_first:
@@ -721,14 +738,14 @@ if __name__ == "__main__":
     for dataset_path in datasets:
         reorganized_data, variable_list = load_data(dataset_path)
         GLM_params = fit_GLM(reorganized_data, quintile=1, regression=lasso)
-        
+
         fig = plt.figure(figsize=(10,5))
         axes = gs.GridSpec(nrows=1, ncols=3)
         fig.suptitle(dataset_path)
 
         ax = fig.add_subplot(axes[0,0])
         plot_example_neuron(reorganized_data, variable_list, model_name=dataset_path, fig=fig, ax=ax)
-        
+
         ax = fig.add_subplot(axes[0,2])
         plot_GLM_summary_data(GLM_params, variable_list, dataset_path, ax=ax)
 
