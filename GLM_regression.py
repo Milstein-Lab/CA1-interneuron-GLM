@@ -38,7 +38,7 @@ def preprocess_data(filepath, normalize=True):
     for animal_idx, (delta_f,velocity,lick_rate,reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
         reorganized_data[f'animal_{animal_idx + 1}'] = {}
 
-        for neuron_idx in range(delta_f.shape[2]):
+        for i, neuron_idx in enumerate(range(delta_f.shape[2])):
             if np.all(np.isnan(delta_f[:,:,neuron_idx])) or np.all(delta_f[:,:,neuron_idx] == 0):
                 continue
 
@@ -46,19 +46,19 @@ def preprocess_data(filepath, normalize=True):
             
             # Neuron activity
             neuron_data.append(delta_f[:,:,neuron_idx]) 
-            variable_list.append('Activity')
+            variable_list.append('Activity') if 'Activity' not in variable_list else None
             
             # Lick rate
             neuron_data.append(lick_rate)  
-            variable_list.append('Licks')
+            variable_list.append('Licks') if 'Licks' not in variable_list else None
 
             # Reward location (valve opening)
             neuron_data.append(reward_loc)
-            variable_list.append('Reward')
+            variable_list.append('Reward') if 'Reward' not in variable_list else None
 
             # Running speed
             neuron_data.append(velocity)
-            variable_list.append('Velocity')
+            variable_list.append('Velocity') if 'Velocity' not in variable_list else None
 
             ####################################################
             # TODO: EC_GLM.mat has a data mismatch (missing trial in neuron activity). Check with Christine
@@ -72,7 +72,7 @@ def preprocess_data(filepath, normalize=True):
             # Add position variables to the data matrix
             expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], neuron_data.shape[2], axis=2) # Copy along the 'trials' dimension
             neuron_data = np.concatenate((neuron_data, expanded_position_matrix), axis=1)
-            variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if neuron_idx == 1 and animal_idx == 0 else None
+            variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if f'#{i}' not in variable_list else None
 
             # Filter out NaN trials
             neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
@@ -463,55 +463,37 @@ def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     if ax is None:
         fig, ax = plt.subplots(1, 1)
 
-    animal_averages = []
-    animal_stds = []
-    jitter = 0.25
+    jitter = 0.5
+    animal_xoffset = 0.2
 
-    intercepts = []
+    params_all_animals = []
+    for animal_id in GLM_params:
+        params_all_neurons = []
+        for neuron_id in GLM_params[animal_id]:
+            weights = GLM_params[animal_id][neuron_id]['weights']
+            intercept = GLM_params[animal_id][neuron_id]['intercept']
+            all_params = np.concatenate([weights, [intercept]])
+            params_all_neurons.append(all_params)
+            jittered_x = np.arange(len(all_params)) + np.random.uniform(0.3, jitter, len(all_params))
+            ax.scatter(jittered_x, all_params, color='grey', alpha=0.2, s=10)
 
-    for animal_key in GLM_params:
-        neuron_weights = []
-        intercepts_per_animal = []
-        for neuron_nr in range(len(GLM_params[animal_key])):
-            neuron_weights.append(GLM_params[animal_key][neuron_nr]['weights'])
-            intercepts_per_animal.append(GLM_params[animal_key][neuron_nr]['intercept'])  # Add intercept
-            jittered_x = np.arange(len(variable_list)) + np.random.uniform(-jitter, jitter,
-                                                                           len(variable_list))  # Jitter around each x tick
+        params_all_neurons = np.array(params_all_neurons)
+        mean_params = np.mean(params_all_neurons, axis=0)
+        params_all_animals.append(mean_params)
+        ax.scatter(np.arange(len(mean_params))+animal_xoffset, mean_params, color='black', label=f'Animal {animal_id}', s=20)
 
-            ax.scatter(jittered_x, list(GLM_params[animal_key][neuron_nr]['weights']) + [
-                GLM_params[animal_key][neuron_nr]['intercept']],
-                       color='grey', alpha=0.2, s=10)  # Include intercept at the end
+    params_all_animals = np.array(params_all_animals)
+    global_mean = np.mean(params_all_animals, axis=0)
+    global_std = np.std(params_all_animals, axis=0)
+    ax.errorbar(np.arange(len(global_mean)), global_mean, yerr=global_std, fmt='o', color='red', ecolor='red', capsize=5, label='Average of all animals', markersize=7)
 
-        neuron_weights = np.array(neuron_weights)
-        mean_weights = np.mean(neuron_weights, axis=0)
-        std_weights = np.std(neuron_weights, axis=0)
-        intercepts.append(np.mean(intercepts_per_animal))
-        animal_averages.append(mean_weights)
-        animal_stds.append(std_weights)
-
-        ax.scatter(np.arange(len(variable_list)), list(mean_weights) + [np.mean(intercepts_per_animal)], color='black',
-                   label=f'Animal {animal_key}', s=20)
-
-    animal_averages = np.array(animal_averages)
-    animal_stds = np.array(animal_stds)
-
-    global_mean = np.mean(animal_averages, axis=0)
-    global_std = np.std(animal_averages, axis=0)
-
-    ax.errorbar(np.arange(len(variable_list)), list(global_mean) + [np.mean(intercepts)],
-                yerr=list(global_std) + [np.std(intercepts)],
-                fmt='o', color='red', ecolor='red', capsize=5, label='Average of all animals', markersize=7)
-
-    xtick_positions = np.arange(len(variable_list))
+    ax.set_xticks(np.arange(len(global_mean)))
     xtick_labels = variable_list[1:] + ['Intercept']
-
-    ax.set_xticks(xtick_positions)
     ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
-
     ax.set_ylabel('Weights')
+
     ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
-    ax.set_xlim([-0.5, len(variable_list) - 0.5])
-    plt.tight_layout()
+    ax.set_xlim([-0.5, len(global_mean) - 0.4])
 
 
 def get_GLM_R2(GLM_params):
