@@ -73,7 +73,7 @@ def preprocess_data(filepath, normalize=True):
             expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], neuron_data.shape[2], axis=2) # Copy along the 'trials' dimension
             neuron_data = np.concatenate((neuron_data, expanded_position_matrix), axis=1)
             variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if neuron_idx == 1 and animal_idx == 0 else None
-            
+
             # Filter out NaN trials
             neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
 
@@ -107,6 +107,111 @@ def get_quintile_indices(num_trials, quintile=None):
     start_idx = quintile_indices[quintile - 1]
     end_idx = quintile_indices[quintile]
     return start_idx,end_idx
+
+
+# Load the datasets
+filepaths = {
+    'NDNF': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\NDNFindivsomata_GLM.mat",
+    'EC': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_GLM.mat",
+    'SST': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\SSTindivsomata_GLM.mat"
+}
+
+
+def compare_temporal_correlation(reorganized_data):
+    r_all_neurons = []
+    r_per_animal = []
+    r_dict = {}
+
+    def compute_r_consecutive_pairs(neuron_activity):
+        r_values = []
+        for col in range(neuron_activity.shape[1] - 1):
+            X = neuron_activity[:, col]
+            Y = neuron_activity[:, col + 1]
+            if np.std(X) > 0 and np.std(Y) > 0:
+                r = np.corrcoef(X, Y)[0, 1]
+            else:
+                r = np.nan  # Handle cases with no variability
+            r_values.append(r)
+        return r_values
+
+    for animal_key in reorganized_data.keys():
+        animal_data = reorganized_data[animal_key]
+        num_neurons = len(animal_data)
+        r_animal_neurons = []
+        r_dict[animal_key] = {}
+
+        for neuron_idx in range(num_neurons):
+            neuron_data = animal_data[neuron_idx]
+            neuron_activity = neuron_data[:, 0, :]
+
+            # Remove trials with NaNs
+            valid_trials_mask = ~np.isnan(neuron_activity).any(axis=0)
+            neuron_activity = neuron_activity[:, valid_trials_mask]
+
+            # Remove bins with NaNs
+            valid_bins_mask = ~np.isnan(neuron_activity).any(axis=1)
+            neuron_activity = neuron_activity[valid_bins_mask, :]
+
+            if neuron_activity.shape[1] > 1:
+                r_values = compute_r_consecutive_pairs(neuron_activity)
+                mean_r_value = np.nanmean(r_values)
+                r_animal_neurons.append(mean_r_value)
+                r_all_neurons.append(mean_r_value)
+                r_dict[animal_key][f'neuron_{neuron_idx + 1}'] = mean_r_value
+
+        r_per_animal.append(np.nanmean(r_animal_neurons))
+
+    return r_all_neurons, r_per_animal, r_dict
+
+
+def plot_temporal_correlation(output_to_plot='r', data_to_plot='all'):
+    overall_r_per_dataset = {}
+    per_animal_r_per_dataset = {}
+
+    for label, filepath in filepaths.items():
+        if data_to_plot == 'all' or data_to_plot.lower() == label.lower():
+            reorganized_data, _ = preprocess_data(filepath)
+            r_all_neurons, r_per_animal, _ = compare_temporal_correlation(reorganized_data)
+
+            if output_to_plot.lower() == 'r2':
+                r_all_neurons = np.array(r_all_neurons) ** 2
+                r_per_animal = np.array(r_per_animal) ** 2
+
+            overall_r_per_dataset[label] = r_all_neurons
+            per_animal_r_per_dataset[label] = r_per_animal
+
+    plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot)
+
+
+def plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot):
+    dataset_labels = list(overall_r_per_dataset.keys())
+    plt.figure(figsize=(10, 5))
+    x_positions = np.arange(len(dataset_labels))
+    jitter_strength = 0.05
+
+    for i, label in enumerate(dataset_labels):
+        all_neurons_r = overall_r_per_dataset[label]
+        per_animal_r = per_animal_r_per_dataset[label]
+
+        jitter_neuron = np.random.normal(0, jitter_strength, size=len(all_neurons_r))
+        jitter_animal = np.random.normal(0, jitter_strength, size=len(per_animal_r))
+
+        plt.scatter(np.full(len(all_neurons_r), i) + jitter_neuron, all_neurons_r, color='grey', alpha=0.5,
+                    label='Neurons' if i == 0 else "")
+
+        plt.scatter(np.full(len(per_animal_r), i) + jitter_animal, per_animal_r, color='k',
+                    label='Per Animal' if i == 0 else "")
+
+        mean_r = np.mean(all_neurons_r)
+        error = sem(all_neurons_r)
+        plt.errorbar(i, mean_r, yerr=error, fmt='o', color='r', label='Overall' if i == 0 else "")
+
+    plt.xticks(x_positions, dataset_labels)
+    plt.ylabel(f'{output_to_plot.upper()} value')
+    plt.title(f'Average {output_to_plot.upper()} for NDNF, EC, and SST Neurons with SEM')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=True, alphas=None):
@@ -202,7 +307,7 @@ def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
                 params['model'].intercept_ = 0
                 params['intercept'] = 0
             modified_GLM_params[animal_key][neuron_idx] = params
-            
+
     return modified_GLM_params
 
 
@@ -356,40 +461,57 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
 
 def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     if ax is None:
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1, 1)
 
     animal_averages = []
     animal_stds = []
     jitter = 0.25
 
+    intercepts = []
+
     for animal_key in GLM_params:
         neuron_weights = []
+        intercepts_per_animal = []
         for neuron_nr in range(len(GLM_params[animal_key])):
-            neuron_weights.append(GLM_params[animal_key][neuron_nr]['weights'])        
-            jittered_x = np.arange(len(variable_list[1:])) + np.random.uniform(0.1, jitter, len(variable_list[1:]))
-            ax.scatter(jittered_x, GLM_params[animal_key][neuron_nr]['weights'], color='grey', alpha=0.2, s=10)
-        
+            neuron_weights.append(GLM_params[animal_key][neuron_nr]['weights'])
+            intercepts_per_animal.append(GLM_params[animal_key][neuron_nr]['intercept'])  # Add intercept
+            jittered_x = np.arange(len(variable_list)) + np.random.uniform(-jitter, jitter,
+                                                                           len(variable_list))  # Jitter around each x tick
+
+            ax.scatter(jittered_x, list(GLM_params[animal_key][neuron_nr]['weights']) + [
+                GLM_params[animal_key][neuron_nr]['intercept']],
+                       color='grey', alpha=0.2, s=10)  # Include intercept at the end
+
         neuron_weights = np.array(neuron_weights)
         mean_weights = np.mean(neuron_weights, axis=0)
         std_weights = np.std(neuron_weights, axis=0)
+        intercepts.append(np.mean(intercepts_per_animal))
         animal_averages.append(mean_weights)
         animal_stds.append(std_weights)
-        ax.scatter(range(len(variable_list[1:])), mean_weights, color='black', label=f'Animal {animal_key}', s=20)
+
+        ax.scatter(np.arange(len(variable_list)), list(mean_weights) + [np.mean(intercepts_per_animal)], color='black',
+                   label=f'Animal {animal_key}', s=20)
 
     animal_averages = np.array(animal_averages)
     animal_stds = np.array(animal_stds)
 
     global_mean = np.mean(animal_averages, axis=0)
     global_std = np.std(animal_averages, axis=0)
-    ax.errorbar(np.arange(len(variable_list[1:]))-0.15, global_mean, yerr=global_std, fmt='o', color='red', ecolor='red', 
-                capsize=5, label='Average of all animals', markersize=7)
 
-    ax.set_xticks(range(len(variable_list[1:])), variable_list[1:], rotation=45, ha='right')
+    ax.errorbar(np.arange(len(variable_list)), list(global_mean) + [np.mean(intercepts)],
+                yerr=list(global_std) + [np.std(intercepts)],
+                fmt='o', color='red', ecolor='red', capsize=5, label='Average of all animals', markersize=7)
+
+    xtick_positions = np.arange(len(variable_list))
+    xtick_labels = variable_list[1:] + ['Intercept']
+
+    ax.set_xticks(xtick_positions)
+    ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
+
     ax.set_ylabel('Weights')
-    ax.hlines(0, 0, len(variable_list[1:]), linestyles='--', color='black', alpha=0.5)
-    ax.set_xlim([-0.5,len(variable_list[1:])-0.5])
-
-
+    ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
+    ax.set_xlim([-0.5, len(variable_list) - 0.5])
+    plt.tight_layout()
 
 
 def get_GLM_R2(GLM_params):
@@ -431,9 +553,9 @@ def plot_R2_distribution(GLM_params, ax=None, title=None):
         jittered_x = i*np.ones(all_R2_values[i].shape) + np.random.uniform(0.1, jitter, all_R2_values[i].shape)
         ax.scatter(jittered_x, all_R2_values[i], color='grey', alpha=0.2, s=10)
         ax.scatter(i*np.ones(len(animal_avg_R2_values)), animal_avg_R2_values, color='black', label='Average R2 value', s=20)
-        ax.errorbar(i*0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red', 
+        ax.errorbar(i*0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red',
                     capsize=5, label='Average of all animals', markersize=7)
-        
+
     ax.set_ylabel("R² value")
     ax.set_xlim([0.8,2*i])
     ax.set_ylim([0,1])
@@ -484,7 +606,7 @@ def plot_combined_figure(reorganized_data, GLM_params, variable_list, sort_by='R
 
 def calculate_delta_weights(GLM_params_first, GLM_params_last):
     assert GLM_params_first.keys() == GLM_params_last.keys(), "Animal keys do not match between the two GLM parameters dictionaries."
-    
+
     delta_weights = {}
 
     for animal in GLM_params_first:
@@ -583,6 +705,13 @@ if __name__ == "__main__":
     datasets = ["SSTindivsomata_GLM.mat"]#, "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
 
     filepath_list = ["SSTindivsomata_GLM.mat", "NDNFindivsomata_GLM.mat", "EC_GLM.mat"]
+
+    filepaths = {
+        'NDNF': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\NDNFindivsomata_GLM.mat",
+        'EC': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_GLM.mat",
+        'SST': r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\SSTindivsomata_GLM.mat"
+    }
+
     get_delta_weights_and_plot(filepath_list)
 
     # variable_list: ['Activity', 'Licks', 'R_loc', 'Speed', '#1', '#2', '#3', '#4', '#5', '#6', '#7', '#8', '#9', '#10']
@@ -593,14 +722,14 @@ if __name__ == "__main__":
     for dataset_path in datasets:
         reorganized_data, variable_list = load_data(dataset_path)
         GLM_params = fit_GLM(reorganized_data, quintile=1, regression=lasso)
-        
+
         fig = plt.figure(figsize=(10,5))
         axes = gs.GridSpec(nrows=1, ncols=3)
         fig.suptitle(dataset_path)
 
         ax = fig.add_subplot(axes[0,0])
         plot_example_neuron(reorganized_data, variable_list, model_name=dataset_path, fig=fig, ax=ax)
-        
+
         ax = fig.add_subplot(axes[0,2])
         plot_GLM_summary_data(GLM_params, variable_list, dataset_path, ax=ax)
 
