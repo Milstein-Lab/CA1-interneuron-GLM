@@ -76,25 +76,25 @@ def preprocess_data(filepath, normalize=True):
                 neuron_data[i] = neuron_data[i][:, :num_trials]
             ####################################################
 
-            combined_matrix = np.stack(neuron_data, axis=1)
+            neuron_data = np.stack(neuron_data, axis=1)
 
             # # Add variable for actual reward delivered (licks at reward location)   
             # licking_on_reward = data_dict['animal']['ShiftLrate'][animal_idx] * data_dict['animal']['ShiftV'][animal_idx]      
             # licking_on_reward_expanded = licking_on_reward[:, np.newaxis, :num_trials]
-            # combined_matrix = np.concatenate((combined_matrix, licking_on_reward_expanded), axis=1)
+            # neuron_data = np.concatenate((neuron_data, licking_on_reward_expanded), axis=1)
             # variable_list.append('R+Lick') if neuron_idx == 1 and animal_idx == 0 else None
 
             # Add position variables to the data matrix
-            expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], combined_matrix.shape[2], axis=2) # Copy along the 'trials' dimension
-            combined_matrix = np.concatenate((combined_matrix, expanded_position_matrix), axis=1)
+            expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], neuron_data.shape[2], axis=2) # Copy along the 'trials' dimension
+            neuron_data = np.concatenate((neuron_data, expanded_position_matrix), axis=1)
             variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if neuron_idx == 1 and animal_idx == 0 else None
             
             # Filter out NaN trials
             neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
 
             if normalize:
-                combined_matrix = normalize_data(combined_matrix)
-            neuron_list.append(combined_matrix)
+                neuron_data = normalize_data(neuron_data)
+            neuron_list.append(neuron_data)
 
         reorganized_data[f'animal_{animal_idx + 1}'] = neuron_list
 
@@ -182,13 +182,11 @@ def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
         for neuron in GLM_params[animal]:
             # Pre-process the data
             neuron_data = reorganized_data[animal][neuron]
-            neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
             if quintile is not None:
                 num_trials = neuron_data.shape[2]
                 start_idx,end_idx = get_quintile_indices(num_trials, quintile)
                 neuron_data = neuron_data[:, :, start_idx:end_idx]
 
-            neuron_data = normalize_data(neuron_data)
             flattened_data = flatten_data(neuron_data)
             neuron_activity = neuron_data[:,0,:]
 
@@ -207,24 +205,20 @@ def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
 
 
 def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
-    GLM_params = copy.deepcopy(GLM_params)
+    GLM_params_ = copy.deepcopy(GLM_params)
 
-    vars_to_remove = [variable_list[1:].index(var) for var in vars_to_remove]
+    idx_to_remove = [variable_list[1:].index(var) for var in vars_to_remove if var in variable_list[1:]]
 
     modified_GLM_params = {}
-
-    for animal_key, neurons in GLM_params.items():
+    for animal_key, neurons in GLM_params_.items():
         modified_GLM_params[animal_key] = {}
         for neuron_idx, params in neurons.items():
-            new_params = params.copy()
-
-            for var in vars_to_remove:
-                new_params['weights'][var] = 0
-
-            new_params['model'].coef_[vars_to_remove] = 0
-
-            modified_GLM_params[animal_key][neuron_idx] = new_params
-
+            params['model'].coef_[idx_to_remove] = 0
+            if "intercept" in vars_to_remove:
+                params['model'].intercept_ = 0
+                params['intercept'] = 0
+            modified_GLM_params[animal_key][neuron_idx] = params
+            
     return modified_GLM_params
 
 
@@ -272,8 +266,6 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
     print(f"Best neuron: {neuron}, {animal}")
 
     neuron_data = reorganized_data[animal][neuron]
-    neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0, 1))]
-    neuron_data = normalize_data(neuron_data)
     flattened_data = flatten_data(neuron_data)
 
     input_variables = neuron_data[:,1:,:]
@@ -414,6 +406,20 @@ def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     ax.set_xlim([-0.5,len(variable_list[1:])-0.5])
 
 
+
+
+def get_GLM_R2(GLM_params):
+    all_R2_values = np.array([GLM_params[animal][neuron]['R2_trialavg'] for animal in GLM_params for neuron in GLM_params[animal]])
+    return all_R2_values
+
+
+def get_GLM_weights(GLM_params, variable_list):
+    all_weights = {}
+    for i,var_name in enumerate(variable_list[1:]):
+        all_weights[var_name] = np.array([GLM_params[animal][neuron]['weights'][i] for animal in GLM_params for neuron in GLM_params[animal]])
+    return all_weights
+
+
 def plot_R2_distribution(GLM_params, ax=None, title=None):
     if ax is None:
         fig, ax = plt.subplots(1,1, figsize=(4,5))
@@ -492,10 +498,12 @@ def plot_combined_figure(reorganized_data, GLM_params, variable_list, sort_by='R
         fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{neuron}.svg", bbox_inches='tight', dpi=300)
 
 
-def calculate_delta_weights(reorganized_data, GLM_params_first, GLM_params_last):
+def calculate_delta_weights(GLM_params_first, GLM_params_last):
+    assert GLM_params_first.keys() == GLM_params_last.keys(), "Animal keys do not match between the two GLM parameters dictionaries."
+    
     delta_weights = {}
 
-    for animal in reorganized_data:
+    for animal in GLM_params_first:
         delta_weights[animal] = []
         for i in range(len(GLM_params_first[animal])):
             weights_first = GLM_params_first[animal][i]['weights']
