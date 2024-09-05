@@ -34,40 +34,31 @@ def preprocess_data(filepath, normalize=True):
 
     reorganized_data = {}
     variable_list = []
-    num_animals = len(data_dict['animal']['ShiftLrate'])
 
-    for animal_idx in range(num_animals):
-        neuron_list = []
-        
-        num_neurons = data_dict['animal']['ShiftR'][animal_idx].shape[2]
-    
-        for neuron_idx in range(1, num_neurons):
+    for animal_idx, (delta_f,velocity,lick_rate,reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
+        reorganized_data[f'animal_{animal_idx + 1}'] = {}
+
+        for neuron_idx in range(delta_f.shape[2]):
+            if np.all(np.isnan(delta_f[:,:,neuron_idx])) or np.all(delta_f[:,:,neuron_idx] == 0):
+                continue
+
             neuron_data = []
-            delta_f = data_dict['animal']['ShiftR'][animal_idx][:, :, neuron_idx]
-            velocity = data_dict['animal']['ShiftRunning'][animal_idx]
-            bin_size_cm = 180/50
-
+            
             # Neuron activity
-            # neuron_data.append(delta_f/velocity * bin_size_cm) 
-            neuron_data.append(delta_f) 
-
-            variable_list.append('Activity') if neuron_idx == 1 and animal_idx == 0 else None
+            neuron_data.append(delta_f[:,:,neuron_idx]) 
+            variable_list.append('Activity')
             
             # Lick rate
-            neuron_data.append(data_dict['animal']['ShiftLrate'][animal_idx])  
-            variable_list.append('Licks') if neuron_idx == 1 and animal_idx == 0 else None
+            neuron_data.append(lick_rate)  
+            variable_list.append('Licks')
 
             # Reward location (valve opening)
-            neuron_data.append(data_dict['animal']['ShiftV'][animal_idx])
-            variable_list.append('R_loc') if neuron_idx == 1 and animal_idx == 0 else None
+            neuron_data.append(reward_loc)
+            variable_list.append('Reward')
 
             # Running speed
             neuron_data.append(velocity)
-            variable_list.append('Speed') if neuron_idx == 1 and animal_idx == 0 else None
-
-            # # Running 1/speed
-            # neuron_data.append(1/velocity)
-            # variable_list.append('1/Speed') if neuron_idx == 1 and animal_idx == 0 else None
+            variable_list.append('Velocity')
 
             ####################################################
             # TODO: EC_GLM.mat has a data mismatch (missing trial in neuron activity). Check with Christine
@@ -77,12 +68,6 @@ def preprocess_data(filepath, normalize=True):
             ####################################################
 
             neuron_data = np.stack(neuron_data, axis=1)
-
-            # # Add variable for actual reward delivered (licks at reward location)   
-            # licking_on_reward = data_dict['animal']['ShiftLrate'][animal_idx] * data_dict['animal']['ShiftV'][animal_idx]      
-            # licking_on_reward_expanded = licking_on_reward[:, np.newaxis, :num_trials]
-            # neuron_data = np.concatenate((neuron_data, licking_on_reward_expanded), axis=1)
-            # variable_list.append('R+Lick') if neuron_idx == 1 and animal_idx == 0 else None
 
             # Add position variables to the data matrix
             expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], neuron_data.shape[2], axis=2) # Copy along the 'trials' dimension
@@ -94,9 +79,8 @@ def preprocess_data(filepath, normalize=True):
 
             if normalize:
                 neuron_data = normalize_data(neuron_data)
-            neuron_list.append(neuron_data)
 
-        reorganized_data[f'animal_{animal_idx + 1}'] = neuron_list
+            reorganized_data[f'animal_{animal_idx + 1}'][f'cell_{neuron_idx + 1}'] = neuron_data
 
     return reorganized_data, variable_list
 
@@ -129,7 +113,7 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=Tru
     GLM_params = {}
     for animal in reorganized_data:
         GLM_params[animal] = {}
-        for i, neuron_data in enumerate(reorganized_data[animal]):
+        for neuron, neuron_data in reorganized_data[animal].items():
             neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
 
             if quintile is not None:
@@ -161,7 +145,7 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=Tru
             trialavg_predicted_activity = np.mean(predicted_activity.reshape(neuron_data[:,0,:].shape), axis=1)
             pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0,1]
 
-            GLM_params[animal][i] = {
+            GLM_params[animal][neuron] = {
                 'weights': model.coef_,
                 'intercept': model.intercept_,
                 'alpha': model.alpha_ if regression == 'ridge' else model.alpha_,
