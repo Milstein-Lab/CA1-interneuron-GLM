@@ -568,6 +568,9 @@ def compute_spatial_selectivity_index(avg_residuals):
 
         # Combine the metrics
         spatial_selectivity_index.append(bimodality_coefficient * distance[0])
+
+        spatial_selectivity_index  = a
+
     return spatial_selectivity_index
 
 
