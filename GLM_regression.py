@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV
 import scipy.stats as stats
+from sklearn.cluster import KMeans
 import pandas as pd
 import copy
 
@@ -54,7 +55,7 @@ def preprocess_data(filepath, normalize=True):
 
             # Reward location (valve opening)
             neuron_data.append(reward_loc)
-            variable_list.append('Reward') if 'Reward' not in variable_list else None
+            variable_list.append('Reward_loc') if 'Reward_loc' not in variable_list else None
 
             # Running speed
             neuron_data.append(velocity)
@@ -114,7 +115,13 @@ def filter_neurons_by_metric(reorganized_data, GLM_params, variable_list, metric
     weights = get_GLM_weights(GLM_params, variable_list)
     consequtive_trials_correlations, _,_ = compute_temporal_correlation(reorganized_data)
 
-    metrics_dict = {**weights, 'R2': GLM_r2, 'trial correlations': consequtive_trials_correlations}
+    avg_residuals, _ = compute_velocity_subtracted_residuals(reorganized_data, variable_list, quintile=None)
+    spatial_selectivity_index = compute_spatial_selectivity_index(avg_residuals)
+
+    metrics_dict = {**weights, 'R2': GLM_r2, 
+                    'trial correlations': consequtive_trials_correlations,
+                    'spatial selectivity': spatial_selectivity_index}
+    
     if metric not in metrics_dict:
         raise ValueError(f"Invalid metric: {metric}. Choose from {list(metrics_dict.keys())}")
     metric_values = metrics_dict[metric]
@@ -397,8 +404,9 @@ def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, cell=Non
 
 
 def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2', animal=None, cell=None, ax=None):
-    animal, cell = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, cell=cell)
-    print(f"Best neuron: {cell}, {animal}")
+    if animal is None or cell is None:
+        animal, cell = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, cell=cell)
+        print(f"Best neuron: {cell}, {animal}")
 
     neuron_data = reorganized_data[animal][cell]
     flattened_data = flatten_data(neuron_data)
@@ -436,7 +444,7 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
 
         # Draw vertical line across all plots (remove axes and make the background transparent)
         ax = fig.add_subplot(axes[:])
-        ax.vlines(24.5, 0, 1, linestyles='--', color='r')
+        ax.vlines(25, 0, 1, linestyles='--', color='r', alpha=0.7)
         ax.set_xlim([0, 49])
         ax.set_ylim([0, 1])
         ax.axis('off')
@@ -474,13 +482,13 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
         ax.text(1, -12, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
     plot_weight_lines(GLM_params, animal, cell, ax)
 
-    # # Plot prediction vs actual neuron activity
+    # Plot prediction vs actual neuron activity
     glm_model = GLM_params[animal][cell]['model']
     flattened_input_variables = flattened_data[:,1:]
     predicted_activity = glm_model.predict(flattened_input_variables)
 
     pearson_R = np.corrcoef(predicted_activity, flattened_data[:,0])[0,1]
-    print("pearson R2 overall:", pearson_R**2)
+    print("pearson R2 across all trials:", pearson_R**2)
 
     predicted_activity = predicted_activity.reshape(neuron_activity.shape)
     avg_predicted_activity = np.mean(predicted_activity, axis=1)
@@ -491,7 +499,7 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
     sem_neuron_activity = std_neuron_activity / np.sqrt(neuron_activity.shape[1])
 
     pearson_R = np.corrcoef(avg_predicted_activity, avg_neuron_activity)[0,1]
-    print("pearson R2 average:", pearson_R**2)
+    print("pearson R2 (average prediction vs average activity):", pearson_R**2)
 
     axes = gs.GridSpecFromSubplotSpec(nrows=3, ncols=3, subplot_spec=ax_, wspace=0., width_ratios=[0.3, 0.3, 0.4], height_ratios=[0.2,1,0.2])
     ax = fig.add_subplot(axes[1,2])
@@ -500,7 +508,6 @@ def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2
     ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-sem_neuron_activity, avg_neuron_activity+sem_neuron_activity, alpha=0.1, color='k')
     ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity-sem_predicted_activity, avg_predicted_activity+sem_predicted_activity, alpha=0.1, color='gray')
     ax.set_xlabel("Position")
-    ax.set_xticks([0,50])
     ax.set_ylabel("dF/F activity (Z-scored)")
     ax.legend(loc='upper right', bbox_to_anchor=(1, 1.2))
 
@@ -542,17 +549,44 @@ def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
     ax.set_xlim([-0.5, len(global_mean) - 0.4])
 
 
+def compute_spatial_selectivity_index(avg_residuals):
+    spatial_selectivity_index = []
+    for cell_residual in avg_residuals:
+        # Renormalize residuals between 0 and 1
+        cell_residual = (cell_residual - np.min(cell_residual)) / (np.max(cell_residual) - np.min(cell_residual))
+
+        # Compute bimodality coefficient
+        skewness = stats.skew(cell_residual)
+        kurt = stats.kurtosis(cell_residual, fisher=False)  # Use fisher=False to get Pearson kurtosis
+        n = len(cell_residual)
+        bimodality_coefficient = (skewness**2 + 1) / (kurt + (3*(n-1)**2)/((n-2)*(n-3)))
+
+        # Compute distance between k-means centers
+        kmeans = KMeans(n_clusters=2).fit(cell_residual.reshape(-1, 1))
+        centers = kmeans.cluster_centers_
+        distance = np.abs(centers[0] - centers[1])
+
+        # Combine the metrics
+        spatial_selectivity_index.append(bimodality_coefficient * distance[0])
+    return spatial_selectivity_index
+
+
+def compute_velocity_subtracted_residuals(reorganized_data, variable_list, quintile):
+    GLM_params = fit_GLM(reorganized_data, quintile=quintile, regression='ridge', renormalize=False)
+    vars_to_remove = variable_list.copy()[1:] + ['intercept']
+    vars_to_remove.remove('Velocity')
+    filtered_GLM_params = remove_variables_from_glm(GLM_params, vars_to_remove, variable_list)
+    residual_activity, avg_residuals = compute_residual_activity(filtered_GLM_params, reorganized_data, quintile=quintile)
+    return avg_residuals, GLM_params
+
+
 def plot_quintile_comparison(reorganized_data, variable_list, filename, quintiles=(1,5), save=False):
     avg_residuals_ls = []
     GLM_params_ls = []
     for quintile in quintiles:
-        GLM_params = fit_GLM(reorganized_data, quintile=quintile, regression='ridge', renormalize=False)
-        GLM_params_ls.append(GLM_params)
-        vars_to_remove = variable_list.copy()[1:] + ['intercept']
-        vars_to_remove.remove('Velocity')
-        filtered_GLM_params = remove_variables_from_glm(GLM_params, vars_to_remove, variable_list)
-        residual_activity, avg_residuals = compute_residual_activity(filtered_GLM_params, reorganized_data, quintile=quintile)
+        avg_residuals, GLM_params = compute_velocity_subtracted_residuals(reorganized_data, variable_list, quintile)
         avg_residuals_ls.append(avg_residuals)
+        GLM_params_ls.append(GLM_params)
 
     sorting_idx = np.argsort(np.argmax(avg_residuals_ls[1], axis=1))
     avg_residuals_ls = [avg_residuals[sorting_idx] for avg_residuals in avg_residuals_ls]
