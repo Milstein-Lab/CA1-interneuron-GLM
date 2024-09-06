@@ -1,8 +1,8 @@
 # CA1-interneuron-GLM
 
-## Setup
+## Setup:
 
-# Clone repository
+### Clone repository
 ```
 git clone https://github.com/Milstein-Lab/CA1-interneuron-GLM.git
 ```
@@ -18,5 +18,5 @@ conda activate ca1-interneuron-glm
 pip install -r requirements.txt
 ```
 
-Once the setup is complete, place datasets (MATLAB .mat files) in the `datasets` folder.
-Then run the analysis notebook 'GLM_analysis.ipynb' to explore the data.
+***Once the setup is complete, place datasets (MATLAB .mat files) in the *datasets* folder.
+Then run the analysis notebook *GLM_analysis.ipynb* to explore the data.***
