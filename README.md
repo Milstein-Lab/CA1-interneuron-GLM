@@ -2,6 +2,8 @@
 
 ## Setup:
 
+If you don't have a anaconda/python installed on you machine, start by installing it from [here](https://docs.anaconda.com/miniconda/miniconda-install/).
+
 Once the setup is complete, place datasets (MATLAB .mat files) in the *datasets* folder.
 Then run the analysis notebook *GLM_analysis.ipynb* to explore the data.
 
