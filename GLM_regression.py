@@ -311,6 +311,7 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=Tru
 
 
 def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
+    predicted_activity_list = []
     residual_activity = {}
     avg_residuals = []
     for animal in GLM_params:
@@ -331,11 +332,62 @@ def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
             flattened_input_variables = flattened_data[:,1:]
             predicted_activity = glm_model.predict(flattened_input_variables)
             predicted_activity = predicted_activity.reshape(neuron_activity.shape)
+            predicted_activity_list.append(predicted_activity)
             residual_activity[animal][neuron] = neuron_activity - predicted_activity
 
             avg_residuals.append(np.mean(residual_activity[animal][neuron], axis=1))
 
     avg_residuals = np.array(avg_residuals)
+
+    return residual_activity, avg_residuals, predicted_activity_list
+
+
+def compute_residual_activity_min_max(GLM_params, reorganized_data, quintile=None):
+    residual_activity = {}
+    avg_residuals = []
+    for animal in GLM_params:
+        residual_activity[animal] = {}
+        for neuron in GLM_params[animal]:
+            # Pre-process the data
+            neuron_data = reorganized_data[animal][neuron]
+            if quintile is not None:
+                num_trials = neuron_data.shape[2]
+                start_idx, end_idx = get_quintile_indices(num_trials, quintile)
+                neuron_data = neuron_data[:, :, start_idx:end_idx]
+
+            flattened_data = flatten_data(neuron_data)
+            neuron_activity = neuron_data[:, 0, :]
+
+            # Predict activity and compute residuals
+            glm_model = GLM_params[animal][neuron]['model']
+            flattened_input_variables = flattened_data[:, 1:]
+            predicted_activity = glm_model.predict(flattened_input_variables)
+            predicted_activity = predicted_activity.reshape(neuron_activity.shape)
+            normalized_trials = []
+            for trials in predicted_activity:
+                trial = []
+                for bins in trials:
+                    norm_bin = (bins - np.min(trials)) / (np.max(trials) - np.min(trials))
+                    trial.append(norm_bin)
+                trial_array = np.array(trial)
+                normalized_trials.append(trial_array)
+            predicted_activity = np.vstack(normalized_trials)
+
+            residual_activity[animal][neuron] = neuron_activity - predicted_activity
+
+            avg_residuals.append(np.mean(residual_activity[animal][neuron], axis=1))
+
+    avg_residuals = np.array(avg_residuals)
+
+    normalized_average_residuals = []
+    for cell in avg_residuals:
+        cells = []
+        for bins in cell:
+            norm_bin = (bins - np.min(cell)) / (np.max(cell) - np.min(cell))
+            cells.append(norm_bin)
+        cell_array = np.array(cells)
+        normalized_average_residuals.append(cell_array)
+    avg_residuals = np.vstack(normalized_average_residuals)
 
     return residual_activity, avg_residuals
 
@@ -356,6 +408,81 @@ def remove_variables_from_glm(GLM_params, vars_to_remove, variable_list):
             modified_GLM_params[animal_key][neuron_idx] = params
 
     return modified_GLM_params
+
+
+
+def compute_variable_subtracted_residuals(reorganized_data, variable_list, variables_to_remove, quintile):
+    GLM_params = fit_GLM(reorganized_data, quintile=quintile, regression='ridge', renormalize=False)
+    vars_to_remove = variable_list.copy()[1:] + ['intercept']
+    removing_list = []
+
+    for variable in variables_to_remove:
+        if variable in variable_list:
+            index = variable_list.index(variable)
+            removing_list.append(index)
+
+    for index in removing_list:
+        vars_to_remove.remove(variable_list[index])
+
+    filtered_GLM_params = remove_variables_from_glm(GLM_params, vars_to_remove, variable_list)
+    residual_activity, avg_residuals, predicted_activity = compute_residual_activity(filtered_GLM_params, reorganized_data,
+                                                                 quintile=quintile)
+    return avg_residuals, GLM_params, residual_activity, predicted_activity
+
+
+def normalize(x, norm):
+    if norm == 'min_max':
+        return (x - np.min(x)) / (np.max(x) - np.min(x))
+    elif norm == 'Z_score':
+        return (x - np.mean(x)) / np.std(x)
+    else:
+        return x
+
+
+def Vinje2000(tuning_curve, norm='None'):
+    if norm == 'min_max':
+        tuning_curve = (tuning_curve - np.min(tuning_curve)) / (np.max(tuning_curve) - np.min(tuning_curve))
+    elif norm == 'z_score':
+        tuning_curve = (tuning_curve - np.mean(tuning_curve)) / np.std(tuning_curve)
+
+    A = np.mean(tuning_curve) ** 2 / np.mean(tuning_curve ** 2)
+    return (1 - A) / (1 - 1 / len(tuning_curve))
+
+
+def get_min_maxed_residuals_argmin_argmax_selectivity(avg_residuals):
+    argmax_list = []
+    argmin_list = []
+    selectivity = []
+
+    normalized_average_residuals = []
+    for cell in avg_residuals:
+        cell_selectivity = Vinje2000(cell, norm='min_max')
+        selectivity.append(cell_selectivity)
+        norm_bin = (cell - np.min(cell)) / (np.max(cell) - np.min(cell))
+        normalized_average_residuals.append(norm_bin)
+        argmax_list.append(np.argmax(norm_bin))
+        argmin_list.append(np.argmin(norm_bin))
+
+    avg_residuals_min_max = np.vstack(normalized_average_residuals)
+
+    return avg_residuals_min_max, argmax_list, argmin_list, selectivity
+
+
+def split_into_quintiles(array):
+    if array.ndim != 2:
+        raise ValueError("Input array must be 2-dimensional")
+
+    total_columns = array.shape[1]
+    quintile_size = total_columns // 5
+
+    usable_columns = quintile_size * 5
+    truncated_array = array[:, :usable_columns]
+
+    split_array = np.split(truncated_array, 5, axis=1)
+
+    return split_array
+
+
 
 
 def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, cell=None):
@@ -576,7 +703,7 @@ def compute_velocity_subtracted_residuals(reorganized_data, variable_list, quint
     vars_to_remove = variable_list.copy()[1:] + ['intercept']
     vars_to_remove.remove('Velocity')
     filtered_GLM_params = remove_variables_from_glm(GLM_params, vars_to_remove, variable_list)
-    residual_activity, avg_residuals = compute_residual_activity(filtered_GLM_params, reorganized_data, quintile=quintile)
+    residual_activity, avg_residuals, predicted_activity_list = compute_residual_activity(filtered_GLM_params, reorganized_data, quintile=quintile)
     return avg_residuals, GLM_params
 
 
