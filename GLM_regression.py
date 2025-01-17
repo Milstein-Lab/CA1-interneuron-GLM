@@ -65,7 +65,7 @@ def preprocess_data(filepath, normalize=True):
             if normalize:
                 normalize_data(neuron_dict)
 
-            neuron_key = f'neuron_{neuron_idx + 1}'
+            neuron_key = f'cell_{neuron_idx + 1}'
             reorganized_data[animal_key][neuron_key] = neuron_dict
 
     return reorganized_data
@@ -78,28 +78,25 @@ def normalize_data(neuron_dict):
         else: # Normalize the other variables to [0,1]
             neuron_dict[var_name] = (neuron_dict[var_name] - np.min(neuron_dict[var_name])) / (np.max(neuron_dict[var_name]) - np.min(neuron_dict[var_name]))
             
-            
+
 def subset_variables_from_data(reorganized_data, variables_to_keep=["Velocity"]):
     filtered_data_dict = {}
     for animal in reorganized_data:
         filtered_data_dict[animal] = {}
         for neuron, neuron_dict in reorganized_data[animal].items():
             filtered_data_dict[animal][neuron] = {'Activity': reorganized_data[animal][neuron]["Activity"]}
-
             for variable in variables_to_keep:
                 if variable in neuron_dict:
                     filtered_data_dict[animal][neuron][variable] = neuron_dict[variable]
                 else:
                     raise ValueError(f"Variable '{variable}' not found in neuron data for {neuron} in {animal}.")
-
     return filtered_data_dict
 
 
-def flatten_data(neuron_data):
-    flattened_data = []
-    for var_idx in range(neuron_data.shape[1]):
-        flattened_data.append(neuron_data[:,var_idx].flatten())
-    flattened_data = np.stack(flattened_data, axis=1)
+def flatten_data(neuron_dict):
+    flattened_data = {}
+    for var in neuron_dict:
+        flattened_data[var] = neuron_dict[var].flatten()
     return flattened_data
 
 
@@ -263,22 +260,26 @@ def plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot
 
 def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=True, alphas=None):
     GLM_params = {}
+    predicted_activity_dict = {}
+
     for animal in reorganized_data:
         GLM_params[animal] = {}
-        for neuron, neuron_data in reorganized_data[animal].items():
-            neuron_data = neuron_data[:,:,~np.isnan(neuron_data).any(axis=(0,1))]
-
+        predicted_activity_dict[animal] = {}
+        for neuron in reorganized_data[animal]:     
+            glm_data = reorganized_data[animal][neuron].copy()
+        
             if quintile is not None:
-                num_trials = neuron_data.shape[2]
+                num_trials = glm_data['Activity'].shape[1]
                 start_idx,end_idx = get_quintile_indices(num_trials, quintile)
-                neuron_data = neuron_data[:, :, start_idx:end_idx]
+                for var in glm_data:
+                    glm_data[var] = glm_data[var][:, start_idx:end_idx]
 
             if renormalize:
-                neuron_data = normalize_data(neuron_data)
+                normalize_data(glm_data)
 
-            flattened_data = flatten_data(neuron_data)
-            design_matrix_X = flattened_data[:,1:]
-            neuron_activity = flattened_data[:,0]
+            flattened_data = flatten_data(glm_data)
+            neuron_activity = flattened_data['Activity']
+            design_matrix_X = np.stack([flattened_data[var] for var in flattened_data if var != 'Activity'], axis=1)
 
             if regression == 'lasso':
                 model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
@@ -293,8 +294,9 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=Tru
             model.fit(design_matrix_X, neuron_activity)
 
             predicted_activity = model.predict(design_matrix_X)
-            trialavg_neuron_activity = np.mean(neuron_data[:,0,:], axis=1)
-            trialavg_predicted_activity = np.mean(predicted_activity.reshape(neuron_data[:,0,:].shape), axis=1)
+            predicted_activity_dict[animal][neuron] = predicted_activity.reshape(glm_data['Activity'].shape)
+            trialavg_neuron_activity = np.mean(glm_data['Activity'], axis=1)
+            trialavg_predicted_activity = np.mean(predicted_activity.reshape(glm_data['Activity'].shape), axis=1)
             pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0,1]
 
             GLM_params[animal][neuron] = {
@@ -307,7 +309,7 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=Tru
                 'model': model
             }
 
-    return GLM_params
+    return GLM_params, predicted_activity_dict
 
 
 def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
