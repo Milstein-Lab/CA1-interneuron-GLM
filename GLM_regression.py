@@ -22,66 +22,63 @@ plt.rcParams.update({'font.size': 10,
 #                     'svg.fonttype': 'none'})
 
 
-
 def preprocess_data(filepath, normalize=True):
+    import numpy as np
+    import mat73  # Ensure you have this library installed
+
     data_dict = mat73.loadmat(filepath)
 
-    # Define new position variables to use as input for the GLM
     num_spatial_bins = 10
     position_matrix = np.zeros((50, num_spatial_bins))
-    bin_size = 50//num_spatial_bins
+    bin_size = 50 // num_spatial_bins
     for i in range(num_spatial_bins):
-        position_matrix[i*bin_size:(i+1)*bin_size,i] = 1
+        position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
 
     reorganized_data = {}
-    variable_list = []
+    variable_list = ['Activity', 'Licks', 'Reward_loc', 'Velocity'] + [f'Pos_{i + 1}' for i in range(num_spatial_bins)]
 
-    for animal_idx, (delta_f,velocity,lick_rate,reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
-        reorganized_data[f'animal_{animal_idx + 1}'] = {}
+    for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
+            zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],
+                data_dict['animal']['ShiftV'])):
 
-        for i, neuron_idx in enumerate(range(delta_f.shape[2])):
-            if np.all(np.isnan(delta_f[:,:,neuron_idx])) or np.all(delta_f[:,:,neuron_idx] == 0):
+        animal_key = f'animal_{animal_idx + 1}'
+        reorganized_data[animal_key] = {}
+
+        for neuron_idx in range(delta_f.shape[2]):
+            activity_data = delta_f[:, :, neuron_idx]
+            if np.all(np.isnan(activity_data)) or np.all(activity_data == 0):
                 continue
 
-            neuron_data = []
-            
-            # Neuron activity
-            neuron_data.append(delta_f[:,:,neuron_idx]) 
-            variable_list.append('Activity') if 'Activity' not in variable_list else None
-            
-            # Lick rate
-            neuron_data.append(lick_rate)  
-            variable_list.append('Licks') if 'Licks' not in variable_list else None
+            nan_trials_activity = np.any(np.isnan(activity_data), axis=0)
+            nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
+            nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
+            nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
 
-            # Reward location (valve opening)
-            neuron_data.append(reward_loc)
-            variable_list.append('Reward_loc') if 'Reward_loc' not in variable_list else None
+            nan_trials = nan_trials_activity | nan_trials_licks | nan_trials_reward | nan_trials_velocity
+            nan_trial_indices = np.where(nan_trials)[0]
 
-            # Running speed
-            neuron_data.append(velocity)
-            variable_list.append('Velocity') if 'Velocity' not in variable_list else None
+            valid_trials = np.setdiff1d(np.arange(activity_data.shape[1]), nan_trial_indices)
 
-            ####################################################
-            # TODO: EC_GLM.mat has a data mismatch (missing trial in neuron activity). Check with Christine
-            num_trials = np.min([neuron_data[i].shape[1] for i in range(len(neuron_data))])
-            for i in range(len(neuron_data)):
-                neuron_data[i] = neuron_data[i][:, :num_trials]
-            ####################################################
-
-            neuron_data = np.stack(neuron_data, axis=1)
-
-            # Add position variables to the data matrix
-            expanded_position_matrix = np.repeat(position_matrix[:, :, np.newaxis], neuron_data.shape[2], axis=2) # Copy along the 'trials' dimension
-            neuron_data = np.concatenate((neuron_data, expanded_position_matrix), axis=1)
-            variable_list.extend([f'#{i}' for i in range(1, num_spatial_bins+1)]) if f'#{i}' not in variable_list else None
-
-            # Filter out NaN trials
-            neuron_data = neuron_data[:, :, ~np.isnan(neuron_data).any(axis=(0, 1))]
+            cleaned_activity_data = activity_data[:, valid_trials]
+            cleaned_variables = {
+                "Activity": cleaned_activity_data,
+                "Licks": lick_rate[:, valid_trials],
+                "Reward_loc": reward_loc[:, valid_trials],
+                "Velocity": velocity[:, valid_trials],
+                "Position": np.repeat(position_matrix[:, :, np.newaxis], delta_f.shape[1], axis=2)[:, :, valid_trials]
+            }
 
             if normalize:
-                neuron_data = normalize_data(neuron_data)
+                for var_name, data in cleaned_variables.items():
+                    if var_name == "Activity":
+                        cleaned_variables[var_name] = normalize_data(data, zscore=True)
+                    elif var_name == "Position":
+                        continue
+                    else:
+                        cleaned_variables[var_name] = normalize_data(data)
 
-            reorganized_data[f'animal_{animal_idx + 1}'][f'cell_{neuron_idx + 1}'] = neuron_data
+            neuron_key = f'neuron_{neuron_idx + 1}'
+            reorganized_data[animal_key][neuron_key] = {**cleaned_variables}
 
     return reorganized_data, variable_list
 
