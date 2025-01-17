@@ -93,6 +93,24 @@ def subset_variables_from_data(reorganized_data, variables_to_keep=["Velocity"])
     return filtered_data_dict
 
 
+def compute_residual_activity(filtered_data_dict, predicted_activity_dict):
+    predicted_activity_list = []
+    neuron_activity_list = []
+    residuals_list = []
+
+    for animal in filtered_data_dict:
+        for neuron in filtered_data_dict[animal]:
+            neuron_activity = filtered_data_dict[animal][neuron]["Activity"]
+            predicted_activity = predicted_activity_dict[animal][neuron]
+            residual = neuron_activity - predicted_activity
+
+            neuron_activity_list.append(neuron_activity)
+            predicted_activity_list.append(predicted_activity)
+            residuals_list.append(residual)
+
+    return predicted_activity_list, neuron_activity_list, residuals_list
+
+
 def flatten_data(neuron_dict):
     flattened_data = {}
     for var in neuron_dict:
