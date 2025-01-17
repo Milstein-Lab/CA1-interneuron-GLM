@@ -7,6 +7,8 @@ import scipy.stats as stats
 from sklearn.cluster import KMeans
 import pandas as pd
 import copy
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -330,36 +332,108 @@ def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=Tru
     return GLM_params, predicted_activity_dict
 
 
-def compute_residual_activity(GLM_params, reorganized_data, quintile=None):
-    predicted_activity_list = []
-    residual_activity = {}
-    avg_residuals = []
-    for animal in GLM_params:
-        residual_activity[animal] = {}
-        for neuron in GLM_params[animal]:
-            # Pre-process the data
-            neuron_data = reorganized_data[animal][neuron]
-            if quintile is not None:
-                num_trials = neuron_data.shape[2]
-                start_idx,end_idx = get_quintile_indices(num_trials, quintile)
-                neuron_data = neuron_data[:, :, start_idx:end_idx]
+def plot_activity_residuals_correlation(reorganized_data, predicted_activity_list, neuron_activity_list, residuals_list,
+                                        cell_number, variable_to_corelate=["Velocity"]):
+    velocity_list = []
+    for key, value in reorganized_data.items():
+        for key2, value2 in value.items():
+            velocity = value2["Velocity"]
+            velocity_list.append(velocity)
 
-            flattened_data = flatten_data(neuron_data)
-            neuron_activity = neuron_data[:,0,:]
+    trial_average_velocity_list = []
+    for i in velocity_list:
+        trial_average_velocity_list.append(np.mean(i, axis=1))
 
-            # Predict activity and compute residuals
-            glm_model = GLM_params[animal][neuron]['model']
-            flattened_input_variables = flattened_data[:,1:]
-            predicted_activity = glm_model.predict(flattened_input_variables)
-            predicted_activity = predicted_activity.reshape(neuron_activity.shape)
-            predicted_activity_list.append(predicted_activity)
-            residual_activity[animal][neuron] = neuron_activity - predicted_activity
+    trial_av_prediction_list = []
+    for i in predicted_activity_list:
+        trial_av_prediction_list.append(np.mean(i, axis=1))
 
-            avg_residuals.append(np.mean(residual_activity[animal][neuron], axis=1))
+    trial_av_neuron_activity_list = []
+    for i in neuron_activity_list:
+        trial_av_neuron_activity_list.append(np.mean(i, axis=1))
 
-    avg_residuals = np.array(avg_residuals)
+    trial_av_residuals_list = []
+    for i in residuals_list:
+        trial_av_residuals_list.append(np.mean(i, axis=1))
 
-    return residual_activity, avg_residuals, predicted_activity_list
+    fig, axs = plt.subplots(2, 2, figsize=(12, 6))
+
+    axs[0, 0].plot(trial_av_neuron_activity_list[cell_number], color='k', label='neuron activity')
+    axs[0, 0].set_title(f"Firing Rate for Cell#{cell_number}", fontsize=6)
+    axs[0, 0].set_ylim(-1.5, 1)
+
+    axs[0, 1].plot(trial_average_velocity_list[cell_number], color='g')
+    axs[0, 1].set_title(f"Run Velocity for Animal, Cell#{cell_number}", fontsize=6)
+    axs[0, 1].set_ylim(-1.5, 1)
+
+    axs[1, 0].plot(trial_av_residuals_list[cell_number], color='r', label='residuals')
+    axs[1, 0].set_title(f"Residuals: Firing Rate - Velocity-Only Prediction of FR for Cell#{cell_number}", fontsize=6)
+    axs[1, 0].set_ylim(-1.5, 1)
+
+    axs[1, 1].plot(trial_av_prediction_list[cell_number], color='b', label='velocity prediction')
+    axs[1, 1].set_title(f"Prediction of Firing Based on Velocity for Cell#{cell_number}", fontsize=6)
+    axs[1, 1].set_ylim(-1.5, 1)
+
+    r2_list_residuals = []
+    r2_list_activity = []
+    y_pred_activity_list = []
+    y_pred_residuals_list = []
+
+    for i in range(len(velocity_list)):
+        velocity_flat = velocity_list[i].flatten()
+        activity_flat = neuron_activity_list[i].flatten()
+        residuals_flat = residuals_list[i].flatten()
+
+        model_activity = LinearRegression()
+        model_activity.fit(velocity_flat.reshape(-1, 1), activity_flat)
+        y_pred_activity = model_activity.predict(velocity_flat.reshape(-1, 1))
+        r2_activity = r2_score(activity_flat, y_pred_activity)
+        r2_list_activity.append(r2_activity)
+        y_pred_activity_list.append(y_pred_activity)
+
+        model_residuals = LinearRegression()
+        model_residuals.fit(velocity_flat.reshape(-1, 1), residuals_flat)
+        y_pred_residuals = model_residuals.predict(velocity_flat.reshape(-1, 1))
+        r2_residuals = r2_score(residuals_flat, y_pred_residuals)
+        r2_list_residuals.append(r2_residuals)
+        y_pred_residuals_list.append(y_pred_residuals)
+
+    velocity_flat = velocity_list[cell_number].flatten()
+    activity_flat = neuron_activity_list[cell_number].flatten()
+    residuals_flat = residuals_list[cell_number].flatten()
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+    axs[0].scatter(velocity_flat, activity_flat, color="g", s=10, alpha=0.3, label="Data")
+    axs[0].plot(
+        velocity_flat, y_pred_activity_list[cell_number], color="r", label=f"R² = {r2_list_activity[cell_number]:.3f}"
+    )
+    axs[0].set_title(f"Activity vs Velocity (Cell #{cell_number})")
+    axs[0].set_xlabel("Velocity")
+    axs[0].set_ylabel("Activity")
+    axs[0].legend()
+
+    axs[1].scatter(velocity_flat, residuals_flat, color="b", s=10, alpha=0.3, label="Data")
+    axs[1].plot(
+        velocity_flat, y_pred_residuals_list[cell_number], color="r", label=f"R² = {r2_list_residuals[cell_number]:.3f}"
+    )
+    axs[1].set_title(f"Residuals vs Velocity (Cell #{cell_number})")
+    axs[1].set_xlabel("Velocity")
+    axs[1].set_ylabel("Residuals")
+    axs[1].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    return r2_list_residuals, r2_list_activity
+
+
+
+
+
+
+
+
 
 
 def compute_residual_activity_min_max(GLM_params, reorganized_data, quintile=None):
