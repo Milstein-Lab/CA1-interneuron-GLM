@@ -36,41 +36,48 @@ def preprocess_data(filepath, normalize=True):
     for i in range(num_spatial_bins):
         position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
 
-    reorganized_data = {}
-    for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
-            zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],
-                data_dict['animal']['ShiftV'])):
+    factors_dict = {}
+    activity_dict = {}
+    for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],data_dict['animal']['ShiftV'])):
+        # Conservatively compute nan_trials across all variables and neurons
+        nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
+        nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
+        nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
+        nan_trials_activity = np.any(np.isnan(delta_f), axis=(0, 2))  # Include NaNs across neurons
+        nan_trials = nan_trials_licks | nan_trials_reward | nan_trials_velocity | nan_trials_activity
 
         animal_key = f'animal_{animal_idx + 1}'
-        reorganized_data[animal_key] = {}
+        factors_dict[animal_key] = {
+            "Licks": lick_rate[:, ~nan_trials],
+            "Reward_loc": reward_loc[:, ~nan_trials],
+            "Velocity": velocity[:, ~nan_trials],
+            # "Position": np.repeat(position_matrix[:, :, np.newaxis], delta_f.shape[1], axis=2)[:, :, ~nan_trials]
+        }
 
+        for bin_idx in range(num_spatial_bins):
+            bin_key = f"Position_bin_{bin_idx + 1}"
+            # Apply the ~nan_trials mask to position bins
+            factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis],
+                                                        delta_f.shape[1])[:, ~nan_trials]
+
+        if normalize: # Normalize the other variables to [0,1]
+            for var_name in factors_dict[animal_key]:
+                factors_dict[animal_key][var_name] = (factors_dict[animal_key][var_name] - np.min(factors_dict[animal_key][var_name])) / (np.max(factors_dict[animal_key][var_name]) - np.min(factors_dict[animal_key][var_name]))
+
+        activity_dict[animal_key] = {}
         for neuron_idx in range(delta_f.shape[2]):
             activity_data = delta_f[:, :, neuron_idx]
             if np.all(np.isnan(activity_data)) or np.all(activity_data == 0):
                 continue
 
-            # Remove trials with NaNs
-            nan_trials_activity = np.any(np.isnan(activity_data), axis=0)
-            nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
-            nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
-            nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
-            nan_trials = nan_trials_activity | nan_trials_licks | nan_trials_reward | nan_trials_velocity
-            
-            neuron_dict = {
-                "Activity": activity_data[:, ~nan_trials],
-                "Licks": lick_rate[:, ~nan_trials],
-                "Reward_loc": reward_loc[:, ~nan_trials],
-                "Velocity": velocity[:, ~nan_trials],
-                "Position": np.repeat(position_matrix[:, :, np.newaxis], delta_f.shape[1], axis=2)[:, :, ~nan_trials]
-            }
+            neuron_key = f'neuron_{neuron_idx + 1}'
+            cleaned_activity = activity_data[:, ~nan_trials]
 
-            if normalize:
-                normalize_data(neuron_dict)
-
-            neuron_key = f'cell_{neuron_idx + 1}'
-            reorganized_data[animal_key][neuron_key] = neuron_dict
-
-    return reorganized_data
+            if normalize:  # Z-score the neuron activity (df/f)
+                activity_dict[animal_key][neuron_key] = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+            else:
+                activity_dict[animal_key][neuron_key] = cleaned_activity
+    return activity_dict, factors_dict
 
 
 def normalize_data(neuron_dict):
@@ -81,29 +88,27 @@ def normalize_data(neuron_dict):
             neuron_dict[var_name] = (neuron_dict[var_name] - np.min(neuron_dict[var_name])) / (np.max(neuron_dict[var_name]) - np.min(neuron_dict[var_name]))
             
 
-def subset_variables_from_data(reorganized_data, variables_to_keep=["Velocity"]):
-    filtered_data_dict = {}
-    for animal in reorganized_data:
-        filtered_data_dict[animal] = {}
-        for neuron, neuron_dict in reorganized_data[animal].items():
-            filtered_data_dict[animal][neuron] = {'Activity': reorganized_data[animal][neuron]["Activity"]}
-            for variable in variables_to_keep:
-                if variable in neuron_dict:
-                    filtered_data_dict[animal][neuron][variable] = neuron_dict[variable]
-                else:
-                    raise ValueError(f"Variable '{variable}' not found in neuron data for {neuron} in {animal}.")
-    return filtered_data_dict
+def subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"]):
+    filtered_factors_dict = {}
+    for animal in factors_dict:
+        filtered_factors_dict[animal] = {}
+        for variable in variables_to_keep:
+            if variable in factors_dict[animal]:
+                filtered_factors_dict[animal][variable] = factors_dict[animal][variable]
+            else:
+                raise ValueError(f"Variable '{variable}' not found in neuron data for {neuron} in {animal}.")
+    return filtered_factors_dict
 
 
-def compute_residual_activity(filtered_data_dict, predicted_activity_dict):
+def compute_residual_activity(activity_dict, predicted_activity_dict):
     predicted_activity_list = []
     neuron_activity_list = []
     residuals_list = []
 
-    for animal in filtered_data_dict:
-        for neuron in filtered_data_dict[animal]:
-            neuron_activity = filtered_data_dict[animal][neuron]["Activity"]
+    for animal in activity_dict:
+        for neuron in activity_dict[animal]:
             predicted_activity = predicted_activity_dict[animal][neuron]
+            neuron_activity = activity_dict[animal][neuron]
             residual = neuron_activity - predicted_activity
 
             neuron_activity_list.append(neuron_activity)
