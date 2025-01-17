@@ -81,6 +81,26 @@ def preprocess_data(filepath, normalize=True):
     return reorganized_data
 
 
+def subset_variables_from_data(reorganized_data, variables_to_keep=["Velocity"]):
+    filtered_data_dict = {}
+    for animal in reorganized_data:
+        filtered_data_dict[animal] = {}
+        for neuron, neuron_dict in reorganized_data[animal].items():
+            filtered_data_dict[animal][neuron] = {'Activity': reorganized_data[animal][neuron]["Activity"]}
+
+            for variable in variables_to_keep:
+                if variable in neuron_dict:
+                    filtered_data_dict[animal][neuron][variable] = neuron_dict[variable]
+                else:
+                    raise ValueError(f"Variable '{variable}' not found in neuron data for {neuron} in {animal}.")
+
+    return filtered_data_dict
+
+
+for animal, neurons in filtered_data_dict.items():
+    for neuron, variables in neurons.items():
+        for variable, value in variables.items():
+            print(f"Animal: {animal}, Neuron: {neuron}, Variable: {variable}, Value Shape: {value.shape}")
 def normalize_data(neuron_data):
     for var_idx in range(neuron_data.shape[1]):
         if var_idx == 0: # Z-score the neuron activity (df/f)
