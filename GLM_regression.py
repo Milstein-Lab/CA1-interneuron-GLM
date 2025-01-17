@@ -54,12 +54,6 @@ def preprocess_data(filepath, normalize=True):
             nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
             nan_trials = nan_trials_activity | nan_trials_licks | nan_trials_reward | nan_trials_velocity
             
-            
-            # nan_trial_indices = np.where(nan_trials)[0]
-            # return nan_trials, nan_trial_indices, activity_data
-            # valid_trials = np.setdiff1d(np.arange(activity_data.shape[1]), nan_trial_indices)
-            # cleaned_activity_data = activity_data[:, valid_trials]
-
             neuron_dict = {
                 "Activity": activity_data[:, ~nan_trials],
                 "Licks": lick_rate[:, ~nan_trials],
@@ -69,11 +63,7 @@ def preprocess_data(filepath, normalize=True):
             }
 
             if normalize:
-                for var_name in neuron_dict:
-                    if var_name == "Activity":
-                        neuron_dict[var_name] = (neuron_dict[var_name] - np.mean(neuron_dict[var_name])) / np.std(neuron_dict[var_name])
-                    else:
-                        neuron_dict[var_name] = (neuron_dict[var_name] - np.min(neuron_dict[var_name])) / (np.max(neuron_dict[var_name]) - np.min(neuron_dict[var_name]))
+                normalize_data(neuron_dict)
 
             neuron_key = f'neuron_{neuron_idx + 1}'
             reorganized_data[animal_key][neuron_key] = neuron_dict
@@ -81,13 +71,12 @@ def preprocess_data(filepath, normalize=True):
     return reorganized_data
 
 
-def normalize_data(neuron_data):
-    for var_idx in range(neuron_data.shape[1]):
-        if var_idx == 0: # Z-score the neuron activity (df/f)
-            neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.mean(neuron_data[:,var_idx])) / np.std(neuron_data[:,var_idx])
+def normalize_data(neuron_dict):
+    for var_name in neuron_dict:
+        if var_name == "Activity": # Z-score the neuron activity (df/f)
+            neuron_dict[var_name] = (neuron_dict[var_name] - np.mean(neuron_dict[var_name])) / np.std(neuron_dict[var_name])
         else: # Normalize the other variables to [0,1]
-            neuron_data[:,var_idx] = (neuron_data[:,var_idx] - np.min(neuron_data[:,var_idx])) / (np.max(neuron_data[:,var_idx]) - np.min(neuron_data[:,var_idx]))
-    return neuron_data
+            neuron_dict[var_name] = (neuron_dict[var_name] - np.min(neuron_dict[var_name])) / (np.max(neuron_dict[var_name]) - np.min(neuron_dict[var_name]))
 
 
 def flatten_data(neuron_data):
