@@ -35,8 +35,6 @@ def preprocess_data(filepath, normalize=True):
         position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
 
     reorganized_data = {}
-    variable_list = ['Activity', 'Licks', 'Reward_loc', 'Velocity'] + [f'Pos_{i + 1}' for i in range(num_spatial_bins)]
-
     for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
             zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],
                 data_dict['animal']['ShiftV'])):
@@ -49,38 +47,38 @@ def preprocess_data(filepath, normalize=True):
             if np.all(np.isnan(activity_data)) or np.all(activity_data == 0):
                 continue
 
+            # Remove trials with NaNs
             nan_trials_activity = np.any(np.isnan(activity_data), axis=0)
             nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
             nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
             nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
-
             nan_trials = nan_trials_activity | nan_trials_licks | nan_trials_reward | nan_trials_velocity
-            nan_trial_indices = np.where(nan_trials)[0]
+            
+            
+            # nan_trial_indices = np.where(nan_trials)[0]
+            # return nan_trials, nan_trial_indices, activity_data
+            # valid_trials = np.setdiff1d(np.arange(activity_data.shape[1]), nan_trial_indices)
+            # cleaned_activity_data = activity_data[:, valid_trials]
 
-            valid_trials = np.setdiff1d(np.arange(activity_data.shape[1]), nan_trial_indices)
-
-            cleaned_activity_data = activity_data[:, valid_trials]
-            cleaned_variables = {
-                "Activity": cleaned_activity_data,
-                "Licks": lick_rate[:, valid_trials],
-                "Reward_loc": reward_loc[:, valid_trials],
-                "Velocity": velocity[:, valid_trials],
-                "Position": np.repeat(position_matrix[:, :, np.newaxis], delta_f.shape[1], axis=2)[:, :, valid_trials]
+            neuron_dict = {
+                "Activity": activity_data[:, ~nan_trials],
+                "Licks": lick_rate[:, ~nan_trials],
+                "Reward_loc": reward_loc[:, ~nan_trials],
+                "Velocity": velocity[:, ~nan_trials],
+                "Position": np.repeat(position_matrix[:, :, np.newaxis], delta_f.shape[1], axis=2)[:, :, ~nan_trials]
             }
 
             if normalize:
-                for var_name, data in cleaned_variables.items():
+                for var_name in neuron_dict:
                     if var_name == "Activity":
-                        cleaned_variables[var_name] = normalize_data(data, zscore=True)
-                    elif var_name == "Position":
-                        continue
+                        neuron_dict[var_name] = (neuron_dict[var_name] - np.mean(neuron_dict[var_name])) / np.std(neuron_dict[var_name])
                     else:
-                        cleaned_variables[var_name] = normalize_data(data)
+                        neuron_dict[var_name] = (neuron_dict[var_name] - np.min(neuron_dict[var_name])) / (np.max(neuron_dict[var_name]) - np.min(neuron_dict[var_name]))
 
             neuron_key = f'neuron_{neuron_idx + 1}'
-            reorganized_data[animal_key][neuron_key] = {**cleaned_variables}
+            reorganized_data[animal_key][neuron_key] = neuron_dict
 
-    return reorganized_data, variable_list
+    return reorganized_data
 
 
 def normalize_data(neuron_data):
