@@ -428,6 +428,42 @@ def plot_activity_residuals_correlation(reorganized_data, predicted_activity_lis
     return r2_list_residuals, r2_list_activity
 
 
+def plot_r2_difference_vs_velocity(r2_list_activity, r2_list_residuals):
+    r2_list_activity = np.array(r2_list_activity)
+    r2_list_residuals = np.array(r2_list_residuals)
+    mean_activity = np.mean(r2_list_activity)
+    mean_residuals = np.mean(r2_list_residuals)
+
+    positions = [0, 1]
+
+    plt.figure(figsize=(8, 6))
+
+    plt.bar(positions, [mean_activity, mean_residuals], color=['blue', 'orange'], alpha=0.7, width=0.4, label='Mean R²')
+
+    x_jitter_activity = np.random.normal(positions[0], 0.05, size=len(r2_list_activity))
+    x_jitter_residuals = np.random.normal(positions[1], 0.05, size=len(r2_list_residuals))
+
+    plt.scatter(x_jitter_activity, r2_list_activity, color='blue', alpha=0.8, label='R² Activity', zorder=3)
+    plt.scatter(x_jitter_residuals, r2_list_residuals, color='orange', alpha=0.8, label='R² Residuals', zorder=3)
+
+    for i in range(len(r2_list_activity)):
+        plt.plot([x_jitter_activity[i], x_jitter_residuals[i]],
+                 [r2_list_activity[i], r2_list_residuals[i]],
+                 color='gray', alpha=0.6, linewidth=0.8)
+
+    plt.xticks(positions, ['Activity', 'Residuals'])
+    plt.ylabel("R² Value")
+    plt.title("Comparison of R² Values for Activity and Residuals")
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
 
 
 
