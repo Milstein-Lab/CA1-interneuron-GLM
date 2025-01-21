@@ -16,20 +16,10 @@ plt.rcParams.update({'font.size': 10,
                     'legend.frameon':       False,})
 
 
-# plt.rcParams.update({'font.size': 10,
-#                     'axes.spines.right': False,
-#                     'axes.spines.top':   False,
-#                     'legend.frameon':       False,
-#                     'font.sans-serif': 'Helvetica',
-#                     'svg.fonttype': 'none'})
-
-
 def preprocess_data(filepath, normalize=True):
-    import numpy as np
-    import mat73  # Ensure you have this library installed
-
     data_dict = mat73.loadmat(filepath)
 
+    # Define new position variables to use as input for the GLM
     num_spatial_bins = 10
     position_matrix = np.zeros((50, num_spatial_bins))
     bin_size = 50 // num_spatial_bins
@@ -39,55 +29,41 @@ def preprocess_data(filepath, normalize=True):
     factors_dict = {}
     activity_dict = {}
     for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],data_dict['animal']['ShiftV'])):
-
-        min_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
-
-        if lick_rate.shape[1] > min_trials:
-            lick_rate = lick_rate[:, -min_trials:]
-        if reward_loc.shape[1] > min_trials:
-            reward_loc = reward_loc[:, -min_trials:]
-        if velocity.shape[1] > min_trials:
-            velocity = velocity[:, -min_trials:]
-        if delta_f.shape[1] > min_trials:
-            delta_f = delta_f[:, -min_trials:, :]
-
+        # Exclude trials with NaNs
         nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
         nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
         nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
-        nan_trials_activity = np.any(np.isnan(delta_f), axis=(0, 2))  # Include NaNs across neurons
+        nan_trials_activity = np.any(np.isnan(delta_f), axis=(0, 2))
         nan_trials = nan_trials_licks | nan_trials_reward | nan_trials_velocity | nan_trials_activity
 
         animal_key = f'animal_{animal_idx + 1}'
-        factors_dict[animal_key] = {
-            "Licks": lick_rate[:, ~nan_trials],
-            "Reward_loc": reward_loc[:, ~nan_trials],
-            "Velocity": velocity[:, ~nan_trials],
-            # "Position": np.repeat(position_matrix[:, :, np.newaxis], delta_f.shape[1], axis=2)[:, :, ~nan_trials]
-        }
+        factors_dict[animal_key] = {"Licks": lick_rate[:, ~nan_trials],
+                                    "Reward_loc": reward_loc[:, ~nan_trials],
+                                    "Velocity": velocity[:, ~nan_trials]}
 
+        # Add a factor for each position variable (from 1 to num_spatial_bins)
+        num_trials = factors_dict[animal_key]["Velocity"].shape[1]
         for bin_idx in range(num_spatial_bins):
-            bin_key = f"Position_bin_{bin_idx + 1}"
-            # Apply the ~nan_trials mask to position bins
-            factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis],
-                                                        delta_f.shape[1])[:, ~nan_trials]
+            bin_key = f"Position_{bin_idx + 1}"
+            factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials) # Copy the position variable for each trial
 
-        if normalize: # Normalize the other variables to [0,1]
+        if normalize: # Normalize behavioral factors to [0,1]
             for var_name in factors_dict[animal_key]:
                 factors_dict[animal_key][var_name] = (factors_dict[animal_key][var_name] - np.min(factors_dict[animal_key][var_name])) / (np.max(factors_dict[animal_key][var_name]) - np.min(factors_dict[animal_key][var_name]))
 
         activity_dict[animal_key] = {}
         for neuron_idx in range(delta_f.shape[2]):
-            activity_data = delta_f[:, :, neuron_idx]
-            if np.all(np.isnan(activity_data)) or np.all(activity_data == 0):
+            neuron_activity = delta_f[:, :, neuron_idx]
+            if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0): # Don't save empty/silent neurons
                 continue
-
-            neuron_key = f'neuron_{neuron_idx + 1}'
-            cleaned_activity = activity_data[:, ~nan_trials]
+            cleaned_activity = neuron_activity[:, ~nan_trials]
 
             if normalize:  # Z-score the neuron activity (df/f)
-                activity_dict[animal_key][neuron_key] = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
-            else:
-                activity_dict[animal_key][neuron_key] = cleaned_activity
+                cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+
+            neuron_key = f'cell_{neuron_idx + 1}'
+            activity_dict[animal_key][neuron_key] = cleaned_activity
+
     return activity_dict, factors_dict
 
 
@@ -292,173 +268,82 @@ def plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot
     plt.grid(True)
     plt.show()
 
-def fit_GLM(activity_dict, factors_dict, quintile=None, regression='ridge', renormalize=True, alphas=None):
+
+def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='ridge', renormalize=True, alphas=None):
     GLM_params = {}
     predicted_activity_dict = {}
 
     for animal in factors_dict:
         GLM_params[animal] = {}
         predicted_activity_dict[animal] = {}
-        glm_data = factors_dict[animal].copy()
+        _factors_dict = factors_dict[animal].copy()
 
         if quintile is not None:
-            num_trials = glm_data['Activity'].shape[1]
+            num_trials = _factors_dict['Activity'].shape[1]
             start_idx, end_idx = get_quintile_indices(num_trials, quintile)
-            for var in glm_data:
-                glm_data[var] = glm_data[var][:, start_idx:end_idx]
+            for var in _factors_dict:
+                _factors_dict[var] = _factors_dict[var][:, start_idx:end_idx]
 
         if renormalize:
-            normalize_data(glm_data)
-
-        flattened_data = flatten_data(glm_data)
-
-        variable_names = [var for var in flattened_data if var != 'Activity']
-        design_matrix_X = np.stack([flattened_data[var] for var in variable_names], axis=1)
-
-        neuron_data = activity_dict[animal]
-        flattened_activity = flatten_data(neuron_data)
+            normalize_data(_factors_dict)
 
         for neuron_idx in activity_dict[animal]:
-            neuron_activity = flattened_activity[neuron_idx]
+            neuron_activity = activity_dict[animal][neuron_idx]
 
-            if regression == 'lasso':
-                model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
-            elif regression == 'ridge':
-                model = RidgeCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], cv=None)
-            elif regression == 'elastic':
-                l1_ratio = [0.1, 0.3, 0.5, 0.7, 0.9, 1]
-                model = ElasticNetCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000],
-                                     l1_ratio=l1_ratio, cv=None)
-            else:
-                raise ValueError("Regression type must be 'lasso' or 'ridge'")
+            neuron_GLM_params, neuron_predicted_activity = fit_GLM(_factors_dict, neuron_activity, regression, alphas)
 
-            model.fit(design_matrix_X, neuron_activity)
-
-            predicted_activity_total = model.predict(design_matrix_X)
-            predicted_activity_dict[animal][neuron_idx] = {}
-
-            trialavg_neuron_activity = np.mean(activity_dict[animal][neuron_idx], axis=1)
-            trialavg_predicted_activity = np.mean(predicted_activity_total.reshape(activity_dict[animal][neuron_idx].shape),
-                                                  axis=1)
-            pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0, 1]
-
-            GLM_params[animal][neuron_idx] = {
-                var: {
-                    'weight': model.coef_[idx],
-                }
-                for idx, var in enumerate(variable_names)
-            }
-
-            GLM_params[animal][neuron_idx]['intercept'] = model.intercept_
-            GLM_params[animal][neuron_idx]['alpha'] = model.alpha_ if regression == 'ridge' else model.alpha_
-            GLM_params[animal][neuron_idx]['l1_ratio'] = model.l1_ratio_ if regression == 'elastic' else None
-            GLM_params[animal][neuron_idx]['R2'] = model.score(design_matrix_X, neuron_activity)
-            GLM_params[animal][neuron_idx]['R2_trialavg'] = pearson_R ** 2
-            GLM_params[animal][neuron_idx]['model'] = model
-
-            for idx, var in enumerate(variable_names):
-                variable_contribution = model.coef_[idx] * flattened_data[var]
-                predicted_activity_dict[animal][neuron_idx][var] = variable_contribution.reshape(
-                    activity_dict[animal][neuron_idx].shape
-                )
-
-            predicted_activity_dict[animal][neuron_idx]['Total'] = predicted_activity_total.reshape(
-                activity_dict[animal][neuron_idx].shape
-            )
+            GLM_params[animal][neuron_idx] = neuron_GLM_params
+            predicted_activity_dict[animal][neuron_idx] = neuron_predicted_activity.reshape(
+                activity_dict[animal][neuron_idx].shape)
 
     return GLM_params, predicted_activity_dict
 
 
-#working version old data structure
-# def fit_GLM(reorganized_data, quintile=None, regression='ridge', renormalize=True, alphas=None):
-#     GLM_params = {}
-#     predicted_activity_dict = {}
-#
-#     for animal in reorganized_data:
-#         GLM_params[animal] = {}
-#         predicted_activity_dict[animal] = {}
-#         for neuron in reorganized_data[animal]:
-#             glm_data = reorganized_data[animal][neuron].copy()
-#
-#             if quintile is not None:
-#                 num_trials = glm_data['Activity'].shape[1]
-#                 start_idx,end_idx = get_quintile_indices(num_trials, quintile)
-#                 for var in glm_data:
-#                     glm_data[var] = glm_data[var][:, start_idx:end_idx]
-#
-#             if renormalize:
-#                 normalize_data(glm_data)
-#
-#             flattened_data = flatten_data(glm_data)
-#             neuron_activity = flattened_data['Activity']
-#             design_matrix_X = np.stack([flattened_data[var] for var in flattened_data if var != 'Activity'], axis=1)
-#
-#             if regression == 'lasso':
-#                 model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
-#             elif regression == 'ridge':
-#                 model = RidgeCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], cv=None)
-#             elif regression == 'elastic':
-#                 l1_ratio = [0.1, 0.3, 0.5, 0.7, 0.9, 1]
-#                 model = ElasticNetCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], l1_ratio=l1_ratio, cv=None)
-#             else:
-#                 raise ValueError("Regression type must be 'lasso' or 'ridge'")
-#
-#             model.fit(design_matrix_X, neuron_activity)
-#
-#             predicted_activity = model.predict(design_matrix_X)
-#             predicted_activity_dict[animal][neuron] = predicted_activity.reshape(glm_data['Activity'].shape)
-#             trialavg_neuron_activity = np.mean(glm_data['Activity'], axis=1)
-#             trialavg_predicted_activity = np.mean(predicted_activity.reshape(glm_data['Activity'].shape), axis=1)
-#             pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0,1]
-#
-#             GLM_params[animal][neuron] = {
-#                 'weights': model.coef_,
-#                 'intercept': model.intercept_,
-#                 'alpha': model.alpha_ if regression == 'ridge' else model.alpha_,
-#                 'l1_ratio': model.l1_ratio_ if regression == 'elastic' else None,
-#                 'R2': model.score(design_matrix_X, neuron_activity),
-#                 'R2_trialavg': pearson_R**2,
-#                 'model': model
-#             }
-#
-#     return GLM_params, predicted_activity_dict
-#
+def fit_GLM(factors_dict, neuron_activity, regression='ridge', alphas=None):
+    neuron_activity_flat = neuron_activity.flatten()
+    flattened_data = flatten_data(factors_dict)
+
+    variable_names = [var for var in flattened_data]
+    design_matrix_X = np.stack([flattened_data[var] for var in variable_names], axis=1)
+
+    if regression == 'lasso':
+        model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
+    elif regression == 'ridge':
+        model = RidgeCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], cv=None)
+    elif regression == 'elastic':
+        l1_ratio = [0.1, 0.3, 0.5, 0.7, 0.9, 1]
+        model = ElasticNetCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000],
+                             l1_ratio=l1_ratio, cv=None)
+    else:
+        raise ValueError("Regression type must be 'lasso' or 'ridge'")
+
+    model.fit(design_matrix_X, neuron_activity_flat)
+
+    neuron_predicted_activity = model.predict(design_matrix_X)
+
+    trialavg_neuron_activity = np.mean(neuron_activity, axis=1)
+    trialavg_predicted_activity = np.mean(neuron_predicted_activity.reshape(neuron_activity.shape), axis=1)
+    pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0, 1]
+
+    neuron_GLM_params = {}
+    neuron_GLM_params['weights'] = {var: model.coef_[idx] for idx, var in enumerate(variable_names)}
+    neuron_GLM_params['intercept'] = model.intercept_
+    neuron_GLM_params['alpha'] = model.alpha_ if regression == 'ridge' else model.alpha_
+    neuron_GLM_params['l1_ratio'] = model.l1_ratio_ if regression == 'elastic' else None
+    neuron_GLM_params['R2'] = model.score(design_matrix_X, neuron_activity_flat)
+    neuron_GLM_params['pearson_R'] = pearson_R
+    neuron_GLM_params['model'] = model
+
+    return neuron_GLM_params, neuron_predicted_activity
 
 
-def get_predictions_and_input_variables(GLM_params, factors_dict, include_intercept=True):
-    combined_predictions = []
-    input_variables = {variable: [] for variable in next(iter(factors_dict.values())).keys()}
-    variable_predictions = {variable: [] for variable in next(iter(factors_dict.values())).keys()}
-
-    for animal in factors_dict:
-        for neuron in GLM_params[animal]:
-            total_prediction = np.zeros_like(next(iter(factors_dict[animal].values())))
-            neuron_variable_predictions = {variable: np.zeros_like(total_prediction) for variable in
-                                           factors_dict[animal]}  # Initialize per-variable predictions
-
-            for variable in factors_dict[animal]:
-                if variable in GLM_params[animal][neuron]:
-                    weight = GLM_params[animal][neuron][variable]['weight']
-                    input_data = factors_dict[animal][variable]
-                    contribution = weight * input_data
-                    total_prediction += contribution
-                    neuron_variable_predictions[variable] = contribution
-                    input_variables[variable].append(input_data)
-
-            if include_intercept:
-                intercept = GLM_params[animal][neuron]['intercept']
-                total_prediction += intercept
-
-                for variable in neuron_variable_predictions:
-                    neuron_variable_predictions[variable] += intercept
-
-            combined_predictions.append(total_prediction)
-
-            for variable, prediction in neuron_variable_predictions.items():
-                variable_predictions[variable].append(prediction)
-
-    return combined_predictions, input_variables, variable_predictions
-
+def plot_activity_residuals_correlation(reorganized_data, predicted_activity_list, neuron_activity_list, residuals_list,
+                                        cell_number, variable_to_corelate=["Velocity"]):
+    velocity_list = []
+    for key, value in reorganized_data.items():
+        for key2, value2 in value.items():
+            velocity = value2["Velocity"]
+            velocity_list.append(velocity)
 
 def plot_correlations_overview(
         GLM_params, factors_dict, predicted_activity_dict, activity_dict, cell_number,
@@ -613,8 +498,6 @@ def plot_activity_residuals_correlation(factors_dict, predicted_activity_list, n
     trial_av_prediction_list = []
     for i in predicted_activity_list:
         trial_av_prediction_list.append(np.mean(i, axis=1))
-
-    print(f"len(trial_av_prediction_list) {len(trial_av_prediction_list)}")
 
     trial_av_neuron_activity_list = []
     for i in neuron_activity_list:
