@@ -74,6 +74,18 @@ def preprocess_data(filepath, normalize=True):
     return activity_dict, factors_dict
 
 
+def trial_average(activity_list):
+    trial_average_list = []
+
+    for i in activity_list:
+        trial_average = np.mean(i, axis=1)
+        trial_average_list.append(trial_average)
+
+    return trial_average_list
+
+
+
+
 def normalize_data(neuron_dict):
     for var_name in neuron_dict:
         if var_name == "Activity": # Z-score the neuron activity (df/f)
@@ -160,6 +172,108 @@ def fit_GLM(factors_dict, neuron_activity, regression='ridge', alphas=None):
     neuron_GLM_params['model'] = model
 
     return neuron_GLM_params, neuron_predicted_activity
+
+
+def plot_cell_trial_average_variable_subtraction(GLM_params_SST, GLM_params_NDNF, GLM_params_EC, predicted_activity_dict_SST, predicted_activity_dict_NDNF, predicted_activity_dict_EC):
+
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    trial_av_neuron_activity_list_SST = trial_average(neuron_activity_list_SST)
+    trial_av_mean_cell_residual_list_SST = trial_average(cell_residual_list_SST)
+
+    trial_av_neuron_activity_list_NDNF = trial_average(neuron_activity_list_NDNF)
+    trial_av_mean_cell_residual_list_NDNF = trial_average(cell_residual_list_NDNF)
+
+    trial_av_neuron_activity_list_EC = trial_average(neuron_activity_list_EC)
+    trial_av_mean_cell_residual_list_EC = trial_average(cell_residual_list_EC)
+
+    neuron_activity_list_SST_array = np.stack(trial_av_neuron_activity_list_SST)
+    neuron_activity_list_NDNF_array = np.stack(trial_av_neuron_activity_list_NDNF)
+    neuron_activity_list_EC_array = np.stack(trial_av_neuron_activity_list_EC)
+
+    neuron_residual_list_SST_array = np.stack(trial_av_mean_cell_residual_list_SST)
+    neuron_residual_list_NDNF_array = np.stack(trial_av_mean_cell_residual_list_NDNF)
+    neuron_residual_list_EC_array = np.stack(trial_av_mean_cell_residual_list_EC)
+
+    cell_av_neuron_activity_list_SST = np.mean(neuron_activity_list_SST_array, axis=0)
+    cell_av_neuron_activity_list_NDNF = np.mean(neuron_activity_list_NDNF_array, axis=0)
+    cell_av_neuron_activity_list_EC = np.mean(neuron_activity_list_EC_array, axis=0)
+
+    cell_av_residual_list_SST = np.mean(neuron_residual_list_SST_array, axis=0)
+    cell_av_residual_list_NDNF = np.mean(neuron_residual_list_NDNF_array, axis=0)
+    cell_av_residual_list_EC = np.mean(neuron_residual_list_EC_array, axis=0)
+
+    sem_neuron_activity_list_SST = np.std(neuron_activity_list_SST_array, axis=0) / np.sqrt(
+        neuron_activity_list_SST_array.shape[0])
+    sem_residual_list_SST = np.std(neuron_residual_list_SST_array, axis=0) / np.sqrt(
+        neuron_residual_list_SST_array.shape[0])
+
+    sem_neuron_activity_list_NDNF = np.std(neuron_activity_list_NDNF_array, axis=0) / np.sqrt(
+        neuron_activity_list_NDNF_array.shape[0])
+    sem_residual_list_NDNF = np.std(neuron_residual_list_NDNF_array, axis=0) / np.sqrt(
+        neuron_residual_list_NDNF_array.shape[0])
+
+    sem_neuron_activity_list_EC = np.std(neuron_activity_list_EC_array, axis=0) / np.sqrt(
+        neuron_activity_list_EC_array.shape[0])
+    sem_residual_list_EC = np.std(neuron_residual_list_EC_array, axis=0) / np.sqrt(
+        neuron_residual_list_EC_array.shape[0])
+
+    plt.figure()
+    plt.plot(cell_av_neuron_activity_list_SST, color='k', label='Raw Activity')
+    plt.fill_between(range(len(cell_av_neuron_activity_list_SST)),
+                     cell_av_neuron_activity_list_SST - sem_neuron_activity_list_SST,
+                     cell_av_neuron_activity_list_SST + sem_neuron_activity_list_SST,
+                     color='k', alpha=0.2)
+    plt.plot(cell_av_residual_list_SST, color='b', label='Residual')
+    plt.fill_between(range(len(cell_av_residual_list_SST)),
+                     cell_av_residual_list_SST - sem_residual_list_SST,
+                     cell_av_residual_list_SST + sem_residual_list_SST,
+                     color='b', alpha=0.2)
+    plt.title("SST Residuals vs Activity")
+    plt.ylim(-0.5, 0.5)
+    plt.legend()
+    plt.show()
+
+    plt.figure()
+    plt.plot(cell_av_neuron_activity_list_NDNF, color='k', label='Raw Activity')
+    plt.fill_between(range(len(cell_av_neuron_activity_list_NDNF)),
+                     cell_av_neuron_activity_list_NDNF - sem_neuron_activity_list_NDNF,
+                     cell_av_neuron_activity_list_NDNF + sem_neuron_activity_list_NDNF,
+                     color='k', alpha=0.2)
+
+    plt.plot(cell_av_residual_list_NDNF, color='orange', label='Residual')
+    plt.fill_between(range(len(cell_av_residual_list_NDNF)),
+                     cell_av_residual_list_NDNF - sem_residual_list_NDNF,
+                     cell_av_residual_list_NDNF + sem_residual_list_NDNF,
+                     color='orange', alpha=0.2)
+
+    plt.title("NDNF Residuals vs Activity")
+    plt.ylim(-0.5, 0.5)
+    plt.legend()
+    plt.show()
+
+    plt.figure()
+    plt.plot(cell_av_neuron_activity_list_EC, color='k', label='Raw Activity')
+    plt.fill_between(range(len(cell_av_neuron_activity_list_EC)),
+                     cell_av_neuron_activity_list_EC - sem_neuron_activity_list_EC,
+                     cell_av_neuron_activity_list_EC + sem_neuron_activity_list_EC,
+                     color='k', alpha=0.2)
+
+    plt.plot(cell_av_residual_list_EC, color='g', label='Residual')
+    plt.fill_between(range(len(cell_av_residual_list_EC)),
+                     cell_av_residual_list_EC - sem_residual_list_EC,
+                     cell_av_residual_list_EC + sem_residual_list_EC,
+                     color='g', alpha=0.2)
+
+    plt.title("EC Residuals vs Activity")
+    plt.ylim(-0.5, 0.5)
+    plt.legend()
+    plt.show()
 
 def get_neuron_activity_prediction_residual(activity_dict, predicted_activity_dict):
     neuron_activity_list = []
