@@ -9,6 +9,7 @@ import pandas as pd
 import copy
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
+from scipy.stats import pearsonr
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -85,6 +86,199 @@ def subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"]):
             else:
                 raise ValueError(f"Variable '{variable}' not found in neuron data for {neuron} in {animal}.")
     return filtered_factors_dict
+
+
+def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='ridge', renormalize=True, alphas=None):
+    GLM_params = {}
+    predicted_activity_dict = {}
+
+    for animal in factors_dict:
+        GLM_params[animal] = {}
+        predicted_activity_dict[animal] = {}
+        _factors_dict = factors_dict[animal].copy()
+
+        if quintile is not None:
+            num_trials = _factors_dict['Activity'].shape[1]
+            start_idx, end_idx = get_quintile_indices(num_trials, quintile)
+            for var in _factors_dict:
+                _factors_dict[var] = _factors_dict[var][:, start_idx:end_idx]
+
+        if renormalize:
+            normalize_data(_factors_dict)
+
+        for neuron_idx in activity_dict[animal]:
+            neuron_activity = activity_dict[animal][neuron_idx]
+
+            neuron_GLM_params, neuron_predicted_activity = fit_GLM(_factors_dict, neuron_activity, regression, alphas)
+
+            GLM_params[animal][neuron_idx] = neuron_GLM_params
+            predicted_activity_dict[animal][neuron_idx] = neuron_predicted_activity.reshape(
+                activity_dict[animal][neuron_idx].shape)
+
+    return GLM_params, predicted_activity_dict
+
+
+def fit_GLM(factors_dict, neuron_activity, regression='ridge', alphas=None):
+    neuron_activity_flat = neuron_activity.flatten()
+    flattened_data = flatten_data(factors_dict)
+
+    variable_names = [var for var in flattened_data]
+    design_matrix_X = np.stack([flattened_data[var] for var in variable_names], axis=1)
+
+    if regression == 'lasso':
+        model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
+    elif regression == 'ridge':
+        model = RidgeCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], cv=None)
+    elif regression == 'elastic':
+        l1_ratio = [0.1, 0.3, 0.5, 0.7, 0.9, 1]
+        model = ElasticNetCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000],
+                             l1_ratio=l1_ratio, cv=None)
+    else:
+        raise ValueError("Regression type must be 'lasso' or 'ridge'")
+
+    model.fit(design_matrix_X, neuron_activity_flat)
+
+    neuron_predicted_activity = model.predict(design_matrix_X)
+
+    trialavg_neuron_activity = np.mean(neuron_activity, axis=1)
+    trialavg_predicted_activity = np.mean(neuron_predicted_activity.reshape(neuron_activity.shape), axis=1)
+    pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0, 1]
+
+    neuron_GLM_params = {}
+    neuron_GLM_params['weights'] = {var: model.coef_[idx] for idx, var in enumerate(variable_names)}
+    neuron_GLM_params['intercept'] = model.intercept_
+    neuron_GLM_params['alpha'] = model.alpha_ if regression == 'ridge' else model.alpha_
+    neuron_GLM_params['l1_ratio'] = model.l1_ratio_ if regression == 'elastic' else None
+    neuron_GLM_params['R2'] = model.score(design_matrix_X, neuron_activity_flat)
+    neuron_GLM_params['pearson_R'] = pearson_R
+    neuron_GLM_params['model'] = model
+
+    return neuron_GLM_params, neuron_predicted_activity
+
+def get_neuron_activity_prediction_residual(activity_dict, predicted_activity_dict):
+    neuron_activity_list = []
+    predictions_list = []
+    cell_residual_list = []
+
+    for animal in activity_dict:
+        for neuron in activity_dict[animal]:
+            neuron_activity = activity_dict[animal][neuron]
+            prediction = predicted_activity_dict[animal][neuron]
+
+            residual = np.array(neuron_activity) - np.array(prediction)
+
+            neuron_activity_list.append(neuron_activity)
+            predictions_list.append(prediction)
+            cell_residual_list.append(residual)
+
+    return neuron_activity_list, predictions_list, cell_residual_list
+
+
+def plot_correlations_single_variable_GLM(GLM_params, factors_dict, filtered_factors_dict, predicted_activity_dict,
+                                          activity_dict, cell_number,
+                                          variable_to_correlate_list=["Licks", "Reward_loc", "Velocity"],
+                                          variable_into_GLM="Velocity"):
+    input_variables = {var: [] for var in factors_dict[next(iter(factors_dict))].keys()}
+    filtered_input_variables = {var: [] for var in filtered_factors_dict[next(iter(filtered_factors_dict))].keys()}
+
+    for animal in activity_dict:
+        for neuron in activity_dict[animal]:
+            for var in factors_dict[animal]:
+                input_variables[var].append(factors_dict[animal][var])
+            for var in filtered_factors_dict[animal]:
+                filtered_input_variables[var].append(filtered_factors_dict[animal][var])
+
+    neuron_activity_list, predictions_list, cell_residual_list = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict)
+
+    cell_activity = neuron_activity_list[cell_number]
+    cell_prediciton = predictions_list[cell_number]
+    cell_residual = cell_residual_list[cell_number]
+
+    flat_neuron_activity = cell_activity.flatten()
+    flat_prediction_total = cell_prediciton.flatten()
+    flat_residual_total = cell_residual.flatten()
+
+    num_keys = len(variable_to_correlate_list)
+    fig, axs = plt.subplots(1, num_keys, figsize=(6 * (num_keys), 5))
+
+    for idx, key in enumerate(variable_to_correlate_list):
+        flat_neuron_activity = neuron_activity_list[cell_number].flatten()
+        flat_variable = input_variables[key][cell_number].flatten()
+
+        model_activity = LinearRegression()
+        model_activity.fit(flat_variable.reshape(-1, 1), flat_neuron_activity)
+        y_pred_activity = model_activity.predict(flat_variable.reshape(-1, 1))
+        r2_activity, _ = pearsonr(flat_neuron_activity, y_pred_activity)
+
+        axs[idx].scatter(flat_variable, flat_neuron_activity, label="Data", alpha=0.6)
+        axs[idx].plot(flat_variable, y_pred_activity, color='r', label="Best Fit", linewidth=2)
+        axs[idx].set_title(f"{key} vs Activity\nR value: {r2_activity:.3f}")
+        axs[idx].set_xlabel(key)
+        axs[idx].set_ylabel("Activity")
+        axs[idx].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    model_total = LinearRegression()
+    model_total.fit(flat_prediction_total.reshape(-1, 1), flat_neuron_activity)
+    y_pred_total = model_total.predict(flat_prediction_total.reshape(-1, 1))
+    r2_total, _ = pearsonr(flat_neuron_activity, y_pred_total)
+
+    model_total_residual = LinearRegression()
+    model_total_residual.fit(flat_residual_total.reshape(-1, 1), flat_neuron_activity)
+    y_pred_total_residual = model_total_residual.predict(flat_residual_total.reshape(-1, 1))
+    r2_residual, _ = pearsonr(flat_neuron_activity, y_pred_total_residual)
+
+    variable_of_interest = filtered_input_variables[variable_into_GLM][cell_number]
+    flat_variable_of_interest = variable_of_interest.flatten()
+    model_variable_residual = LinearRegression()
+    model_variable_residual.fit(flat_residual_total.reshape(-1, 1), flat_variable_of_interest)
+    y_pred_variable_residual = model_variable_residual.predict(flat_residual_total.reshape(-1, 1))
+    r2_variable_residual, _ = pearsonr(flat_residual_total, flat_variable_of_interest)
+
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+
+    axs[0].scatter(flat_prediction_total, flat_neuron_activity, label="Data", alpha=0.6)
+    axs[0].plot(flat_prediction_total, y_pred_total, color='r', label="Best Fit", linewidth=2)
+    axs[0].set_title(f"Prediction based on just {variable_into_GLM} vs Activity\nR value: {r2_total:.3f}")
+    axs[0].set_xlabel(f"{variable_into_GLM} Prediction")
+    axs[0].set_ylabel("Activity")
+    axs[0].legend()
+
+    axs[1].scatter(flat_residual_total, flat_variable_of_interest, label="Data", alpha=0.6)
+    axs[1].plot(flat_residual_total, y_pred_variable_residual, color='r', label="Best Fit", linewidth=2)
+    axs[1].set_title(f"Residuals vs Variable: {variable_into_GLM}\nR value: {r2_variable_residual:.3f}")
+    axs[1].set_xlabel("Residuals")
+    axs[1].set_ylabel(f"Variable: {variable_into_GLM}")
+    axs[1].legend()
+
+    axs[2].scatter(flat_residual_total, flat_neuron_activity, label="Data", alpha=0.6)
+    axs[2].plot(flat_residual_total, y_pred_total_residual, color='r', label="Best Fit", linewidth=2)
+    axs[2].set_title(f"Residuals vs Activity\nR value: {r2_residual:.3f}")
+    axs[2].set_xlabel("Residuals")
+    axs[2].set_ylabel("Activity")
+    axs[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    flat_residual_total = flat_residual_total.reshape(neuron_activity_list[cell_number].shape)
+    flat_neuron_activity = flat_neuron_activity.reshape(neuron_activity_list[cell_number].shape)
+
+    plt.figure()
+    plt.plot(np.mean(predictions_list[cell_number], axis=1), color='b',
+             label=f"Prediction Based on {variable_into_GLM}")
+    plt.plot(np.mean(flat_neuron_activity, axis=1), color='k', label=f"Raw Activity for Cell#{cell_number}")
+    plt.plot(np.mean(flat_residual_total, axis=1), color='r', label=f"{variable_into_GLM}-Subtracted Residual")
+    plt.title(f"Cell#{cell_number} Trial Averaged")
+    plt.xlabel('Position Bin')
+    plt.ylabel('DF/F')
+    plt.legend()
+    plt.show()
+
+    return cell_activity, cell_prediciton, cell_residual
 
 
 def compute_residual_activity(activity_dict, predicted_activity_dict):
@@ -267,74 +461,6 @@ def plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot
     plt.legend()
     plt.grid(True)
     plt.show()
-
-
-def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='ridge', renormalize=True, alphas=None):
-    GLM_params = {}
-    predicted_activity_dict = {}
-
-    for animal in factors_dict:
-        GLM_params[animal] = {}
-        predicted_activity_dict[animal] = {}
-        _factors_dict = factors_dict[animal].copy()
-
-        if quintile is not None:
-            num_trials = _factors_dict['Activity'].shape[1]
-            start_idx, end_idx = get_quintile_indices(num_trials, quintile)
-            for var in _factors_dict:
-                _factors_dict[var] = _factors_dict[var][:, start_idx:end_idx]
-
-        if renormalize:
-            normalize_data(_factors_dict)
-
-        for neuron_idx in activity_dict[animal]:
-            neuron_activity = activity_dict[animal][neuron_idx]
-
-            neuron_GLM_params, neuron_predicted_activity = fit_GLM(_factors_dict, neuron_activity, regression, alphas)
-
-            GLM_params[animal][neuron_idx] = neuron_GLM_params
-            predicted_activity_dict[animal][neuron_idx] = neuron_predicted_activity.reshape(
-                activity_dict[animal][neuron_idx].shape)
-
-    return GLM_params, predicted_activity_dict
-
-
-def fit_GLM(factors_dict, neuron_activity, regression='ridge', alphas=None):
-    neuron_activity_flat = neuron_activity.flatten()
-    flattened_data = flatten_data(factors_dict)
-
-    variable_names = [var for var in flattened_data]
-    design_matrix_X = np.stack([flattened_data[var] for var in variable_names], axis=1)
-
-    if regression == 'lasso':
-        model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
-    elif regression == 'ridge':
-        model = RidgeCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], cv=None)
-    elif regression == 'elastic':
-        l1_ratio = [0.1, 0.3, 0.5, 0.7, 0.9, 1]
-        model = ElasticNetCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000],
-                             l1_ratio=l1_ratio, cv=None)
-    else:
-        raise ValueError("Regression type must be 'lasso' or 'ridge'")
-
-    model.fit(design_matrix_X, neuron_activity_flat)
-
-    neuron_predicted_activity = model.predict(design_matrix_X)
-
-    trialavg_neuron_activity = np.mean(neuron_activity, axis=1)
-    trialavg_predicted_activity = np.mean(neuron_predicted_activity.reshape(neuron_activity.shape), axis=1)
-    pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0, 1]
-
-    neuron_GLM_params = {}
-    neuron_GLM_params['weights'] = {var: model.coef_[idx] for idx, var in enumerate(variable_names)}
-    neuron_GLM_params['intercept'] = model.intercept_
-    neuron_GLM_params['alpha'] = model.alpha_ if regression == 'ridge' else model.alpha_
-    neuron_GLM_params['l1_ratio'] = model.l1_ratio_ if regression == 'elastic' else None
-    neuron_GLM_params['R2'] = model.score(design_matrix_X, neuron_activity_flat)
-    neuron_GLM_params['pearson_R'] = pearson_R
-    neuron_GLM_params['model'] = model
-
-    return neuron_GLM_params, neuron_predicted_activity
 
 
 def plot_activity_residuals_correlation(reorganized_data, predicted_activity_list, neuron_activity_list, residuals_list,
