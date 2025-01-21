@@ -30,6 +30,12 @@ def preprocess_data(filepath, normalize=True):
     factors_dict = {}
     activity_dict = {}
     for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],data_dict['animal']['ShiftV'])):
+        num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
+        lick_rate = lick_rate[:, :num_trials]
+        reward_loc = reward_loc[:, :num_trials]
+        velocity = velocity[:, :num_trials]
+        delta_f = delta_f[:, :num_trials, :]
+
         # Exclude trials with NaNs
         nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
         nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
