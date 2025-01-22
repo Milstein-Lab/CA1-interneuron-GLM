@@ -494,9 +494,9 @@ def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activit
                  "Negative Vinje Selectivity Index", n_bins=20)
 
 
-def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                                              predicted_activity_dict_NDNF, activity_dict_EC,
-                                              predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
+def get_argmin_argmax_for_plotting(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                   predicted_activity_dict_NDNF, activity_dict_EC,
+                                   predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
     neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
         activity_dict_SST, predicted_activity_dict_SST)
     neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
@@ -549,6 +549,20 @@ def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activ
     else:
         raise ValueError("options are argmin or argmax")
 
+    return SST_factor_list, NDNF_factor_list, EC_factor_list
+
+
+def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                              predicted_activity_dict_NDNF, activity_dict_EC,
+                                              predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
+    SST_factor_list, NDNF_factor_list, EC_factor_list = get_argmin_argmax_for_plotting(activity_dict_SST,
+                                                                                       predicted_activity_dict_SST,
+                                                                                       activity_dict_NDNF,
+                                                                                       predicted_activity_dict_NDNF,
+                                                                                       activity_dict_EC,
+                                                                                       predicted_activity_dict_EC,
+                                                                                       residual=residual,
+                                                                                       which_to_plot=which_to_plot)
     mean_quantiles_SST, sem_quantiles_SST = get_quantiles_for_cdf(activity_dict_SST, SST_factor_list, n_bins=20)
 
     mean_quantiles_NDNF, sem_quantiles_NDNF = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_list, n_bins=20)
@@ -579,6 +593,7 @@ def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activ
 
     else:
         raise ValueError("options are argmin or argmax")
+
 
 def plot_position_frequency(SST_list, NDNF_list, EC_list, name=None):
     bin_edges = np.arange(0, 51, 5)
