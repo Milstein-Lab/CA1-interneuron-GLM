@@ -388,9 +388,22 @@ def plot_correlations_single_variable_GLM(GLM_params, factors_dict, filtered_fac
     plt.show()
 
 
-def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                                            predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
-                                            residual=False):
+def Vinje2000(tuning_curve, norm='None', negative_selectivity=False):
+    if norm == 'min_max':
+        tuning_curve = (tuning_curve - np.min(tuning_curve)) / (np.max(tuning_curve) - np.min(tuning_curve))
+        if negative_selectivity:
+            tuning_curve = np.absolute(1 - tuning_curve)
+    elif norm == 'z_score':
+        tuning_curve = (tuning_curve - np.mean(tuning_curve)) / np.std(tuning_curve)
+        if negative_selectivity:
+            tuning_curve = np.absolute(1 - tuning_curve)
+    A = np.mean(tuning_curve) ** 2 / np.mean(tuning_curve ** 2)
+    return (1 - A) / (1 - 1 / len(tuning_curve))
+
+
+def get_selectivity_for_plotting(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                 predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
+                                 residual=False):
     neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
         activity_dict_SST, predicted_activity_dict_SST)
     neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
@@ -408,20 +421,39 @@ def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activit
         trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
         trial_av_activity_EC = trial_average(neuron_activity_list_EC)
 
+    SST_negative_selectivity = []
     SST_factor_list = []
     for i in trial_av_activity_SST:
-        selectivity = Vinje2000(i, norm='min_max')
+        selectivity = Vinje2000(i, norm='min_max', negative_selectivity=False)
+        negative_selectivity = Vinje2000(i, norm='min_max', negative_selectivity=True)
         SST_factor_list.append(selectivity)
+        SST_negative_selectivity.append(negative_selectivity)
 
+    NDNF_negative_selectivity = []
     NDNF_factor_list = []
     for i in trial_av_activity_NDNF:
-        selectivity = Vinje2000(i, norm='min_max')
+        selectivity = Vinje2000(i, norm='min_max', negative_selectivity=False)
+        negative_selectivity = Vinje2000(i, norm='min_max', negative_selectivity=True)
         NDNF_factor_list.append(selectivity)
+        NDNF_negative_selectivity.append(negative_selectivity)
 
+    EC_negative_selectivity = []
     EC_factor_list = []
     for i in trial_av_activity_EC:
-        selectivity = Vinje2000(i, norm='min_max')
+        selectivity = Vinje2000(i, norm='min_max', negative_selectivity=False)
+        negative_selectivity = Vinje2000(i, norm='min_max', negative_selectivity=True)
         EC_factor_list.append(selectivity)
+        EC_negative_selectivity.append(negative_selectivity)
+
+    return SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity
+
+
+def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                            predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
+                                            residual=False):
+    SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity = get_selectivity_for_plotting(
+        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF,
+        activity_dict_EC, predicted_activity_dict_EC, residual=residual)
 
     mean_quantiles_SST, sem_quantiles_SST = get_quantiles_for_cdf(activity_dict_SST, SST_factor_list, n_bins=20)
 
@@ -433,14 +465,151 @@ def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activit
 
     sem_quantiles_list = [sem_quantiles_SST, sem_quantiles_NDNF, sem_quantiles_EC]
 
+    mean_quantiles_SST_negative, sem_quantiles_SST_negative = get_quantiles_for_cdf(activity_dict_SST,
+                                                                                    SST_negative_selectivity, n_bins=20)
+
+    mean_quantiles_NDNF_negative, sem_quantiles_NDNF_negative = get_quantiles_for_cdf(activity_dict_NDNF,
+                                                                                      NDNF_negative_selectivity,
+                                                                                      n_bins=20)
+
+    mean_quantiles_EC_negative, sem_quantiles_EC_negative = get_quantiles_for_cdf(activity_dict_EC,
+                                                                                  EC_negative_selectivity, n_bins=20)
+
+    mean_quantiles_list_negative = [mean_quantiles_SST_negative, mean_quantiles_NDNF_negative,
+                                    mean_quantiles_EC_negative]
+
+    sem_quantiles_list_negative = [sem_quantiles_SST_negative, sem_quantiles_NDNF_negative, sem_quantiles_EC_negative]
+
     if residual:
         plot_cdf(mean_quantiles_list, sem_quantiles_list, "Selectivity for Residuals", "Vinje Selectivity Index",
                  n_bins=20)
+        plot_cdf(mean_quantiles_list_negative, sem_quantiles_list_negative, "Negative Selectivity for Residuals",
+                 "Negative Vinje Selectivity Index", n_bins=20)
+
 
     else:
         plot_cdf(mean_quantiles_list, sem_quantiles_list, "Selectivity for Raw Data", "Vinje Selectivity Index",
                  n_bins=20)
+        plot_cdf(mean_quantiles_list_negative, sem_quantiles_list_negative, "Negative Selectivity for Raw Data",
+                 "Negative Vinje Selectivity Index", n_bins=20)
 
+
+def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                              predicted_activity_dict_NDNF, activity_dict_EC,
+                                              predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    if residual:
+        trial_av_activity_SST = trial_average(cell_residual_list_SST)
+        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
+        trial_av_activity_EC = trial_average(cell_residual_list_EC)
+
+    else:
+        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
+        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
+        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
+
+    if which_to_plot == "argmin":
+        SST_factor_list = []
+        for i in trial_av_activity_SST:
+            argmin_SST = np.argmin(i)
+            SST_factor_list.append(argmin_SST)
+
+        NDNF_factor_list = []
+        for i in trial_av_activity_NDNF:
+            argmin_NDNF = np.argmin(i)
+            NDNF_factor_list.append(argmin_NDNF)
+
+        EC_factor_list = []
+        for i in trial_av_activity_EC:
+            argmin_EC = np.argmin(i)
+            EC_factor_list.append(argmin_EC)
+
+    elif which_to_plot == "argmax":
+        SST_factor_list = []
+        for i in trial_av_activity_SST:
+            argmax_SST = np.argmax(i)
+            SST_factor_list.append(argmax_SST)
+
+        NDNF_factor_list = []
+        for i in trial_av_activity_NDNF:
+            argmax_NDNF = np.argmax(i)
+            NDNF_factor_list.append(argmax_NDNF)
+
+        EC_factor_list = []
+        for i in trial_av_activity_EC:
+            argmax_EC = np.argmax(i)
+            EC_factor_list.append(argmax_EC)
+
+    else:
+        raise ValueError("options are argmin or argmax")
+
+    mean_quantiles_SST, sem_quantiles_SST = get_quantiles_for_cdf(activity_dict_SST, SST_factor_list, n_bins=20)
+
+    mean_quantiles_NDNF, sem_quantiles_NDNF = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_list, n_bins=20)
+
+    mean_quantiles_EC, sem_quantiles_EC = get_quantiles_for_cdf(activity_dict_EC, EC_factor_list, n_bins=20)
+
+    mean_quantiles_list = [mean_quantiles_SST, mean_quantiles_NDNF, mean_quantiles_EC]
+
+    sem_quantiles_list = [sem_quantiles_SST, sem_quantiles_NDNF, sem_quantiles_EC]
+
+    if which_to_plot == "argmin":
+        if residual:
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmin for Residuals", "Position Bin of Minimum Firing",
+                     n_bins=20)
+
+        else:
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmin for Raw Data", "Position Bin of Minimum Firing",
+                     n_bins=20)
+
+    elif which_to_plot == "argmax":
+        if residual:
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmax for Residuals", "Position Bin of Maximum Firing",
+                     n_bins=20)
+
+        else:
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmax for Raw Data", "Position Bin of Maximum Firing",
+                     n_bins=20)
+
+    else:
+        raise ValueError("options are argmin or argmax")
+
+def plot_position_frequency(SST_list, NDNF_list, EC_list, name=None):
+    bin_edges = np.arange(0, 51, 5)
+
+    bin_centers = bin_edges[:-1] + 2.5
+    bin_labels = [f"{start}-{start + 4}" for start in bin_edges[:-1]]
+
+    SST_hist, _ = np.histogram(SST_list, bins=bin_edges)
+    NDNF_hist, _ = np.histogram(NDNF_list, bins=bin_edges)
+    EC_hist, _ = np.histogram(EC_list, bins=bin_edges)
+
+    SST_fraction = SST_hist / np.sum(SST_hist)
+    NDNF_fraction = NDNF_hist / np.sum(NDNF_hist)
+    EC_fraction = EC_hist / np.sum(EC_hist)
+
+    bin_centers = bin_edges[:-1] + 2.5
+
+    plt.figure(figsize=(8, 6))
+
+    plt.plot(bin_centers, SST_fraction, marker='o', label=f'SST {name}', linestyle='-')
+    plt.plot(bin_centers, NDNF_fraction, marker='o', label=f'NDNF {name}', linestyle='-')
+    plt.plot(bin_centers, EC_fraction, marker='o', label=f'EC {name}', linestyle='-')
+
+    plt.xlabel('Position Bin')
+    plt.ylabel('Fraction of Cells')
+    plt.title(f'{name}')
+    plt.xticks(bin_centers, bin_labels, rotation=45)
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
 
 def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
     animal_ID_list = []
@@ -1160,23 +1329,144 @@ def compute_variable_subtracted_residuals(reorganized_data, variable_list, varia
     return avg_residuals, GLM_params, residual_activity, predicted_activity
 
 
-def normalize(x, norm):
-    if norm == 'min_max':
-        return (x - np.min(x)) / (np.max(x) - np.min(x))
-    elif norm == 'Z_score':
-        return (x - np.mean(x)) / np.std(x)
+def normalize(x, norm, per_cell=True):
+    if per_cell:
+        if norm == 'min_max':
+            return (x - np.min(x, axis=1, keepdims=True)) / (np.max(x, axis=1, keepdims=True) - np.min(x, axis=1, keepdims=True))
+        elif norm == 'Z_score':
+            return (x - np.mean(x, axis=1, keepdims=True)) / np.std(x, axis=1, keepdims=True)
     else:
-        return x
+        if norm == 'min_max':
+            return (x - np.min(x)) / (np.max(x) - np.min(x))
+        elif norm == 'Z_score':
+            return (x - np.mean(x)) / np.std(x)
+    return x
 
 
-def Vinje2000(tuning_curve, norm='None'):
-    if norm == 'min_max':
-        tuning_curve = (tuning_curve - np.min(tuning_curve)) / (np.max(tuning_curve) - np.min(tuning_curve))
-    elif norm == 'z_score':
-        tuning_curve = (tuning_curve - np.mean(tuning_curve)) / np.std(tuning_curve)
+def plot_sorted_activity(data, sorted_indices, title, ylabel, xlabel):
+    plt.figure()
+    plt.imshow(data[sorted_indices, :], aspect='auto')
+    plt.title(title)
+    plt.colorbar(label='Activity')
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+    plt.show()
 
-    A = np.mean(tuning_curve) ** 2 / np.mean(tuning_curve ** 2)
-    return (1 - A) / (1 - 1 / len(tuning_curve))
+
+def plot_trial_averages(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                        predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False,
+                        which_to_plot="argmin"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    if residual:
+        trial_av_activity_SST = trial_average(cell_residual_list_SST)
+        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
+        trial_av_activity_EC = trial_average(cell_residual_list_EC)
+    else:
+        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
+        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
+        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
+
+    trial_av_activity_SST_stack = np.stack(trial_av_activity_SST)
+    trial_av_activity_NDNF_stack = np.stack(trial_av_activity_NDNF)
+    trial_av_activity_EC_stack = np.stack(trial_av_activity_EC)
+
+    print(f"trial_av_activity_SST_stack.shape {trial_av_activity_SST_stack.shape}")
+
+    trial_av_activity_SST = normalize(trial_av_activity_SST_stack, norm="z_score", per_cell=True)
+    trial_av_activity_NDNF = normalize(trial_av_activity_NDNF_stack, norm="z_score", per_cell=True)
+    trial_av_activity_EC = normalize(trial_av_activity_EC_stack, norm="z_score", per_cell=True)
+
+    if which_to_plot == "argmin":
+        sorted_indices_SST = np.argsort(np.argmin(trial_av_activity_SST, axis=1))
+        sorted_indices_NDNF = np.argsort(np.argmin(trial_av_activity_NDNF, axis=1))
+        sorted_indices_EC = np.argsort(np.argmin(trial_av_activity_EC, axis=1))
+    elif which_to_plot == "argmax":
+        sorted_indices_SST = np.argsort(np.argmax(trial_av_activity_SST, axis=1))
+        sorted_indices_NDNF = np.argsort(np.argmax(trial_av_activity_NDNF, axis=1))
+        sorted_indices_EC = np.argsort(np.argmax(trial_av_activity_EC, axis=1))
+    else:
+        raise ValueError("Options for which_to_plot are 'argmin' or 'argmax'")
+
+    plot_sorted_activity(trial_av_activity_SST, sorted_indices_SST,
+                         f"{'Residuals' if residual else 'Raw Data'} SST ({which_to_plot})", "Cell ID", "Position Bins")
+
+    plot_sorted_activity(
+        trial_av_activity_NDNF, sorted_indices_NDNF,
+        f"{'Residuals' if residual else 'Raw Data'} NDNF ({which_to_plot})", "Cell ID", "Position Bins")
+
+    plot_sorted_activity(
+        trial_av_activity_EC, sorted_indices_EC, f"{'Residuals' if residual else 'Raw Data'} EC ({which_to_plot})",
+        "Cell ID", "Position Bins")
+
+
+def plot_trial_averages(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                        predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False,
+                        which_to_plot="argmin"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    if residual:
+        trial_av_activity_SST = trial_average(cell_residual_list_SST)
+        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
+        trial_av_activity_EC = trial_average(cell_residual_list_EC)
+
+    else:
+        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
+        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
+        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
+
+    trial_av_activity_SST = np.stack(trial_av_activity_SST)
+    trial_av_activity_NDNF = np.stack(trial_av_activity_NDNF)
+    trial_av_activity_EC = np.stack(trial_av_activity_EC)
+
+    if which_to_plot == "argmin":
+        sorted_trial_av_activity_SST = np.argsort(np.argmin(trial_av_activity_SST, axis=1))
+        sorted_trial_av_activity_NDNF = np.argsort(np.argmin(trial_av_activity_NDNF, axis=1))
+        sorted_trial_av_activity_EC = np.argsort(np.argmin(trial_av_activity_EC, axis=1))
+
+    elif which_to_plot == "argmax":
+        sorted_trial_av_activity_SST = np.argsort(np.argmax(trial_av_activity_SST, axis=1))
+        sorted_trial_av_activity_NDNF = np.argsort(np.argmax(trial_av_activity_NDNF, axis=1))
+        sorted_trial_av_activity_EC = np.argsort(np.argmax(trial_av_activity_EC, axis=1))
+
+    else:
+        raise ValueError("Options are argmin or argmax")
+
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+    im0 = axs[0].imshow(trial_av_activity_SST[sorted_trial_av_activity_SST, :], aspect='auto', cmap='viridis')
+    axs[0].set_title(f"{'Residuals' if residual else 'Raw Data'} SST {which_to_plot}")
+    axs[0].set_ylabel("Cell ID")
+    axs[0].set_xlabel("Position Bins")
+    fig.colorbar(im0, ax=axs[0])
+
+    im1 = axs[1].imshow(trial_av_activity_NDNF[sorted_trial_av_activity_NDNF, :], aspect='auto', cmap='viridis')
+    axs[1].set_title(f"{'Residuals' if residual else 'Raw Data'} NDNF {which_to_plot}")
+    axs[1].set_ylabel("Cell ID")
+    axs[1].set_xlabel("Position Bins")
+    fig.colorbar(im1, ax=axs[1])
+
+    im2 = axs[2].imshow(trial_av_activity_EC[sorted_trial_av_activity_EC, :], aspect='auto', cmap='viridis')
+    axs[2].set_title(f"{'Residuals' if residual else 'Raw Data'} EC {which_to_plot}")
+    axs[2].set_ylabel("Cell ID")
+    axs[2].set_xlabel("Position Bins")
+    fig.colorbar(im2, ax=axs[2])
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 
 def get_min_maxed_residuals_argmin_argmax_selectivity(avg_residuals):
