@@ -307,7 +307,7 @@ def plot_correlations_single_variable_GLM(GLM_params, factors_dict, filtered_fac
                 filtered_input_variables[var].append(filtered_factors_dict[animal][var])
 
     neuron_activity_list, predictions_list, cell_residual_list = get_neuron_activity_prediction_residual(
-        activity_dict_SST, predicted_activity_dict)
+        activity_dict, predicted_activity_dict)
 
     cell_activity = neuron_activity_list[cell_number]
     cell_prediciton = predictions_list[cell_number]
@@ -393,6 +393,102 @@ def compute_r_and_model(x, y):
     y_pred = model.predict(x.reshape(-1, 1))
     r_value, _ = pearsonr(x, y)
     return r_value, y_pred
+
+
+def plot_pop_correlation(r2_variable_activity_dict, r2_variable_residual_dict, variable_to_correlate="Velocity", cell_type="SST"):
+    r2_variable_activity_list = []
+    r2_variable_residual_list = []
+
+    # Collect R values for activity and residuals
+    for animal in r2_variable_activity_dict:
+        for neuron in r2_variable_activity_dict[animal]:
+            r2_variable_activity_list.append(r2_variable_activity_dict[animal][neuron])
+            r2_variable_residual_list.append(r2_variable_residual_dict[animal][neuron])
+
+    # Convert to numpy arrays for calculations
+    r2_variable_activity_array = np.array(r2_variable_activity_list)
+    r2_variable_residual_array = np.array(r2_variable_residual_list)
+
+    # Calculate mean and SEM for activity and residuals
+    mean_activity = np.mean(r2_variable_activity_array)
+    sem_activity = np.std(r2_variable_activity_array) / np.sqrt(len(r2_variable_activity_array))
+
+    mean_residuals = np.mean(r2_variable_residual_array)
+    sem_residuals = np.std(r2_variable_residual_array) / np.sqrt(len(r2_variable_residual_array))
+
+    # Jitter for individual points
+    x_positions = [0, 1]
+    x_jitter_activity = np.random.normal(x_positions[0], 0.05, size=len(r2_variable_activity_array))
+    x_jitter_residuals = np.random.normal(x_positions[1], 0.05, size=len(r2_variable_residual_array))
+
+    # Create the plot
+    plt.figure(figsize=(8, 6))
+
+    # Plot individual data points
+    plt.scatter(x_jitter_activity, r2_variable_activity_array, color='black', alpha=0.8, label=f'Activity vs {variable_to_correlate}', zorder=3)
+    plt.scatter(x_jitter_residuals, r2_variable_residual_array, color='red', alpha=0.8, label=f'Residuals vs {variable_to_correlate}', zorder=3)
+
+    # Connect corresponding points with grey lines
+    for i in range(len(r2_variable_activity_array)):
+        plt.plot([x_jitter_activity[i], x_jitter_residuals[i]],
+                 [r2_variable_activity_array[i], r2_variable_residual_array[i]],
+                 color='gray', alpha=0.6, linewidth=0.8)
+
+    # Plot mean and SEM for activity as horizontal lines
+    plt.hlines(mean_activity, x_positions[0] - 0.3, x_positions[0] - 0.1, color='black', linewidth=2, label='Mean (Activity)')
+    plt.fill_betweenx([mean_activity - sem_activity, mean_activity + sem_activity],
+                      x_positions[0] - 0.3, x_positions[0] - 0.1, color='black', alpha=0.2)
+
+    # Plot mean and SEM for residuals as horizontal lines
+    plt.hlines(mean_residuals, x_positions[1] + 0.2, x_positions[1] + 0.3, color='red', linewidth=2, label='Mean (Residuals)')
+    plt.fill_betweenx([mean_residuals - sem_residuals, mean_residuals + sem_residuals],
+                      x_positions[1] + 0.2, x_positions[1] + 0.3, color='red', alpha=0.2)
+
+    # Set plot aesthetics
+    plt.xticks(x_positions, [f'Activity vs {variable_to_correlate}', f'Residuals vs {variable_to_correlate}'])
+    plt.ylabel("R Value")
+    plt.title(f"R Values for Activity vs {variable_to_correlate} and Residuals vs {variable_to_correlate} for {cell_type}")
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
+
+
+def get_pop_correlation_to_variable(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST,
+                                    variable_to_correlate="Velocity"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+
+    filtered_input_variables = {var: [] for var in
+                                filtered_factors_dict_SST[next(iter(filtered_factors_dict_SST))].keys()}
+    for animal in activity_dict_SST:
+        for neuron in activity_dict_SST[animal]:
+            for var in filtered_factors_dict_SST[animal]:
+                filtered_input_variables[var].append(filtered_factors_dict_SST[animal][var])
+
+    r2_variable_activity_dict = {}
+    r2_variable_residual_dict = {}
+
+    idx = 0
+    for animal in activity_dict_SST:
+        r2_variable_activity_dict[animal] = {}
+        r2_variable_residual_dict[animal] = {}
+        for neuron in activity_dict_SST[animal]:
+            flat_neuron_activity = neuron_activity_list_SST[idx].flatten()
+            flat_residual = cell_residual_list_SST[idx].flatten()
+            flat_variable_of_interest = filtered_input_variables[variable_to_correlate][idx].flatten()
+
+            r2_variable_activity, _ = pearsonr(flat_neuron_activity, flat_variable_of_interest)
+            r2_variable_residual, _ = pearsonr(flat_residual, flat_variable_of_interest)
+
+            r2_variable_activity_dict[animal][neuron] = r2_variable_activity
+            r2_variable_residual_dict[animal][neuron] = r2_variable_residual
+
+            idx += 1
+
+    return r2_variable_activity_dict, r2_variable_residual_dict
 
 
 def compute_residual_activity(activity_dict, predicted_activity_dict):
