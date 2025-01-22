@@ -10,6 +10,7 @@ import copy
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from scipy.stats import pearsonr
+from scipy.stats import sem
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -174,14 +175,11 @@ def fit_GLM(factors_dict, neuron_activity, regression='ridge', alphas=None):
     return neuron_GLM_params, neuron_predicted_activity
 
 
-def plot_cell_trial_average_variable_subtraction(GLM_params_SST, GLM_params_NDNF, GLM_params_EC, predicted_activity_dict_SST, predicted_activity_dict_NDNF, predicted_activity_dict_EC):
+def plot_cell_trial_average_variable_subtraction(activity_dict_SST, activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_SST, predicted_activity_dict_NDNF, predicted_activity_dict_EC):
 
-    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
-        activity_dict_SST, predicted_activity_dict_SST)
-    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
-        activity_dict_EC, predicted_activity_dict_EC)
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(activity_dict_EC, predicted_activity_dict_EC)
 
     trial_av_neuron_activity_list_SST = trial_average(neuron_activity_list_SST)
     trial_av_mean_cell_residual_list_SST = trial_average(cell_residual_list_SST)
@@ -341,22 +339,12 @@ def plot_correlations_single_variable_GLM(GLM_params, factors_dict, filtered_fac
     plt.tight_layout()
     plt.show()
 
-    model_total = LinearRegression()
-    model_total.fit(flat_prediction_total.reshape(-1, 1), flat_neuron_activity)
-    y_pred_total = model_total.predict(flat_prediction_total.reshape(-1, 1))
-    r2_total, _ = pearsonr(flat_neuron_activity, y_pred_total)
-
-    model_total_residual = LinearRegression()
-    model_total_residual.fit(flat_residual_total.reshape(-1, 1), flat_neuron_activity)
-    y_pred_total_residual = model_total_residual.predict(flat_residual_total.reshape(-1, 1))
-    r2_residual, _ = pearsonr(flat_neuron_activity, y_pred_total_residual)
-
     variable_of_interest = filtered_input_variables[variable_into_GLM][cell_number]
     flat_variable_of_interest = variable_of_interest.flatten()
-    model_variable_residual = LinearRegression()
-    model_variable_residual.fit(flat_residual_total.reshape(-1, 1), flat_variable_of_interest)
-    y_pred_variable_residual = model_variable_residual.predict(flat_residual_total.reshape(-1, 1))
-    r2_variable_residual, _ = pearsonr(flat_residual_total, flat_variable_of_interest)
+
+    r2_total, y_pred_total = compute_r_and_model(flat_prediction_total, flat_neuron_activity)
+    r2_residual, y_pred_total_residual = compute_r_and_model(flat_residual_total, flat_neuron_activity)
+    r2_variable_residual, y_pred_variable_residual = compute_r_and_model(flat_residual_total, flat_variable_of_interest)
 
     fig, axs = plt.subplots(1, 3, figsize=(18, 5))
 
@@ -398,7 +386,13 @@ def plot_correlations_single_variable_GLM(GLM_params, factors_dict, filtered_fac
     plt.legend()
     plt.show()
 
-    return cell_activity, cell_prediciton, cell_residual
+def compute_r_and_model(x, y):
+
+    model = LinearRegression()
+    model.fit(x.reshape(-1, 1), y)
+    y_pred = model.predict(x.reshape(-1, 1))
+    r_value, _ = pearsonr(x, y)
+    return r_value, y_pred
 
 
 def compute_residual_activity(activity_dict, predicted_activity_dict):
@@ -825,45 +819,48 @@ def plot_activity_residuals_correlation(factors_dict, predicted_activity_list, n
     return r2_list_residuals, r2_list_activity
 
 
-def plot_r2_difference_vs_velocity(r2_list_activity, r2_list_residuals):
+def plot_r_difference_vs_variable(r2_list_activity, r2_list_residuals, variable_to_compare="Velocity"):
     r2_list_activity = np.array(r2_list_activity)
     r2_list_residuals = np.array(r2_list_residuals)
+
     mean_activity = np.mean(r2_list_activity)
     mean_residuals = np.mean(r2_list_residuals)
+    sem_activity = sem(r2_list_activity)
+    sem_residuals = sem(r2_list_residuals)
 
     positions = [0, 1]
 
     plt.figure(figsize=(8, 6))
 
-    plt.bar(positions, [mean_activity, mean_residuals], color=['blue', 'orange'], alpha=0.7, width=0.4, label='Mean R²')
-
+    # Scatter points
     x_jitter_activity = np.random.normal(positions[0], 0.05, size=len(r2_list_activity))
     x_jitter_residuals = np.random.normal(positions[1], 0.05, size=len(r2_list_residuals))
+    plt.scatter(x_jitter_activity, r2_list_activity, color='black', alpha=0.8, label='R² Activity', zorder=3)
+    plt.scatter(x_jitter_residuals, r2_list_residuals, color='red', alpha=0.8, label='R² Residuals', zorder=3)
 
-    plt.scatter(x_jitter_activity, r2_list_activity, color='blue', alpha=0.8, label='R² Activity', zorder=3)
-    plt.scatter(x_jitter_residuals, r2_list_residuals, color='orange', alpha=0.8, label='R² Residuals', zorder=3)
-
+    # Connecting lines
     for i in range(len(r2_list_activity)):
         plt.plot([x_jitter_activity[i], x_jitter_residuals[i]],
                  [r2_list_activity[i], r2_list_residuals[i]],
                  color='gray', alpha=0.6, linewidth=0.8)
 
-    plt.xticks(positions, ['Activity', 'Residuals'])
-    plt.ylabel("R² Value")
-    plt.title("Comparison of R² Values for Activity and Residuals")
-    plt.legend()
+    # Mean and SEM lines for Activity
+    plt.hlines(mean_activity, positions[0] - 0.2, positions[0] + 0.2, color='black', linewidth=2, zorder=4)
+    plt.vlines(positions[0], mean_activity - sem_activity, mean_activity + sem_activity, color='black', linewidth=2)
+
+    # Mean and SEM lines for Residuals
+    plt.hlines(mean_residuals, positions[1] - 0.2, positions[1] + 0.2, color='red', linewidth=2, zorder=4)
+    plt.vlines(positions[1], mean_residuals - sem_residuals, mean_residuals + sem_residuals, color='red', linewidth=2)
+
+    # Formatting
+    plt.xticks(positions, [f'Activity vs {variable_to_compare}', f'Residuals vs {variable_to_compare}'])
+    plt.ylabel("R Value")
+    plt.title(f"Activity vs {variable_to_compare} and Residuals vs {variable_to_compare}")
     plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.legend()
 
     plt.tight_layout()
     plt.show()
-
-
-
-
-
-
-
-
 
 
 
