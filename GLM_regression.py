@@ -447,6 +447,32 @@ def get_selectivity_for_plotting(activity_dict_SST, predicted_activity_dict_SST,
 
     return SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity
 
+def plot_selectivity_frequency(SST_list, NDNF_list, EC_list, name=None):
+    bin_edges = np.arange(0, 1.1, 0.1)
+    bin_centers = bin_edges[:-1] + 0.05
+    bin_labels = [f"{start:.1f}" for start in bin_edges[:-1]]
+
+    SST_hist, _ = np.histogram(SST_list, bins=bin_edges)
+    NDNF_hist, _ = np.histogram(NDNF_list, bins=bin_edges)
+    EC_hist, _ = np.histogram(EC_list, bins=bin_edges)
+
+    SST_fraction = SST_hist / np.sum(SST_hist)
+    NDNF_fraction = NDNF_hist / np.sum(NDNF_hist)
+    EC_fraction = EC_hist / np.sum(EC_hist)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(bin_centers, SST_fraction, marker='o', label=f'SST {name}', linestyle='-')
+    plt.plot(bin_centers, NDNF_fraction, marker='o', label=f'NDNF {name}', linestyle='-')
+    plt.plot(bin_centers, EC_fraction, marker='o', label=f'EC {name}', linestyle='-')
+
+    plt.xlabel('Selectivity')
+    plt.ylabel('Fraction of Cells')
+    plt.title(f'{name}')
+    plt.xticks(bin_centers[::2], bin_labels[::2])
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
 
 def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
                                             predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
@@ -1418,71 +1444,6 @@ def plot_trial_averages(activity_dict_SST, predicted_activity_dict_SST, activity
     plot_sorted_activity(
         trial_av_activity_EC, sorted_indices_EC, f"{'Residuals' if residual else 'Raw Data'} EC ({which_to_plot})",
         "Cell ID", "Position Bins")
-
-
-def plot_trial_averages(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                        predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False,
-                        which_to_plot="argmin"):
-    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
-        activity_dict_SST, predicted_activity_dict_SST)
-    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
-        activity_dict_EC, predicted_activity_dict_EC)
-
-    if residual:
-        trial_av_activity_SST = trial_average(cell_residual_list_SST)
-        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
-        trial_av_activity_EC = trial_average(cell_residual_list_EC)
-
-    else:
-        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
-        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
-        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
-
-    trial_av_activity_SST = np.stack(trial_av_activity_SST)
-    trial_av_activity_NDNF = np.stack(trial_av_activity_NDNF)
-    trial_av_activity_EC = np.stack(trial_av_activity_EC)
-
-    if which_to_plot == "argmin":
-        sorted_trial_av_activity_SST = np.argsort(np.argmin(trial_av_activity_SST, axis=1))
-        sorted_trial_av_activity_NDNF = np.argsort(np.argmin(trial_av_activity_NDNF, axis=1))
-        sorted_trial_av_activity_EC = np.argsort(np.argmin(trial_av_activity_EC, axis=1))
-
-    elif which_to_plot == "argmax":
-        sorted_trial_av_activity_SST = np.argsort(np.argmax(trial_av_activity_SST, axis=1))
-        sorted_trial_av_activity_NDNF = np.argsort(np.argmax(trial_av_activity_NDNF, axis=1))
-        sorted_trial_av_activity_EC = np.argsort(np.argmax(trial_av_activity_EC, axis=1))
-
-    else:
-        raise ValueError("Options are argmin or argmax")
-
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-
-    im0 = axs[0].imshow(trial_av_activity_SST[sorted_trial_av_activity_SST, :], aspect='auto', cmap='viridis')
-    axs[0].set_title(f"{'Residuals' if residual else 'Raw Data'} SST {which_to_plot}")
-    axs[0].set_ylabel("Cell ID")
-    axs[0].set_xlabel("Position Bins")
-    fig.colorbar(im0, ax=axs[0])
-
-    im1 = axs[1].imshow(trial_av_activity_NDNF[sorted_trial_av_activity_NDNF, :], aspect='auto', cmap='viridis')
-    axs[1].set_title(f"{'Residuals' if residual else 'Raw Data'} NDNF {which_to_plot}")
-    axs[1].set_ylabel("Cell ID")
-    axs[1].set_xlabel("Position Bins")
-    fig.colorbar(im1, ax=axs[1])
-
-    im2 = axs[2].imshow(trial_av_activity_EC[sorted_trial_av_activity_EC, :], aspect='auto', cmap='viridis')
-    axs[2].set_title(f"{'Residuals' if residual else 'Raw Data'} EC {which_to_plot}")
-    axs[2].set_ylabel("Cell ID")
-    axs[2].set_xlabel("Position Bins")
-    fig.colorbar(im2, ax=axs[2])
-
-    plt.tight_layout()
-    plt.show()
-
-
-
-
 
 def get_min_maxed_residuals_argmin_argmax_selectivity(avg_residuals):
     argmax_list = []
