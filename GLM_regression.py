@@ -11,6 +11,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from scipy.stats import pearsonr
 from scipy.stats import sem
+from collections import defaultdict
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -386,6 +387,115 @@ def plot_correlations_single_variable_GLM(GLM_params, factors_dict, filtered_fac
     plt.legend()
     plt.show()
 
+
+def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                            predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
+                                            residual=False):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    if residual:
+        trial_av_activity_SST = trial_average(cell_residual_list_SST)
+        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
+        trial_av_activity_EC = trial_average(cell_residual_list_EC)
+
+    else:
+        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
+        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
+        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
+
+    SST_factor_list = []
+    for i in trial_av_activity_SST:
+        selectivity = Vinje2000(i, norm='min_max')
+        SST_factor_list.append(selectivity)
+
+    NDNF_factor_list = []
+    for i in trial_av_activity_NDNF:
+        selectivity = Vinje2000(i, norm='min_max')
+        NDNF_factor_list.append(selectivity)
+
+    EC_factor_list = []
+    for i in trial_av_activity_EC:
+        selectivity = Vinje2000(i, norm='min_max')
+        EC_factor_list.append(selectivity)
+
+    mean_quantiles_SST, sem_quantiles_SST = get_quantiles_for_cdf(activity_dict_SST, SST_factor_list, n_bins=20)
+
+    mean_quantiles_NDNF, sem_quantiles_NDNF = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_list, n_bins=20)
+
+    mean_quantiles_EC, sem_quantiles_EC = get_quantiles_for_cdf(activity_dict_EC, EC_factor_list, n_bins=20)
+
+    mean_quantiles_list = [mean_quantiles_SST, mean_quantiles_NDNF, mean_quantiles_EC]
+
+    sem_quantiles_list = [sem_quantiles_SST, sem_quantiles_NDNF, sem_quantiles_EC]
+
+    if residual:
+        plot_cdf(mean_quantiles_list, sem_quantiles_list, "Selectivity for Residuals", "Vinje Selectivity Index",
+                 n_bins=20)
+
+    else:
+        plot_cdf(mean_quantiles_list, sem_quantiles_list, "Selectivity for Raw Data", "Vinje Selectivity Index",
+                 n_bins=20)
+
+
+def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
+    animal_ID_list = []
+    for animal in activity_dict:
+        for neuron in activity_dict[animal]:
+            animal_ID_list.append(animal)
+
+    animal_to_values = defaultdict(list)
+
+    for animal, value in zip(animal_ID_list, values_list):
+        animal_to_values[animal].append(value)
+
+    animal_to_values = dict(animal_to_values)
+
+    edges_list = []
+    sep_dict = {}
+
+    for key, value in animal_to_values.items():
+        animal_edges = np.quantile(value, np.linspace(0, 1, n_bins))
+        edges_list.append(animal_edges)
+
+    stacked_edges = np.vstack(edges_list)
+
+    mean_list = []
+    sem_list = []
+
+    for i in range(stacked_edges.shape[1]):
+        column = stacked_edges[:, i]
+        mean_list.append(np.mean(column))
+        sem_list.append((np.std(column) / np.sqrt(len(column))))
+
+    return mean_list, sem_list
+
+
+def plot_cdf(mean_quantiles_list, sem_quantiles_list, title=None, x_title=None, n_bins=None):
+    bin_centers = np.arange(1, n_bins + 1)
+
+    plt.figure(figsize=(10, 6))
+
+    plt.errorbar(mean_quantiles_list[0], bin_centers, xerr=sem_quantiles_list[0], fmt='o-', color='blue', ecolor='blue',
+                 capsize=8, label="SST")
+    plt.errorbar(mean_quantiles_list[1], bin_centers, xerr=sem_quantiles_list[1], fmt='o-', color='orange',
+                 ecolor='orange', capsize=8, label="NDNF")
+    plt.errorbar(mean_quantiles_list[2], bin_centers, xerr=sem_quantiles_list[2], fmt='o-', color='green',
+                 ecolor='green', capsize=8, label="EC")
+
+    plt.ylabel("Percentile of Data")
+    plt.yticks(ticks=bin_centers, labels=[f"{int(val)}" for val in np.linspace((100 / n_bins), 100, n_bins)])
+    plt.xlabel(f" Mean {x_title}")
+    plt.title(title)
+    plt.legend()
+
+    plt.show()
+
+
 def compute_r_and_model(x, y):
 
     model = LinearRegression()
@@ -395,7 +505,7 @@ def compute_r_and_model(x, y):
     return r_value, y_pred
 
 
-def plot_pop_correlation(r2_variable_activity_dict, r2_variable_residual_dict, variable_to_correlate="Velocity", cell_type="SST"):
+def plot_pop_correlation(r2_variable_activity_dict, r2_variable_residual_dict, variable_to_correlate="Velocity", cell_type="SST", color="blue"):
     r2_variable_activity_list = []
     r2_variable_residual_list = []
 
@@ -426,7 +536,7 @@ def plot_pop_correlation(r2_variable_activity_dict, r2_variable_residual_dict, v
 
     # Plot individual data points
     plt.scatter(x_jitter_activity, r2_variable_activity_array, color='black', alpha=0.8, label=f'Activity vs {variable_to_correlate}', zorder=3)
-    plt.scatter(x_jitter_residuals, r2_variable_residual_array, color='red', alpha=0.8, label=f'Residuals vs {variable_to_correlate}', zorder=3)
+    plt.scatter(x_jitter_residuals, r2_variable_residual_array, color=color, alpha=0.8, label=f'Residuals vs {variable_to_correlate}', zorder=3)
 
     # Connect corresponding points with grey lines
     for i in range(len(r2_variable_activity_array)):
@@ -440,9 +550,9 @@ def plot_pop_correlation(r2_variable_activity_dict, r2_variable_residual_dict, v
                       x_positions[0] - 0.3, x_positions[0] - 0.1, color='black', alpha=0.2)
 
     # Plot mean and SEM for residuals as horizontal lines
-    plt.hlines(mean_residuals, x_positions[1] + 0.2, x_positions[1] + 0.3, color='red', linewidth=2, label='Mean (Residuals)')
+    plt.hlines(mean_residuals, x_positions[1] + 0.2, x_positions[1] + 0.3, color=color, linewidth=2, label='Mean (Residuals)')
     plt.fill_betweenx([mean_residuals - sem_residuals, mean_residuals + sem_residuals],
-                      x_positions[1] + 0.2, x_positions[1] + 0.3, color='red', alpha=0.2)
+                      x_positions[1] + 0.2, x_positions[1] + 0.3, color=color, alpha=0.2)
 
     # Set plot aesthetics
     plt.xticks(x_positions, [f'Activity vs {variable_to_correlate}', f'Residuals vs {variable_to_correlate}'])
