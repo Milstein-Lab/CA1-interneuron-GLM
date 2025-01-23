@@ -674,6 +674,138 @@ def setup_CDF_plotting_and_plot_argmin_argmax_split_by_r2(activity_dict_SST, pre
         raise ValueError("options are argmin or argmax")
 
 
+def split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                            activity_dict_NDNF, predicted_activity_dict_NDNF,
+                            activity_dict_EC, predicted_activity_dict_EC,
+                            residual=False, compute_negative=False):
+    SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity = get_selectivity_for_plotting(
+        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF,
+        activity_dict_EC, predicted_activity_dict_EC, residual=residual)
+
+    SST_selectivity_list = SST_negative_selectivity if compute_negative else SST_factor_list
+    NDNF_selectivity_list = NDNF_negative_selectivity if compute_negative else NDNF_factor_list
+    EC_selectivity_list = EC_negative_selectivity if compute_negative else EC_factor_list
+
+    neuron_mapping_SST = [(animal, neuron) for animal in activity_dict_SST for neuron in activity_dict_SST[animal]]
+    neuron_mapping_NDNF = [(animal, neuron) for animal in activity_dict_NDNF for neuron in activity_dict_NDNF[animal]]
+    neuron_mapping_EC = [(animal, neuron) for animal in activity_dict_EC for neuron in activity_dict_EC[animal]]
+
+    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_selectivity_list, r2_SST_above_zero,
+                                                 r2_SST_below_zero)
+    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_selectivity_list, r2_NDNF_above_zero,
+                                                   r2_NDNF_below_zero)
+    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_selectivity_list, r2_EC_above_zero,
+                                               r2_EC_below_zero)
+
+    return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
+
+
+def plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, title=None, x_title=None, n_bins=None):
+    bin_centers = np.arange(1, n_bins + 1)
+
+    plt.figure(figsize=(10, 6))
+
+    plt.errorbar(mean_quantiles_list[0], bin_centers, xerr=sem_quantiles_list[0], fmt='o-', color='blue', ecolor='blue',
+                 capsize=8, label="SST High R vs Vel")
+    plt.errorbar(mean_quantiles_list[1], bin_centers, xerr=sem_quantiles_list[1], fmt='o-', color='c', ecolor='c',
+                 capsize=8, label="SST Low R vs Vel")
+
+    plt.errorbar(mean_quantiles_list[2], bin_centers, xerr=sem_quantiles_list[2], fmt='o-', color='orange',
+                 ecolor='orange',
+                 capsize=8, label="NDNF High R vs Vel")
+    plt.errorbar(mean_quantiles_list[3], bin_centers, xerr=sem_quantiles_list[3], fmt='o-', color='r', ecolor='r',
+                 capsize=8, label="NDNF Low R vs Vel")
+
+    plt.errorbar(mean_quantiles_list[4], bin_centers, xerr=sem_quantiles_list[4], fmt='o-', color='green',
+                 ecolor='green',
+                 capsize=8, label="EC High R vs Vel")
+    plt.errorbar(mean_quantiles_list[5], bin_centers, xerr=sem_quantiles_list[5], fmt='o-', color='gray', ecolor='gray',
+                 capsize=8, label="EC Low R vs Vel")
+
+    plt.ylabel("Percentile of Data")
+    plt.yticks(ticks=bin_centers, labels=[f"{int(val)}" for val in np.linspace((100 / n_bins), 100, n_bins)])
+    plt.xlabel(f" Mean {x_title}")
+    plt.title(title)
+    plt.legend()
+
+    plt.show()
+
+
+def setup_CDF_plotting_and_plot_selectivity_split_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                                                        activity_dict_NDNF,
+                                                        predicted_activity_dict_NDNF, activity_dict_EC,
+                                                        predicted_activity_dict_EC,
+                                                        residual=False):
+    SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity = get_selectivity_for_plotting(
+        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF,
+        activity_dict_EC, predicted_activity_dict_EC, residual=residual)
+
+    SST_factor_above_zero, SST_factor_below_zero, NDNF_factor_above_zero, NDNF_factor_below_zero, EC_factor_above_zero, EC_factor_below_zero = split_selectivity_by_r2(
+        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+        predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
+        residual=False, compute_negative=False)
+
+    SST_factor_above_zero_negative, SST_factor_below_zero_negative, NDNF_factor_above_zero_negative, NDNF_factor_below_zero_negative, EC_factor_above_zero_negative, EC_factor_below_zero_negative = split_selectivity_by_r2(
+        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+        predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
+        residual=False, compute_negative=True)
+
+    mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf(activity_dict_SST, SST_factor_above_zero,
+                                                                            n_bins=20)
+    mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf(activity_dict_SST, SST_factor_below_zero,
+                                                                          n_bins=20)
+
+    mean_quantiles_NDNF_high, sem_quantiles_NDNF_high = get_quantiles_for_cdf(activity_dict_NDNF,
+                                                                              NDNF_factor_above_zero, n_bins=20)
+    mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_below_zero,
+                                                                            n_bins=20)
+
+    mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf(activity_dict_EC, EC_factor_above_zero,
+                                                                          n_bins=20)
+    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, SST_factor_below_zero,
+                                                                        n_bins=20)
+
+    mean_quantiles_SST_high_negative, sem_quantiles_SST_high_negative = get_quantiles_for_cdf(activity_dict_SST,
+                                                                                              SST_factor_above_zero_negative,
+                                                                                              n_bins=20)
+    mean_quantiles_SST_low_negative, sem_quantiles_SST_low_negative = get_quantiles_for_cdf(activity_dict_SST,
+                                                                                            SST_factor_below_zero_negative,
+                                                                                            n_bins=20)
+
+    mean_quantiles_NDNF_high_negative, sem_quantiles_NDNF_high_negative = get_quantiles_for_cdf(activity_dict_NDNF,
+                                                                                                NDNF_factor_above_zero_negative,
+                                                                                                n_bins=20)
+    mean_quantiles_NDNF_low_negative, sem_quantiles_NDNF_low_negative = get_quantiles_for_cdf(activity_dict_NDNF,
+                                                                                              NDNF_factor_below_zero_negative,
+                                                                                              n_bins=20)
+
+    mean_quantiles_EC_high_negative, sem_quantiles_EC_high_negative = get_quantiles_for_cdf(activity_dict_EC,
+                                                                                            EC_factor_above_zero_negative,
+                                                                                            n_bins=20)
+    mean_quantiles_EC_low_negative, sem_quantiles_EC_low_negative = get_quantiles_for_cdf(activity_dict_EC,
+                                                                                          SST_factor_below_zero_negative,
+                                                                                          n_bins=20)
+
+    mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high,
+                           mean_quantiles_NDNF_low, mean_quantiles_EC_high, mean_quantiles_EC_low]
+
+    sem_quantiles_list = [sem_quantiles_SST_high, sem_quantiles_SST_low, sem_quantiles_NDNF_high,
+                          sem_quantiles_NDNF_low, sem_quantiles_EC_high, sem_quantiles_EC_low]
+
+    mean_quantiles_list_negative = [mean_quantiles_SST_high_negative, mean_quantiles_SST_low_negative,
+                                    mean_quantiles_NDNF_high_negative, mean_quantiles_NDNF_low_negative,
+                                    mean_quantiles_EC_high_negative, mean_quantiles_EC_low_negative]
+
+    sem_quantiles_list_negative = [sem_quantiles_SST_high_negative, sem_quantiles_SST_low_negative,
+                                   sem_quantiles_NDNF_high_negative, sem_quantiles_NDNF_low_negative,
+                                   sem_quantiles_EC_high_negative, sem_quantiles_EC_low_negative]
+
+    plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Selectivity for Raw Data", "Vinje Selectivity Index",
+                      n_bins=20)
+    plot_cdf_split_r2(mean_quantiles_list_negative, sem_quantiles_list_negative, "Negative Selectivity for Raw Data",
+                      "Negative Vinje Selectivity Index", n_bins=20)
+
+
 def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
                                               predicted_activity_dict_NDNF, activity_dict_EC,
                                               predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
