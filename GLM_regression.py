@@ -274,6 +274,81 @@ def plot_cell_trial_average_variable_subtraction(activity_dict_SST, activity_dic
     plt.legend()
     plt.show()
 
+
+def get_animal_mean_sem(activity_dict, cell_residual_list):
+    animal_mean_list = []
+    animal_sem_list = []
+
+    animal_mean_residuals = []
+    animal_sem_residuals = []
+
+    count = 0
+    for animal in activity_dict:
+        per_animal_data = []
+        per_animal_residuals = []
+
+        for neuron in activity_dict[animal]:
+            neuron_mean_activity = np.mean(activity_dict[animal][neuron], axis=1)
+            neuron_mean_residual = np.mean(cell_residual_list[count], axis=1)
+
+            per_animal_data.append(neuron_mean_activity)
+            per_animal_residuals.append(neuron_mean_residual)
+
+            count += 1
+
+        per_animal_data = np.array(per_animal_data)
+        per_animal_residuals = np.array(per_animal_residuals)
+
+        mean_animal = np.mean(per_animal_data, axis=0)
+        sem_animal = sem(per_animal_data, axis=0)
+        mean_residual = np.mean(per_animal_residuals, axis=0)
+        sem_residuals = sem(per_animal_residuals, axis=0)
+
+        animal_mean_list.append(mean_animal)
+        animal_sem_list.append(sem_animal)
+        animal_mean_residuals.append(mean_residual)
+        animal_sem_residuals.append(sem_residuals)
+
+    return animal_mean_list, animal_sem_list, animal_mean_residuals, animal_sem_residuals
+
+
+def plot_single_animal_average_trace(animal_mean_list_SST, animal_sem_list_SST, animal_mean_residuals_SST, animal_sem_residuals_SST, animal_to_plot, cell_type="SST"):
+    plt.figure()
+    plt.plot(animal_mean_list_SST[animal_to_plot], color='k', label='Raw Activity')
+    plt.fill_between(range(len(animal_mean_list_SST[animal_to_plot])),
+                     animal_mean_list_SST[animal_to_plot] - animal_sem_list_SST[animal_to_plot],
+                     animal_mean_list_SST[animal_to_plot] + animal_sem_list_SST[animal_to_plot],
+                     color='k', alpha=0.2)
+
+    if cell_type=="SST":
+        plt.plot(animal_mean_residuals_SST[animal_to_plot], color='b', label='Residual')
+        plt.fill_between(range(len(animal_mean_residuals_SST[animal_to_plot])),
+                         animal_mean_residuals_SST[animal_to_plot] - animal_sem_residuals_SST[animal_to_plot],
+                         animal_mean_residuals_SST[animal_to_plot] + animal_sem_residuals_SST[animal_to_plot],
+                         color='b', alpha=0.2)
+    elif cell_type=="NDNF":
+        plt.plot(animal_mean_residuals_SST[animal_to_plot], color='orange', label='Residual')
+        plt.fill_between(range(len(animal_mean_residuals_SST[animal_to_plot])),
+                         animal_mean_residuals_SST[animal_to_plot] - animal_sem_residuals_SST[animal_to_plot],
+                         animal_mean_residuals_SST[animal_to_plot] + animal_sem_residuals_SST[animal_to_plot],
+                         color='orange', alpha=0.2)
+    elif cell_type=="EC":
+        plt.plot(animal_mean_residuals_SST[animal_to_plot], color='green', label='Residual')
+        plt.fill_between(range(len(animal_mean_residuals_SST[animal_to_plot])),
+                         animal_mean_residuals_SST[animal_to_plot] - animal_sem_residuals_SST[animal_to_plot],
+                         animal_mean_residuals_SST[animal_to_plot] + animal_sem_residuals_SST[animal_to_plot],
+                         color='green', alpha=0.2)
+
+
+
+    plt.title(f"{cell_type} Residuals vs Activity for Animal #{animal_to_plot}")
+    plt.xlabel(f"DF/F")
+    plt.ylabel(f"Position Bin")
+    plt.ylim(-0.8, 0.8)
+    plt.legend()
+    plt.show()
+
+
 def get_neuron_activity_prediction_residual(activity_dict, predicted_activity_dict):
     neuron_activity_list = []
     predictions_list = []
@@ -447,6 +522,47 @@ def get_selectivity_for_plotting(activity_dict_SST, predicted_activity_dict_SST,
 
     return SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity
 
+
+def plot_selectivity_frequency_split_by_r2(SST_list_above, SST_list_below, NDNF_list_above, NDNF_list_below,
+                                           EC_list_above, EC_list_below, name=None):
+    bin_edges = np.arange(0, 1.1, 0.1)
+    bin_centers = bin_edges[:-1] + 0.05
+    bin_labels = [f"{start:.1f}" for start in bin_edges[:-1]]
+
+    SST_hist_above, _ = np.histogram(SST_list_above, bins=bin_edges)
+    NDNF_hist_above, _ = np.histogram(NDNF_list_above, bins=bin_edges)
+    EC_hist_above, _ = np.histogram(EC_list_above, bins=bin_edges)
+
+    SST_fraction_above = SST_hist_above / np.sum(SST_hist_above)
+    NDNF_fraction_above = NDNF_hist_above / np.sum(NDNF_hist_above)
+    EC_fraction_above = EC_hist_above / np.sum(EC_hist_above)
+
+    SST_hist_below, _ = np.histogram(SST_list_below, bins=bin_edges)
+    NDNF_hist_below, _ = np.histogram(NDNF_list_below, bins=bin_edges)
+    EC_hist_below, _ = np.histogram(EC_list_below, bins=bin_edges)
+
+    SST_fraction_below = SST_hist_below / np.sum(SST_hist_below)
+    NDNF_fraction_below = NDNF_hist_below / np.sum(NDNF_hist_below)
+    EC_fraction_below = EC_hist_below / np.sum(EC_hist_below)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(bin_centers, SST_fraction_above, marker='o', label=f'SST High R Vel', linestyle='-', color='b')
+    plt.plot(bin_centers, NDNF_fraction_above, marker='o', label=f'NDNF High R Vel', linestyle='-', color='orange')
+    plt.plot(bin_centers, EC_fraction_above, marker='o', label=f'EC High R Vel', linestyle='-', color='green')
+    plt.plot(bin_centers, SST_fraction_below, marker='o', label=f'SST Low R Vel', linestyle='-', color='c')
+    plt.plot(bin_centers, NDNF_fraction_below, marker='o', label=f'NDNF Low R Vel', linestyle='-', color='red')
+    plt.plot(bin_centers, EC_fraction_below, marker='o', label=f'EC Low R Vel', linestyle='-', color='gray')
+
+    plt.xlabel('Selectivity')
+    plt.ylabel('Fraction of Cells')
+    plt.title(f'{name} Split by Velocity Correlation')
+    plt.xticks(bin_centers[::2], bin_labels[::2])
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_selectivity_frequency(SST_list, NDNF_list, EC_list, name=None):
     bin_edges = np.arange(0, 1.1, 0.1)
     bin_centers = bin_edges[:-1] + 0.05
@@ -520,9 +636,6 @@ def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activit
                  "Negative Vinje Selectivity Index", n_bins=20)
 
 
-
-
-
 def get_argmin_argmax_for_plotting(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
                                    predicted_activity_dict_NDNF, activity_dict_EC,
                                    predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
@@ -581,97 +694,84 @@ def get_argmin_argmax_for_plotting(activity_dict_SST, predicted_activity_dict_SS
     return SST_factor_list, NDNF_factor_list, EC_factor_list
 
 
-def split_argmin_argmax_by_r2(activity_dict_SST, predicted_activity_dict_SST,
-                              activity_dict_NDNF, predicted_activity_dict_NDNF,
-                              activity_dict_EC, predicted_activity_dict_EC,
-                              residual=False, which_to_plot="argmin"):
-    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
-        activity_dict_SST, predicted_activity_dict_SST)
-    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
-        activity_dict_EC, predicted_activity_dict_EC)
+def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                                              predicted_activity_dict_NDNF, activity_dict_EC,
+                                              predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
+    SST_factor_list, NDNF_factor_list, EC_factor_list = get_argmin_argmax_for_plotting(activity_dict_SST,
+                                                                                       predicted_activity_dict_SST,
+                                                                                       activity_dict_NDNF,
+                                                                                       predicted_activity_dict_NDNF,
+                                                                                       activity_dict_EC,
+                                                                                       predicted_activity_dict_EC,
+                                                                                       residual=residual,
+                                                                                       which_to_plot=which_to_plot)
+    mean_quantiles_SST, sem_quantiles_SST = get_quantiles_for_cdf(activity_dict_SST, SST_factor_list, n_bins=20)
 
-    trial_av_activity_SST = trial_average(cell_residual_list_SST) if residual else trial_average(
-        neuron_activity_list_SST)
-    trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF) if residual else trial_average(
-        neuron_activity_list_NDNF)
-    trial_av_activity_EC = trial_average(cell_residual_list_EC) if residual else trial_average(neuron_activity_list_EC)
+    mean_quantiles_NDNF, sem_quantiles_NDNF = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_list, n_bins=20)
 
-    SST_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_SST]
-    NDNF_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_NDNF]
-    EC_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_EC]
+    mean_quantiles_EC, sem_quantiles_EC = get_quantiles_for_cdf(activity_dict_EC, EC_factor_list, n_bins=20)
 
-    neuron_mapping_SST = [(animal, neuron) for animal in activity_dict_SST for neuron in activity_dict_SST[animal]]
-    neuron_mapping_NDNF = [(animal, neuron) for animal in activity_dict_NDNF for neuron in activity_dict_NDNF[animal]]
-    neuron_mapping_EC = [(animal, neuron) for animal in activity_dict_EC for neuron in activity_dict_EC[animal]]
+    mean_quantiles_list = [mean_quantiles_SST, mean_quantiles_NDNF, mean_quantiles_EC]
 
-    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_factor_list, r2_SST_above_zero,
-                                                 r2_SST_below_zero)
-    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_factor_list, r2_NDNF_above_zero,
-                                                   r2_NDNF_below_zero)
-    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_factor_list, r2_EC_above_zero, r2_EC_below_zero)
-
-    return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
-
-
-def setup_CDF_plotting_and_plot_argmin_argmax_split_by_r2(activity_dict_SST, predicted_activity_dict_SST,
-                                                          activity_dict_NDNF,
-                                                          predicted_activity_dict_NDNF, activity_dict_EC,
-                                                          predicted_activity_dict_EC, residual=False,
-                                                          which_to_plot="argmin"):
-    SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero = split_argmin_argmax_by_r2(
-        activity_dict_SST,
-        predicted_activity_dict_SST,
-        activity_dict_NDNF,
-        predicted_activity_dict_NDNF,
-        activity_dict_EC,
-        predicted_activity_dict_EC,
-        residual=residual,
-        which_to_plot=which_to_plot)
-
-    mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf(activity_dict_SST, SST_above_zero,
-                                                                            n_bins=20)
-    mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf(activity_dict_SST, SST_below_zero, n_bins=20)
-
-    mean_quantiles_NDNF_high, sem_quantiles_NDNF_high = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_above_zero,
-                                                                              n_bins=20)
-    mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_below_zero,
-                                                                            n_bins=20)
-
-    mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf(activity_dict_EC, EC_above_zero, n_bins=20)
-    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, SST_below_zero, n_bins=20)
-
-    mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high,
-                           mean_quantiles_NDNF_low, mean_quantiles_EC_high, mean_quantiles_EC_low]
-
-    sem_quantiles_list = [sem_quantiles_SST_high, sem_quantiles_SST_low, sem_quantiles_NDNF_high,
-                          sem_quantiles_NDNF_low, sem_quantiles_EC_high, sem_quantiles_EC_low]
+    sem_quantiles_list = [sem_quantiles_SST, sem_quantiles_NDNF, sem_quantiles_EC]
 
     if which_to_plot == "argmin":
         if residual:
-            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmin for Residuals",
-                              "Position Bin of Minimum Firing",
-                              n_bins=20)
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmin for Residuals", "Position Bin of Minimum Firing",
+                     n_bins=20)
 
         else:
-            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmin for Raw Data",
-                              "Position Bin of Minimum Firing",
-                              n_bins=20)
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmin for Raw Data", "Position Bin of Minimum Firing",
+                     n_bins=20)
 
     elif which_to_plot == "argmax":
         if residual:
-            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmax for Residuals",
-                              "Position Bin of Maximum Firing",
-                              n_bins=20)
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmax for Residuals", "Position Bin of Maximum Firing",
+                     n_bins=20)
 
         else:
-            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmax for Raw Data",
-                              "Position Bin of Maximum Firing",
-                              n_bins=20)
+            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmax for Raw Data", "Position Bin of Maximum Firing",
+                     n_bins=20)
 
     else:
         raise ValueError("options are argmin or argmax")
+
+
+def get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST,
+                                variable_to_correlate="Velocity"):
+    r2_variable_activity_dict_SST, r2_variable_residual_dict_SST = get_pop_correlation_to_variable(activity_dict_SST,
+                                                                                                   predicted_activity_dict_SST,
+                                                                                                   filtered_factors_dict_SST,
+                                                                                                   variable_to_correlate="Velocity")
+
+    r2_SST_above_zero = {}
+    r2_SST_below_zero = {}
+
+    for animal in r2_variable_activity_dict_SST:
+        r2_SST_above_zero[animal] = {}
+        r2_SST_below_zero[animal] = {}
+
+        for neuron in r2_variable_activity_dict_SST[animal]:
+
+            if r2_variable_activity_dict_SST[animal][neuron] >= 0:
+                r2_SST_above_zero[animal][neuron] = r2_variable_activity_dict_SST[animal][neuron]
+            else:
+                r2_SST_below_zero[animal][neuron] = r2_variable_activity_dict_SST[animal][neuron]
+
+    return r2_SST_above_zero, r2_SST_below_zero
+
+
+def split_by_r2(neuron_mapping, factor_list, r2_above_zero, r2_below_zero):
+    above_zero = []
+    below_zero = []
+
+    for idx, (animal, neuron) in enumerate(neuron_mapping):
+        if animal in r2_above_zero and neuron in r2_above_zero[animal]:
+            above_zero.append(factor_list[idx])
+        elif animal in r2_below_zero and neuron in r2_below_zero[animal]:
+            below_zero.append(factor_list[idx])
+
+    return above_zero, below_zero
 
 
 def split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST,
@@ -689,6 +789,17 @@ def split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST,
     neuron_mapping_SST = [(animal, neuron) for animal in activity_dict_SST for neuron in activity_dict_SST[animal]]
     neuron_mapping_NDNF = [(animal, neuron) for animal in activity_dict_NDNF for neuron in activity_dict_NDNF[animal]]
     neuron_mapping_EC = [(animal, neuron) for animal in activity_dict_EC for neuron in activity_dict_EC[animal]]
+
+    r2_SST_above_zero, r2_SST_below_zero = get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST,
+                                                                       filtered_factors_dict_SST,
+                                                                       variable_to_correlate="Velocity")
+    r2_NDNF_above_zero, r2_NDNF_below_zero = get_r2_above_and_below_zero(activity_dict_NDNF,
+                                                                         predicted_activity_dict_NDNF,
+                                                                         filtered_factors_dict_NDNF,
+                                                                         variable_to_correlate="Velocity")
+    r2_EC_above_zero, r2_EC_below_zero = get_r2_above_and_below_zero(activity_dict_EC, predicted_activity_dict_EC,
+                                                                     filtered_factors_dict_EC,
+                                                                     variable_to_correlate="Velocity")
 
     SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_selectivity_list, r2_SST_above_zero,
                                                  r2_SST_below_zero)
@@ -806,44 +917,128 @@ def setup_CDF_plotting_and_plot_selectivity_split_by_r2(activity_dict_SST, predi
                       "Negative Vinje Selectivity Index", n_bins=20)
 
 
-def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                                              predicted_activity_dict_NDNF, activity_dict_EC,
-                                              predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
-    SST_factor_list, NDNF_factor_list, EC_factor_list = get_argmin_argmax_for_plotting(activity_dict_SST,
-                                                                                       predicted_activity_dict_SST,
-                                                                                       activity_dict_NDNF,
-                                                                                       predicted_activity_dict_NDNF,
-                                                                                       activity_dict_EC,
-                                                                                       predicted_activity_dict_EC,
-                                                                                       residual=residual,
-                                                                                       which_to_plot=which_to_plot)
-    mean_quantiles_SST, sem_quantiles_SST = get_quantiles_for_cdf(activity_dict_SST, SST_factor_list, n_bins=20)
+def split_argmin_argmax_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                              activity_dict_NDNF, predicted_activity_dict_NDNF,
+                              activity_dict_EC, predicted_activity_dict_EC,
+                              residual=False, which_to_plot="argmin"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
 
-    mean_quantiles_NDNF, sem_quantiles_NDNF = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_list, n_bins=20)
+    trial_av_activity_SST = trial_average(cell_residual_list_SST) if residual else trial_average(
+        neuron_activity_list_SST)
+    trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF) if residual else trial_average(
+        neuron_activity_list_NDNF)
+    trial_av_activity_EC = trial_average(cell_residual_list_EC) if residual else trial_average(neuron_activity_list_EC)
 
-    mean_quantiles_EC, sem_quantiles_EC = get_quantiles_for_cdf(activity_dict_EC, EC_factor_list, n_bins=20)
+    SST_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_SST]
+    NDNF_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_NDNF]
+    EC_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_EC]
 
-    mean_quantiles_list = [mean_quantiles_SST, mean_quantiles_NDNF, mean_quantiles_EC]
+    neuron_mapping_SST = [(animal, neuron) for animal in activity_dict_SST for neuron in activity_dict_SST[animal]]
+    neuron_mapping_NDNF = [(animal, neuron) for animal in activity_dict_NDNF for neuron in activity_dict_NDNF[animal]]
+    neuron_mapping_EC = [(animal, neuron) for animal in activity_dict_EC for neuron in activity_dict_EC[animal]]
 
-    sem_quantiles_list = [sem_quantiles_SST, sem_quantiles_NDNF, sem_quantiles_EC]
+    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_factor_list, r2_SST_above_zero,
+                                                 r2_SST_below_zero)
+    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_factor_list, r2_NDNF_above_zero,
+                                                   r2_NDNF_below_zero)
+    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_factor_list, r2_EC_above_zero, r2_EC_below_zero)
+
+    return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
+
+
+def split_argmin_argmax_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                              activity_dict_NDNF, predicted_activity_dict_NDNF,
+                              activity_dict_EC, predicted_activity_dict_EC,
+                              residual=False, which_to_plot="argmin"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    trial_av_activity_SST = trial_average(cell_residual_list_SST) if residual else trial_average(
+        neuron_activity_list_SST)
+    trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF) if residual else trial_average(
+        neuron_activity_list_NDNF)
+    trial_av_activity_EC = trial_average(cell_residual_list_EC) if residual else trial_average(neuron_activity_list_EC)
+
+    SST_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_SST]
+    NDNF_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_NDNF]
+    EC_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_EC]
+
+    neuron_mapping_SST = [(animal, neuron) for animal in activity_dict_SST for neuron in activity_dict_SST[animal]]
+    neuron_mapping_NDNF = [(animal, neuron) for animal in activity_dict_NDNF for neuron in activity_dict_NDNF[animal]]
+    neuron_mapping_EC = [(animal, neuron) for animal in activity_dict_EC for neuron in activity_dict_EC[animal]]
+
+    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_factor_list, r2_SST_above_zero,
+                                                 r2_SST_below_zero)
+    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_factor_list, r2_NDNF_above_zero,
+                                                   r2_NDNF_below_zero)
+    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_factor_list, r2_EC_above_zero, r2_EC_below_zero)
+
+    return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
+
+
+def setup_CDF_plotting_and_plot_argmin_argmax_split_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                                                          activity_dict_NDNF,
+                                                          predicted_activity_dict_NDNF, activity_dict_EC,
+                                                          predicted_activity_dict_EC, residual=False,
+                                                          which_to_plot="argmin"):
+    SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero = split_argmin_argmax_by_r2(
+        activity_dict_SST,
+        predicted_activity_dict_SST,
+        activity_dict_NDNF,
+        predicted_activity_dict_NDNF,
+        activity_dict_EC,
+        predicted_activity_dict_EC,
+        residual=residual,
+        which_to_plot=which_to_plot)
+
+    mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf(activity_dict_SST, SST_above_zero,
+                                                                            n_bins=20)
+    mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf(activity_dict_SST, SST_below_zero, n_bins=20)
+
+    mean_quantiles_NDNF_high, sem_quantiles_NDNF_high = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_above_zero,
+                                                                              n_bins=20)
+    mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_below_zero,
+                                                                            n_bins=20)
+
+    mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf(activity_dict_EC, EC_above_zero, n_bins=20)
+    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, SST_below_zero, n_bins=20)
+
+    mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high,
+                           mean_quantiles_NDNF_low, mean_quantiles_EC_high, mean_quantiles_EC_low]
+
+    sem_quantiles_list = [sem_quantiles_SST_high, sem_quantiles_SST_low, sem_quantiles_NDNF_high,
+                          sem_quantiles_NDNF_low, sem_quantiles_EC_high, sem_quantiles_EC_low]
 
     if which_to_plot == "argmin":
         if residual:
-            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmin for Residuals", "Position Bin of Minimum Firing",
-                     n_bins=20)
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmin for Residuals",
+                              "Position Bin of Minimum Firing",
+                              n_bins=20)
 
         else:
-            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmin for Raw Data", "Position Bin of Minimum Firing",
-                     n_bins=20)
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmin for Raw Data",
+                              "Position Bin of Minimum Firing",
+                              n_bins=20)
 
     elif which_to_plot == "argmax":
         if residual:
-            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmax for Residuals", "Position Bin of Maximum Firing",
-                     n_bins=20)
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmax for Residuals",
+                              "Position Bin of Maximum Firing",
+                              n_bins=20)
 
         else:
-            plot_cdf(mean_quantiles_list, sem_quantiles_list, "Argmax for Raw Data", "Position Bin of Maximum Firing",
-                     n_bins=20)
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmax for Raw Data",
+                              "Position Bin of Maximum Firing",
+                              n_bins=20)
 
     else:
         raise ValueError("options are argmin or argmax")
@@ -851,7 +1046,6 @@ def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activ
 
 def plot_position_frequency(SST_list, NDNF_list, EC_list, name=None):
     bin_edges = np.arange(0, 51, 5)
-
     bin_centers = bin_edges[:-1] + 2.5
     bin_labels = [f"{start}-{start + 4}" for start in bin_edges[:-1]]
 
@@ -879,59 +1073,6 @@ def plot_position_frequency(SST_list, NDNF_list, EC_list, name=None):
 
     plt.tight_layout()
     plt.show()
-
-
-def split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                            predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
-                            residual=False):
-    SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity = get_selectivity_for_plotting(
-        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF,
-        activity_dict_EC, predicted_activity_dict_EC, residual=residual)
-
-    neuron_mapping_SST = []
-    for animal in activity_dict_SST:
-        for neuron in activity_dict_SST[animal]:
-            neuron_mapping_SST.append((animal, neuron))
-
-    SST_factor_above_zero = []
-    SST_factor_below_zero = []
-
-    for idx, (animal, neuron) in enumerate(neuron_mapping_SST):
-        if animal in r2_SST_above_zero and neuron in r2_SST_above_zero[animal]:
-            SST_factor_above_zero.append(SST_factor_list[idx])
-        elif animal in r2_SST_below_zero and neuron in r2_SST_below_zero[animal]:
-            SST_factor_below_zero.append(SST_factor_list[idx])
-
-    neuron_mapping_NDNF = []
-    for animal in activity_dict_NDNF:
-        for neuron in activity_dict_NDNF[animal]:
-            neuron_mapping_NDNF.append((animal, neuron))
-
-    NDNF_factor_above_zero = []
-    NDNF_factor_below_zero = []
-
-    for idx, (animal, neuron) in enumerate(neuron_mapping_NDNF):
-        if animal in r2_NDNF_above_zero and neuron in r2_NDNF_above_zero[animal]:
-            NDNF_factor_above_zero.append(NDNF_factor_list[idx])
-        elif animal in r2_NDNF_below_zero and neuron in r2_NDNF_below_zero[animal]:
-            NDNF_factor_below_zero.append(NDNF_factor_list[idx])
-
-    neuron_mapping_EC = []
-    for animal in activity_dict_EC:
-        for neuron in activity_dict_EC[animal]:
-            neuron_mapping_EC.append((animal, neuron))
-
-    EC_factor_above_zero = []
-    EC_factor_below_zero = []
-
-    for idx, (animal, neuron) in enumerate(neuron_mapping_EC):
-        if animal in r2_EC_above_zero and neuron in r2_EC_above_zero[animal]:
-            EC_factor_above_zero.append(EC_factor_list[idx])
-        elif animal in r2_EC_below_zero and neuron in r2_EC_below_zero[animal]:
-            EC_factor_below_zero.append(EC_factor_list[idx])
-
-    return SST_factor_above_zero, SST_factor_below_zero, NDNF_factor_above_zero, NDNF_factor_below_zero, EC_factor_above_zero, EC_factor_below_zero
-
 
 def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
     animal_ID_list = []
@@ -985,7 +1126,6 @@ def plot_cdf(mean_quantiles_list, sem_quantiles_list, title=None, x_title=None, 
     plt.legend()
 
     plt.show()
-
 
 
 def compute_r_and_model(x, y):
