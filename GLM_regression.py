@@ -520,6 +520,9 @@ def setup_CDF_plotting_and_plot_selectivity(activity_dict_SST, predicted_activit
                  "Negative Vinje Selectivity Index", n_bins=20)
 
 
+
+
+
 def get_argmin_argmax_for_plotting(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
                                    predicted_activity_dict_NDNF, activity_dict_EC,
                                    predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
@@ -576,6 +579,99 @@ def get_argmin_argmax_for_plotting(activity_dict_SST, predicted_activity_dict_SS
         raise ValueError("options are argmin or argmax")
 
     return SST_factor_list, NDNF_factor_list, EC_factor_list
+
+
+def split_argmin_argmax_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                              activity_dict_NDNF, predicted_activity_dict_NDNF,
+                              activity_dict_EC, predicted_activity_dict_EC,
+                              residual=False, which_to_plot="argmin"):
+    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
+        activity_dict_SST, predicted_activity_dict_SST)
+    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
+        activity_dict_NDNF, predicted_activity_dict_NDNF)
+    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
+        activity_dict_EC, predicted_activity_dict_EC)
+
+    trial_av_activity_SST = trial_average(cell_residual_list_SST) if residual else trial_average(
+        neuron_activity_list_SST)
+    trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF) if residual else trial_average(
+        neuron_activity_list_NDNF)
+    trial_av_activity_EC = trial_average(cell_residual_list_EC) if residual else trial_average(neuron_activity_list_EC)
+
+    SST_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_SST]
+    NDNF_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_NDNF]
+    EC_factor_list = [np.argmin(i) if which_to_plot == "argmin" else np.argmax(i) for i in trial_av_activity_EC]
+
+    neuron_mapping_SST = [(animal, neuron) for animal in activity_dict_SST for neuron in activity_dict_SST[animal]]
+    neuron_mapping_NDNF = [(animal, neuron) for animal in activity_dict_NDNF for neuron in activity_dict_NDNF[animal]]
+    neuron_mapping_EC = [(animal, neuron) for animal in activity_dict_EC for neuron in activity_dict_EC[animal]]
+
+    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_factor_list, r2_SST_above_zero,
+                                                 r2_SST_below_zero)
+    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_factor_list, r2_NDNF_above_zero,
+                                                   r2_NDNF_below_zero)
+    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_factor_list, r2_EC_above_zero, r2_EC_below_zero)
+
+    return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
+
+
+def setup_CDF_plotting_and_plot_argmin_argmax_split_by_r2(activity_dict_SST, predicted_activity_dict_SST,
+                                                          activity_dict_NDNF,
+                                                          predicted_activity_dict_NDNF, activity_dict_EC,
+                                                          predicted_activity_dict_EC, residual=False,
+                                                          which_to_plot="argmin"):
+    SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero = split_argmin_argmax_by_r2(
+        activity_dict_SST,
+        predicted_activity_dict_SST,
+        activity_dict_NDNF,
+        predicted_activity_dict_NDNF,
+        activity_dict_EC,
+        predicted_activity_dict_EC,
+        residual=residual,
+        which_to_plot=which_to_plot)
+
+    mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf(activity_dict_SST, SST_above_zero,
+                                                                            n_bins=20)
+    mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf(activity_dict_SST, SST_below_zero, n_bins=20)
+
+    mean_quantiles_NDNF_high, sem_quantiles_NDNF_high = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_above_zero,
+                                                                              n_bins=20)
+    mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_below_zero,
+                                                                            n_bins=20)
+
+    mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf(activity_dict_EC, EC_above_zero, n_bins=20)
+    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, SST_below_zero, n_bins=20)
+
+    mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high,
+                           mean_quantiles_NDNF_low, mean_quantiles_EC_high, mean_quantiles_EC_low]
+
+    sem_quantiles_list = [sem_quantiles_SST_high, sem_quantiles_SST_low, sem_quantiles_NDNF_high,
+                          sem_quantiles_NDNF_low, sem_quantiles_EC_high, sem_quantiles_EC_low]
+
+    if which_to_plot == "argmin":
+        if residual:
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmin for Residuals",
+                              "Position Bin of Minimum Firing",
+                              n_bins=20)
+
+        else:
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmin for Raw Data",
+                              "Position Bin of Minimum Firing",
+                              n_bins=20)
+
+    elif which_to_plot == "argmax":
+        if residual:
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmax for Residuals",
+                              "Position Bin of Maximum Firing",
+                              n_bins=20)
+
+        else:
+            plot_cdf_split_r2(mean_quantiles_list, sem_quantiles_list, "Argmax for Raw Data",
+                              "Position Bin of Maximum Firing",
+                              n_bins=20)
+
+    else:
+        raise ValueError("options are argmin or argmax")
 
 
 def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
@@ -757,6 +853,7 @@ def plot_cdf(mean_quantiles_list, sem_quantiles_list, title=None, x_title=None, 
     plt.legend()
 
     plt.show()
+
 
 
 def compute_r_and_model(x, y):
