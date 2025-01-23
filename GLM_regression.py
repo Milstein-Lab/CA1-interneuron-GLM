@@ -652,6 +652,59 @@ def plot_position_frequency(SST_list, NDNF_list, EC_list, name=None):
     plt.tight_layout()
     plt.show()
 
+
+def split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
+                            predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC,
+                            residual=False):
+    SST_factor_list, SST_negative_selectivity, NDNF_factor_list, NDNF_negative_selectivity, EC_factor_list, EC_negative_selectivity = get_selectivity_for_plotting(
+        activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF,
+        activity_dict_EC, predicted_activity_dict_EC, residual=residual)
+
+    neuron_mapping_SST = []
+    for animal in activity_dict_SST:
+        for neuron in activity_dict_SST[animal]:
+            neuron_mapping_SST.append((animal, neuron))
+
+    SST_factor_above_zero = []
+    SST_factor_below_zero = []
+
+    for idx, (animal, neuron) in enumerate(neuron_mapping_SST):
+        if animal in r2_SST_above_zero and neuron in r2_SST_above_zero[animal]:
+            SST_factor_above_zero.append(SST_factor_list[idx])
+        elif animal in r2_SST_below_zero and neuron in r2_SST_below_zero[animal]:
+            SST_factor_below_zero.append(SST_factor_list[idx])
+
+    neuron_mapping_NDNF = []
+    for animal in activity_dict_NDNF:
+        for neuron in activity_dict_NDNF[animal]:
+            neuron_mapping_NDNF.append((animal, neuron))
+
+    NDNF_factor_above_zero = []
+    NDNF_factor_below_zero = []
+
+    for idx, (animal, neuron) in enumerate(neuron_mapping_NDNF):
+        if animal in r2_NDNF_above_zero and neuron in r2_NDNF_above_zero[animal]:
+            NDNF_factor_above_zero.append(NDNF_factor_list[idx])
+        elif animal in r2_NDNF_below_zero and neuron in r2_NDNF_below_zero[animal]:
+            NDNF_factor_below_zero.append(NDNF_factor_list[idx])
+
+    neuron_mapping_EC = []
+    for animal in activity_dict_EC:
+        for neuron in activity_dict_EC[animal]:
+            neuron_mapping_EC.append((animal, neuron))
+
+    EC_factor_above_zero = []
+    EC_factor_below_zero = []
+
+    for idx, (animal, neuron) in enumerate(neuron_mapping_EC):
+        if animal in r2_EC_above_zero and neuron in r2_EC_above_zero[animal]:
+            EC_factor_above_zero.append(EC_factor_list[idx])
+        elif animal in r2_EC_below_zero and neuron in r2_EC_below_zero[animal]:
+            EC_factor_below_zero.append(EC_factor_list[idx])
+
+    return SST_factor_above_zero, SST_factor_below_zero, NDNF_factor_above_zero, NDNF_factor_below_zero, EC_factor_above_zero, EC_factor_below_zero
+
+
 def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
     animal_ID_list = []
     for animal in activity_dict:
