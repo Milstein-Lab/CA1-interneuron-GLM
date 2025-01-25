@@ -1690,7 +1690,7 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
     axs[0, 2].set_xlabel("Position Bin")
     axs[0, 2].set_ylabel("z-score DF/F")
     axs[0, 2].set_title("SST Quintile Activity Per Animal")
-    axs[0, 2].set_ylim(-1, 1)
+    axs[0, 0].set_ylim(-1, 1)
     axs[0, 2].legend()
 
     # NDNF Plots
