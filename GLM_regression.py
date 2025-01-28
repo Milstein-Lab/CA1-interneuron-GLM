@@ -816,18 +816,20 @@ def get_factor_as_list(activity_SST_above):
     return activity_SST_above_list
 
 
-def plot_activity_by_r2_groups(activity_dict_SST, predicted_activity_dict_SST, r2_SST_above_zero, r2_SST_below_zero,
-                               activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_above_zero, r2_NDNF_below_zero,
-                               activity_dict_EC, predicted_activity_dict_EC, r2_EC_above_zero, r2_EC_below_zero):
+def get_activity_by_r2_groups(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True):
 
-    activity_SST_above = filter_activity_by_r2(activity_dict_SST, predicted_activity_dict_SST, r2_SST_above_zero, residual=True)
-    activity_SST_below = filter_activity_by_r2(activity_dict_SST, predicted_activity_dict_SST, r2_SST_below_zero, residual=True)
+    r2_SST_above_zero, r2_SST_below_zero = get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, variable_to_correlate="Velocity")
+    r2_NDNF_above_zero, r2_NDNF_below_zero = get_r2_above_and_below_zero(activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, variable_to_correlate="Velocity")
+    r2_EC_above_zero, r2_EC_below_zero = get_r2_above_and_below_zero(activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, variable_to_correlate="Velocity")
 
-    activity_NDNF_above = filter_activity_by_r2(activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_above_zero, residual=True)
-    activity_NDNF_below = filter_activity_by_r2(activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_below_zero, residual=True)
+    activity_SST_above = filter_activity_by_r2(activity_dict_SST, predicted_activity_dict_SST, r2_SST_above_zero, residual=residual)
+    activity_SST_below = filter_activity_by_r2(activity_dict_SST, predicted_activity_dict_SST, r2_SST_below_zero, residual=residual)
 
-    activity_EC_above = filter_activity_by_r2(activity_dict_EC, predicted_activity_dict_EC, r2_EC_above_zero, residual=True)
-    activity_EC_below = filter_activity_by_r2(activity_dict_EC, predicted_activity_dict_EC, r2_EC_below_zero, residual=True)
+    activity_NDNF_above = filter_activity_by_r2(activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_above_zero, residual=residual)
+    activity_NDNF_below = filter_activity_by_r2(activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_below_zero, residual=residual)
+
+    activity_EC_above = filter_activity_by_r2(activity_dict_EC, predicted_activity_dict_EC, r2_EC_above_zero, residual=residual)
+    activity_EC_below = filter_activity_by_r2(activity_dict_EC, predicted_activity_dict_EC, r2_EC_below_zero, residual=residual)
 
     activity_SST_above = get_factor_as_list(activity_SST_above)
     activity_SST_below = get_factor_as_list(activity_SST_below)
@@ -854,121 +856,7 @@ def plot_activity_by_r2_groups(activity_dict_SST, predicted_activity_dict_SST, r
     mean_EC_above, sem_EC_above = compute_mean_and_sem(trial_av_activity_EC_above)
     mean_EC_below, sem_EC_below = compute_mean_and_sem(trial_av_activity_EC_below)
 
-    plt.figure(figsize=(12, 8))
-
-    plt.errorbar(range(len(mean_SST_above)), mean_SST_above, yerr=sem_SST_above, fmt='o-', color='blue',
-                 label='SST Above Zero')
-    plt.errorbar(range(len(mean_SST_below)), mean_SST_below, yerr=sem_SST_below, fmt='o--', color='cyan',
-                 label='SST Below Zero')
-
-    plt.errorbar(range(len(mean_NDNF_above)), mean_NDNF_above, yerr=sem_NDNF_above, fmt='o-', color='orange',
-                 label='NDNF Above Zero')
-    plt.errorbar(range(len(mean_NDNF_below)), mean_NDNF_below, yerr=sem_NDNF_below, fmt='o--', color='red',
-                 label='NDNF Below Zero')
-
-    plt.errorbar(range(len(mean_EC_above)), mean_EC_above, yerr=sem_EC_above, fmt='o-', color='green',
-                 label='EC Above Zero')
-    plt.errorbar(range(len(mean_EC_below)), mean_EC_below, yerr=sem_EC_below, fmt='o--', color='gray',
-                 label='EC Below Zero')
-
-    plt.xlabel("Position Bins")
-    plt.ylabel("Mean Activity")
-    plt.title("Activity Split By Correlation To Velocity")
-    plt.legend()
-    plt.show()
-
-
-def plot_positive_negative_selectivity_by_quintile(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                                                   predicted_activity_dict_NDNF, activity_dict_EC,
-                                                   predicted_activity_dict_EC):
-    activity_list_SST_q1, activity_list_SST_q5, prediction_list_SST_q1, prediction_list_SST_q5 = split_activity_and_prediction_into_quintiles(
-        activity_dict_SST, predicted_activity_dict_SST)
-    activity_list_NDNF_q1, activity_list_NDNF_q5, prediction_list_NDNF_q1, prediction_list_NDNF_q5 = split_activity_and_prediction_into_quintiles(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    activity_list_EC_q1, activity_list_EC_q5, predicted_activity_list_EC_q1, predicted_activity_list_EC_q5 = split_activity_and_prediction_into_quintiles(
-        activity_dict_EC, predicted_activity_dict_EC)
-
-    trial_av_activity_SST_q1 = trial_average(activity_list_SST_q1)
-    trial_av_activity_NDNF_q1 = trial_average(activity_list_NDNF_q1)
-    trial_av_activity_EC_q1 = trial_average(activity_list_EC_q1)
-
-    trial_av_activity_SST_q5 = trial_average(activity_list_SST_q5)
-    trial_av_activity_NDNF_q5 = trial_average(activity_list_NDNF_q5)
-    trial_av_activity_EC_q5 = trial_average(activity_list_EC_q5)
-
-    argmax_SST_q1 = get_max_or_min(trial_av_activity_SST_q1, argmax_or_argmin="argmax")
-    argmin_SST_q1 = get_max_or_min(trial_av_activity_SST_q1, argmax_or_argmin="argmin")
-    argmax_SST_q5 = get_max_or_min(trial_av_activity_SST_q5, argmax_or_argmin="argmax")
-    argmin_SST_q5 = get_max_or_min(trial_av_activity_SST_q5, argmax_or_argmin="argmin")
-
-    argmax_NDNF_q1 = get_max_or_min(trial_av_activity_NDNF_q1, argmax_or_argmin="argmax")
-    argmin_NDNF_q1 = get_max_or_min(trial_av_activity_NDNF_q1, argmax_or_argmin="argmin")
-    argmax_NDNF_q5 = get_max_or_min(trial_av_activity_NDNF_q5, argmax_or_argmin="argmax")
-    argmin_NDNF_q5 = get_max_or_min(trial_av_activity_NDNF_q5, argmax_or_argmin="argmin")
-
-    argmax_EC_q1 = get_max_or_min(trial_av_activity_EC_q1, argmax_or_argmin="argmax")
-    argmin_EC_q1 = get_max_or_min(trial_av_activity_EC_q1, argmax_or_argmin="argmin")
-    argmax_EC_q5 = get_max_or_min(trial_av_activity_EC_q5, argmax_or_argmin="argmax")
-    argmin_EC_q5 = get_max_or_min(trial_av_activity_EC_q5, argmax_or_argmin="argmin")
-
-    animal_ID_list_SST = get_animal_ID_list(activity_dict_SST)
-    animal_ID_list_NDNF = get_animal_ID_list(activity_dict_NDNF)
-    animal_ID_list_EC = get_animal_ID_list(activity_dict_EC)
-
-    mean_quantiles_SST_q1, sem_quantiles_SST_q1 = get_quantiles_for_cdf_list(animal_ID_list_SST,
-                                                                             argmax_SST_q1, n_bins=20)
-    mean_quantiles_SST_q5, sem_quantiles_SST_q5 = get_quantiles_for_cdf_list(animal_ID_list_SST,
-                                                                             argmax_SST_q5, n_bins=20)
-
-    mean_quantiles_NDNF_q1, sem_quantiles_NDNF_q1 = get_quantiles_for_cdf_list(animal_ID_list_NDNF,
-                                                                               argmax_NDNF_q1, n_bins=20)
-    mean_quantiles_NDNF_q5, sem_quantiles_NDNF_q5 = get_quantiles_for_cdf_list(animal_ID_list_NDNF,
-                                                                               argmin_NDNF_q5, n_bins=20)
-
-    mean_quantiles_EC_q1, sem_quantiles_EC_q1 = get_quantiles_for_cdf_list(animal_ID_list_EC,
-                                                                           argmax_EC_q1, n_bins=20)
-    mean_quantiles_EC_q5, sem_quantiles_EC_q5 = get_quantiles_for_cdf_list(animal_ID_list_EC,
-                                                                           argmax_EC_q5, n_bins=20)
-
-    mean_quantiles_SST_q1_negative, sem_quantiles_SST_q1_negative = get_quantiles_for_cdf_list(animal_ID_list_SST,
-                                                                                               argmin_SST_q1,
-                                                                                               n_bins=20)
-    mean_quantiles_SST_q5_negative, sem_quantiles_SST_q5_negative = get_quantiles_for_cdf_list(animal_ID_list_SST,
-                                                                                               argmin_SST_q5,
-                                                                                               n_bins=20)
-
-    mean_quantiles_NDNF_q1_negative, sem_quantiles_NDNF_q1_negative = get_quantiles_for_cdf_list(animal_ID_list_NDNF,
-                                                                                                 argmin_NDNF_q1,
-                                                                                                 n_bins=20)
-    mean_quantiles_NDNF_q5_negative, sem_quantiles_NDNF_q5_negative = get_quantiles_for_cdf_list(animal_ID_list_NDNF,
-                                                                                                 argmin_NDNF_q5,
-                                                                                                 n_bins=20)
-
-    mean_quantiles_EC_q1_negative, sem_quantiles_EC_q1_negative = get_quantiles_for_cdf_list(animal_ID_list_EC,
-                                                                                             argmin_EC_q1,
-                                                                                             n_bins=20)
-    mean_quantiles_EC_q5_negative, sem_quantiles_EC_q5_negative = get_quantiles_for_cdf_list(animal_ID_list_EC,
-                                                                                             argmin_EC_q5,
-                                                                                             n_bins=20)
-
-    positive_mean_list = [mean_quantiles_SST_q1, mean_quantiles_SST_q5, mean_quantiles_NDNF_q1, mean_quantiles_NDNF_q5,
-                          mean_quantiles_EC_q1, mean_quantiles_EC_q5]
-    positive_sem_list = [sem_quantiles_SST_q1, sem_quantiles_SST_q5, sem_quantiles_NDNF_q1, sem_quantiles_NDNF_q5,
-                         sem_quantiles_EC_q1, sem_quantiles_EC_q5]
-
-    negative_mean_list = [mean_quantiles_SST_q1_negative, mean_quantiles_SST_q5_negative,
-                          mean_quantiles_NDNF_q1_negative, mean_quantiles_NDNF_q5_negative,
-                          mean_quantiles_EC_q1_negative, mean_quantiles_EC_q5_negative]
-    negative_sem_list = [sem_quantiles_SST_q1_negative, sem_quantiles_SST_q5_negative, sem_quantiles_NDNF_q1_negative,
-                         sem_quantiles_NDNF_q5_negative, sem_quantiles_EC_q1_negative, sem_quantiles_EC_q5_negative]
-
-    plot_cdf_split_learning(positive_mean_list, positive_sem_list, title="Positive Selectivity", x_title="Selectivity",
-                            n_bins=20)
-    plot_cdf_split_learning(negative_mean_list, negative_sem_list, title="Negative Selectivity", x_title="Selectivity",
-                            n_bins=20)
-
-
-
+    return mean_SST_above, sem_SST_above, mean_SST_below, sem_SST_below, mean_NDNF_above, sem_NDNF_above, mean_NDNF_below, sem_NDNF_below, mean_EC_above, sem_EC_above, mean_EC_below, sem_EC_below
 
 
 def compute_mean_and_sem_for_r2_groups(activity_dict, r2_above_zero, r2_below_zero):
@@ -984,30 +872,6 @@ def compute_mean_and_sem_for_r2_groups(activity_dict, r2_above_zero, r2_below_ze
     return (first_mean_above, first_sem_above, last_mean_above, last_sem_above), \
         (first_mean_below, first_sem_below, last_mean_below, last_sem_below)
 
-
-def plot_mean_and_sem_by_r2(activity_dict_SST, r2_SST_above_zero, r2_SST_below_zero, cell_type):
-    above_zero_results, below_zero_results = compute_mean_and_sem_for_r2_groups(
-        activity_dict_SST, r2_SST_above_zero, r2_SST_below_zero)
-
-    plt.figure(figsize=(10, 6))
-
-    first_mean, first_sem, last_mean, last_sem = above_zero_results
-    plt.errorbar(range(len(first_mean)), first_mean, yerr=first_sem, fmt='o-', color='blue',
-                 label='Above Zero - First Quintile')
-    plt.errorbar(range(len(last_mean)), last_mean, yerr=last_sem, fmt='o--', color='cyan',
-                 label='Above Zero - Last Quintile')
-
-    first_mean, first_sem, last_mean, last_sem = below_zero_results
-    plt.errorbar(range(len(first_mean)), first_mean, yerr=first_sem, fmt='o-', color='orange',
-                 label='Below Zero - First Quintile')
-    plt.errorbar(range(len(last_mean)), last_mean, yerr=last_sem, fmt='o--', color='red',
-                 label='Below Zero - Last Quintile')
-
-    plt.xlabel("Position Bin")
-    plt.ylabel("Z-Score Mean Activity")
-    plt.title("Activity Split by Velocity Correlation")
-    plt.legend()
-    plt.show()
 
 
 def get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST,
@@ -1244,36 +1108,8 @@ def plot_frequency_hist_learning(SST_list_above, SST_list_below, NDNF_list_above
 
 
 def get_argmin_argmax_split_learning_histogram(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF,
-                                     predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC):
-    # activity_list_SST_q1, activity_list_SST_q5, prediction_list_SST_q1, prediction_list_SST_q5 = split_activity_and_prediction_into_quintiles(
-    #     activity_dict_SST, predicted_activity_dict_SST)
-    # activity_list_NDNF_q1, activity_list_NDNF_q5, prediction_list_NDNF_q1, prediction_list_NDNF_q5 = split_activity_and_prediction_into_quintiles(
-    #     activity_dict_NDNF, predicted_activity_dict_NDNF)
-    # activity_list_EC_q1, activity_list_EC_q5, prediction_list_EC_q1, prediction_list_EC_q5 = split_activity_and_prediction_into_quintiles(
-    #     activity_dict_EC, predicted_activity_dict_EC)
-    #
-    # trial_av_activity_SST_q1 = trial_average(activity_list_SST_q1)
-    # trial_av_activity_NDNF_q1 = trial_average(activity_list_NDNF_q1)
-    # trial_av_activity_EC_q1 = trial_average(activity_list_EC_q1)
-    #
-    # trial_av_activity_SST_q5 = trial_average(activity_list_SST_q5)
-    # trial_av_activity_NDNF_q5 = trial_average(activity_list_NDNF_q5)
-    # trial_av_activity_EC_q5 = trial_average(activity_list_EC_q5)
-    #
-    # argmax_SST_q1 = get_max_or_min(trial_av_activity_SST_q1, argmax_or_argmin="argmax")
-    # argmin_SST_q1 = get_max_or_min(trial_av_activity_SST_q1, argmax_or_argmin="argmin")
-    # argmax_SST_q5 = get_max_or_min(trial_av_activity_SST_q5, argmax_or_argmin="argmax")
-    # argmin_SST_q5 = get_max_or_min(trial_av_activity_SST_q5, argmax_or_argmin="argmin")
-    #
-    # argmax_NDNF_q1 = get_max_or_min(trial_av_activity_NDNF_q1, argmax_or_argmin="argmax")
-    # argmin_NDNF_q1 = get_max_or_min(trial_av_activity_NDNF_q1, argmax_or_argmin="argmin")
-    # argmax_NDNF_q5 = get_max_or_min(trial_av_activity_NDNF_q5, argmax_or_argmin="argmax")
-    # argmin_NDNF_q5 = get_max_or_min(trial_av_activity_NDNF_q5, argmax_or_argmin="argmin")
-    #
-    # argmax_EC_q1 = get_max_or_min(trial_av_activity_EC_q1, argmax_or_argmin="argmax")
-    # argmin_EC_q1 = get_max_or_min(trial_av_activity_EC_q1, argmax_or_argmin="argmin")
-    # argmax_EC_q5 = get_max_or_min(trial_av_activity_EC_q5, argmax_or_argmin="argmax")
-    # argmin_EC_q5 = get_max_or_min(trial_av_activity_EC_q5, argmax_or_argmin="argmin")
+                                     predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, argmax_or_argmin=None):
+
 
     activity_list_SST_q1, activity_list_SST_q5, prediction_list_SST_q1, prediction_list_SST_q5, residual_q1_SST, residual_q5_SST = split_activity_and_prediction_into_quintiles(
         activity_dict_SST, predicted_activity_dict_SST)
@@ -1282,27 +1118,17 @@ def get_argmin_argmax_split_learning_histogram(activity_dict_SST, predicted_acti
     activity_list_EC_q1, activity_list_EC_q5, prediction_list_EC_q1, prediction_list_EC_q5, residual_q1_EC, residual_q5_EC = split_activity_and_prediction_into_quintiles(
         activity_dict_EC, predicted_activity_dict_EC)
 
-    argmax_SST_q1 = get_max_or_min(residual_q1_SST, argmax_or_argmin="argmax")
-    argmin_SST_q1 = get_max_or_min(residual_q1_SST, argmax_or_argmin="argmin")
-    argmax_SST_q5 = get_max_or_min(residual_q5_SST, argmax_or_argmin="argmax")
-    argmin_SST_q5 = get_max_or_min(residual_q5_SST, argmax_or_argmin="argmin")
+    argmax_SST_q1 = get_max_or_min(residual_q1_SST, argmax_or_argmin=argmax_or_argmin)
+    argmax_SST_q5 = get_max_or_min(residual_q5_SST, argmax_or_argmin=argmax_or_argmin)
 
-    argmax_NDNF_q1 = get_max_or_min(residual_q1_NDNF, argmax_or_argmin="argmax")
-    argmin_NDNF_q1 = get_max_or_min(residual_q1_NDNF, argmax_or_argmin="argmin")
-    argmax_NDNF_q5 = get_max_or_min(residual_q5_NDNF, argmax_or_argmin="argmax")
-    argmin_NDNF_q5 = get_max_or_min(residual_q5_NDNF, argmax_or_argmin="argmin")
+    argmax_NDNF_q1 = get_max_or_min(residual_q1_NDNF, argmax_or_argmin=argmax_or_argmin)
+    argmax_NDNF_q5 = get_max_or_min(residual_q5_NDNF, argmax_or_argmin=argmax_or_argmin)
 
-    argmax_EC_q1 = get_max_or_min(residual_q1_EC, argmax_or_argmin="argmax")
-    argmin_EC_q1 = get_max_or_min(residual_q1_EC, argmax_or_argmin="argmin")
-    argmax_EC_q5 = get_max_or_min(residual_q5_EC, argmax_or_argmin="argmax")
-    argmin_EC_q5 = get_max_or_min(residual_q5_EC, argmax_or_argmin="argmin")
+    argmax_EC_q1 = get_max_or_min(residual_q1_EC, argmax_or_argmin=argmax_or_argmin)
+    argmax_EC_q5 = get_max_or_min(residual_q5_EC, argmax_or_argmin=argmax_or_argmin)
 
+    return argmax_SST_q1, argmax_SST_q5, argmax_NDNF_q1, argmax_NDNF_q5, argmax_EC_q1, argmax_EC_q5
 
-
-    plot_frequency_hist_learning(argmax_SST_q1, argmax_SST_q5, argmax_NDNF_q1, argmax_NDNF_q5, argmax_EC_q1,
-                                 argmax_EC_q5, selectivity_or_arg="arg", name="Argmax")
-    plot_frequency_hist_learning(argmin_SST_q1, argmin_SST_q5, argmin_NDNF_q1, argmin_NDNF_q5, argmin_EC_q1,
-                                 argmin_EC_q5, selectivity_or_arg="arg", name="Argmin")
 
 
 def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC):
@@ -1315,8 +1141,8 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
 
     fig, axs = plt.subplots(3, 3, figsize=(12, 12))
 
-    axs[0, 0].errorbar(range(len(first_mean_SST)), first_mean_SST, yerr=first_sem_SST, fmt='o-', color='blue', label='SST First Quintile')
-    axs[0, 0].errorbar(range(len(last_mean_SST)), last_mean_SST, yerr=last_sem_SST, fmt='o--', color='cyan', label='SST Last Quintile')
+    axs[0, 0].errorbar(range(len(first_mean_SST)), first_mean_SST, yerr=first_sem_SST, fmt='o-', color='blue', label='SST First Quintile', markersize=1)
+    axs[0, 0].errorbar(range(len(last_mean_SST)), last_mean_SST, yerr=last_sem_SST, fmt='o--', color='cyan', label='SST Last Quintile', markersize=1)
     axs[0, 0].set_xlabel("Position Bin")
     axs[0, 0].set_ylabel("z-score DF/F")
     axs[0, 0].set_title("SST Quintile Activity")
@@ -1343,8 +1169,8 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
     axs[0, 2].legend()
 
     # NDNF Plots
-    axs[1, 0].errorbar(range(len(first_mean_NDNF)), first_mean_NDNF, yerr=first_sem_NDNF, fmt='o-', color='orange', label='NDNF First Quintile')
-    axs[1, 0].errorbar(range(len(last_mean_NDNF)), last_mean_NDNF, yerr=last_sem_NDNF, fmt='o--', color='red', label='NDNF Last Quintile')
+    axs[1, 0].errorbar(range(len(first_mean_NDNF)), first_mean_NDNF, yerr=first_sem_NDNF, fmt='o-', color='orange', label='NDNF First Quintile', markersize=1)
+    axs[1, 0].errorbar(range(len(last_mean_NDNF)), last_mean_NDNF, yerr=last_sem_NDNF, fmt='o--', color='red', label='NDNF Last Quintile', markersize=1)
     axs[1, 0].set_xlabel("Position Bin")
     axs[1, 0].set_ylabel("z-score DF/F")
     axs[1, 0].set_title("NDNF Quintile Activity")
@@ -1370,8 +1196,8 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
     axs[1, 2].legend()
 
     # EC Plots
-    axs[2, 0].errorbar(range(len(first_mean_EC)), first_mean_EC, yerr=first_sem_EC, fmt='o-', color='green', label='EC First Quintile')
-    axs[2, 0].errorbar(range(len(last_mean_EC)), last_mean_EC, yerr=last_sem_EC, fmt='o--', color='gray', label='EC Last Quintile')
+    axs[2, 0].errorbar(range(len(first_mean_EC)), first_mean_EC, yerr=first_sem_EC, fmt='o-', color='green', label='EC First Quintile', markersize=1)
+    axs[2, 0].errorbar(range(len(last_mean_EC)), last_mean_EC, yerr=last_sem_EC, fmt='o--', color='gray', label='EC Last Quintile', markersize=1)
     axs[2, 0].set_xlabel("Position Bin")
     axs[2, 0].set_ylabel("z-score DF/F")
     axs[2, 0].set_title("EC Quintile Activity")
@@ -1821,18 +1647,13 @@ def get_animal_ID_list(activity_dict_SST):
 
 def plot_positive_negative_selectivity_by_quintile(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC):
 
-    activity_list_SST_q1, activity_list_SST_q5, prediction_list_SST_q1, prediction_list_SST_q5, residual_q1_SST, residual_q5_SST = split_activity_and_prediction_into_quintiles(
-        activity_dict_SST, predicted_activity_dict_SST)
-    activity_list_NDNF_q1, activity_list_NDNF_q5, prediction_list_NDNF_q1, prediction_list_NDNF_q5, residual_q1_NDNF, residual_q1_NDNF = split_activity_and_prediction_into_quintiles(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    activity_list_EC_q1, activity_list_EC_q5, predicted_activity_list_EC_q1, predicted_activity_list_EC_q5, residual_q1_EC, residual_q5_EC = split_activity_and_prediction_into_quintiles(
-        activity_dict_EC, predicted_activity_dict_EC)
+    activity_list_SST_q1, activity_list_SST_q5, prediction_list_SST_q1, prediction_list_SST_q5, residual_q1_SST, residual_q5_SST = split_activity_and_prediction_into_quintiles(activity_dict_SST, predicted_activity_dict_SST)
+    activity_list_NDNF_q1, activity_list_NDNF_q5, prediction_list_NDNF_q1, prediction_list_NDNF_q5, residual_q1_NDNF, residual_q5_NDNF = split_activity_and_prediction_into_quintiles(activity_dict_NDNF, predicted_activity_dict_NDNF)
+    activity_list_EC_q1, activity_list_EC_q5, predicted_activity_list_EC_q1, predicted_activity_list_EC_q5, residual_q1_EC, residual_q5_EC = split_activity_and_prediction_into_quintiles(activity_dict_EC, predicted_activity_dict_EC)
 
-    SST_positive_selectivity_q1, SST_negative_selectivity_q1, NDNF_positive_selectivity_q1, NDNF_negative_selectivity_q1, EC_positive_selectivity_q1, EC_negative_selectivity_q1 = get_selectivity_for_plotting_lists(
-        residual_q1_SST, residual_q1_NDNF, residual_q1_EC)
+    SST_positive_selectivity_q1, SST_negative_selectivity_q1, NDNF_positive_selectivity_q1, NDNF_negative_selectivity_q1, EC_positive_selectivity_q1, EC_negative_selectivity_q1 = get_selectivity_for_plotting_lists(residual_q1_SST, residual_q1_NDNF, residual_q1_EC)
 
-    SST_positive_selectivity_q5, SST_negative_selectivity_q5, NDNF_positive_selectivity_q5, NDNF_negative_selectivity_q5, EC_positive_selectivity_q5, EC_negative_selectivity_q5 = get_selectivity_for_plotting_lists(
-        residual_q5_SST, residual_q1_NDNF, residual_q5_EC)
+    SST_positive_selectivity_q5, SST_negative_selectivity_q5, NDNF_positive_selectivity_q5, NDNF_negative_selectivity_q5, EC_positive_selectivity_q5, EC_negative_selectivity_q5 = get_selectivity_for_plotting_lists(residual_q5_SST, residual_q5_NDNF, residual_q5_EC)
 
     animal_ID_list_SST = get_animal_ID_list(activity_dict_SST)
     animal_ID_list_NDNF = get_animal_ID_list(activity_dict_NDNF)
@@ -1875,13 +1696,6 @@ def get_argmin_argmax_split_learning(activity_dict_SST, predicted_activity_dict_
     activity_list_EC_q1, activity_list_EC_q5, prediction_list_EC_q1, prediction_list_EC_q5, residual_q1_EC, residual_q5_EC = split_activity_and_prediction_into_quintiles(
         activity_dict_EC, predicted_activity_dict_EC)
 
-    # trial_av_activity_SST_q1 = trial_average(activity_list_SST_q1)
-    # trial_av_activity_NDNF_q1 = trial_average(activity_list_NDNF_q1)
-    # trial_av_activity_EC_q1 = trial_average(activity_list_EC_q1)
-    #
-    # trial_av_activity_SST_q5 = trial_average(activity_list_SST_q5)
-    # trial_av_activity_NDNF_q5 = trial_average(activity_list_NDNF_q5)
-    # trial_av_activity_EC_q5 = trial_average(activity_list_EC_q5)
 
     argmax_SST_q1 = get_max_or_min(residual_q1_SST, argmax_or_argmin="argmax")
     argmin_SST_q1 = get_max_or_min(residual_q1_SST, argmax_or_argmin="argmin")
@@ -1943,16 +1757,17 @@ def get_argmin_argmax_split_learning(activity_dict_SST, predicted_activity_dict_
     argmax_sem_list = [sem_quantiles_SST_q1, sem_quantiles_SST_q5, sem_quantiles_NDNF_q1, sem_quantiles_NDNF_q5,
                        sem_quantiles_EC_q1, sem_quantiles_EC_q5]
 
-    argmin_mean_list = [mean_quantiles_SST_q1_argmin, mean_quantiles_SST_q5_argmin,
-                        mean_quantiles_NDNF_q1_argmin, mean_quantiles_NDNF_q5_argmin,
-                        mean_quantiles_EC_q1_argmin, mean_quantiles_EC_q5_argmin]
+    argmin_mean_list = [mean_quantiles_SST_q1_argmin, mean_quantiles_SST_q5_argmin, mean_quantiles_NDNF_q1_argmin,
+                        mean_quantiles_NDNF_q5_argmin, mean_quantiles_EC_q1_argmin, mean_quantiles_EC_q5_argmin]
     argmin_sem_list = [sem_quantiles_SST_q1_argmin, sem_quantiles_SST_q5_argmin, sem_quantiles_NDNF_q1_argmin,
                        sem_quantiles_NDNF_q5_argmin, sem_quantiles_EC_q1_argmin, sem_quantiles_EC_q5_argmin]
 
-    plot_cdf_split_learning(argmax_mean_list, argmax_sem_list, title="Argmax", x_title="Argmax",
-                            n_bins=20)
-    plot_cdf_split_learning(argmin_mean_list, argmin_sem_list, title="Argmin", x_title="Argmin",
-                            n_bins=20)
+    return argmax_mean_list, argmax_sem_list, argmin_mean_list, argmin_sem_list
+
+    # plot_cdf_split_learning(argmax_mean_list, argmax_sem_list, title="Argmax", x_title="Argmax",
+    #                         n_bins=20)
+    # plot_cdf_split_learning(argmin_mean_list, argmin_sem_list, title="Argmin", x_title="Argmin",
+    #                         n_bins=20)
 
 
 def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
