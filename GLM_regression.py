@@ -1403,14 +1403,7 @@ def setup_CDF_plotting_argmin_argmax_split_by_r2(activity_dict_SST, predicted_ac
     r2_NDNF_above_zero, r2_NDNF_below_zero = get_r2_above_and_below_zero(activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, variable_to_correlate="Velocity")
     r2_EC_above_zero, r2_EC_below_zero = get_r2_above_and_below_zero(activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, variable_to_correlate="Velocity")
 
-    SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero = split_argmin_argmax_by_r2(
-        activity_dict_SST, predicted_activity_dict_SST,
-        activity_dict_NDNF, predicted_activity_dict_NDNF,
-        activity_dict_EC, predicted_activity_dict_EC,
-        r2_SST_above_zero, r2_SST_below_zero,
-        r2_NDNF_above_zero, r2_NDNF_below_zero,
-        r2_EC_above_zero, r2_EC_below_zero,
-        residual=residual, which_to_plot=which_to_plot)
+    SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero = split_argmin_argmax_by_r2(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, r2_SST_above_zero, r2_SST_below_zero, r2_NDNF_above_zero, r2_NDNF_below_zero, r2_EC_above_zero, r2_EC_below_zero, residual=residual, which_to_plot=which_to_plot)
 
     mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf(activity_dict_SST, SST_above_zero, n_bins=20)
     mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf(activity_dict_SST, SST_below_zero, n_bins=20)
@@ -1419,13 +1412,11 @@ def setup_CDF_plotting_argmin_argmax_split_by_r2(activity_dict_SST, predicted_ac
     mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_below_zero, n_bins=20)
 
     mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf(activity_dict_EC, EC_above_zero, n_bins=20)
-    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, SST_below_zero, n_bins=20)
+    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, EC_below_zero, n_bins=20)
 
-    mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high,
-                           mean_quantiles_NDNF_low, mean_quantiles_EC_high, mean_quantiles_EC_low]
+    mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high, mean_quantiles_NDNF_low, mean_quantiles_EC_high, mean_quantiles_EC_low]
 
-    sem_quantiles_list = [sem_quantiles_SST_high, sem_quantiles_SST_low, sem_quantiles_NDNF_high,
-                          sem_quantiles_NDNF_low, sem_quantiles_EC_high, sem_quantiles_EC_low]
+    sem_quantiles_list = [sem_quantiles_SST_high, sem_quantiles_SST_low, sem_quantiles_NDNF_high, sem_quantiles_NDNF_low, sem_quantiles_EC_high, sem_quantiles_EC_low]
 
     return mean_quantiles_list, sem_quantiles_list
 
