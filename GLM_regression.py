@@ -1247,6 +1247,15 @@ def compute_residual_activity(activity_dict, predicted_activity_dict):
     return predicted_activity_list, neuron_activity_list, residuals_list
 
 
+def get_residual_activity_dict(activity_dict, predicted_activity_dict):
+    residual_activity_dict = {}
+    for animal in activity_dict:
+        residual_activity_dict[animal] = {}
+        for neuron in activity_dict[animal]:
+            residual_activity_dict[animal][neuron] = activity_dict[animal][neuron] - predicted_activity_dict[animal][neuron]
+    return residual_activity_dict
+
+
 def flatten_data(neuron_dict):
     flattened_data = {}
     for var in neuron_dict:
