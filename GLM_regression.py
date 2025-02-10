@@ -425,10 +425,8 @@ def setup_CDF_plotting_and_plot_argmin_argmax(activity_dict_SST, predicted_activ
 
 def get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, variable_to_correlate="Velocity"):
 
-    r2_variable_activity_dict_SST, r2_variable_residual_dict_SST = get_pop_correlation_to_variable(activity_dict_SST,
-                                                                                                   predicted_activity_dict_SST,
-                                                                                                   filtered_factors_dict_SST,
-                                                                                                   variable_to_correlate="Velocity")
+    r2_variable_activity_dict_SST, r2_variable_residual_dict_SST = get_pop_correlation_to_variable(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, variable_to_correlate="Velocity")
+
     r2_SST_above_zero = {}
     r2_SST_below_zero = {}
 
@@ -446,7 +444,15 @@ def get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, 
     return r2_SST_above_zero, r2_SST_below_zero
 
 
-def filter_activity_by_r2(activity_dict, predicted_activity_dict, r2_dict, residual=True):
+def filter_activity_by_r2(activity_dict, predicted_activity_dict, r2_dict, filtered_factors_dict_SST, residual=True):
+
+    velocity_dict = {}
+    for animal in activity_dict:
+        velocity_dict[animal] = {}
+        for neuron in activity_dict[animal]:
+            velocity_dict[animal][neuron] = filtered_factors_dict_SST[animal]["Velocity"]
+
+    velocity_list_out = []
 
     filtered_activity = {}
 
@@ -456,42 +462,14 @@ def filter_activity_by_r2(activity_dict, predicted_activity_dict, r2_dict, resid
             for neuron in r2_dict[animal]:
                 if neuron in activity_dict[animal] and neuron in predicted_activity_dict[animal]:
                     if residual:
-                        filtered_activity[animal][neuron] = (
-                            activity_dict[animal][neuron] - predicted_activity_dict[animal][neuron]
-                        )
+                        filtered_activity[animal][neuron] = (activity_dict[animal][neuron] - predicted_activity_dict[animal][neuron])
+                        velocity_list_out.append(velocity_dict[animal][neuron])
                     else:
-                        # Use raw activity
                         filtered_activity[animal][neuron] = activity_dict[animal][neuron]
+                        velocity_list_out.append(velocity_dict[animal][neuron])
 
-    return filtered_activity
+    return filtered_activity, velocity_list_out
 
-
-# def plot_mean_and_sem_by_r2(activity_dict_SST, r2_SST_above_zero, r2_SST_below_zero, cell_type):
-#     activity_above_zero = filter_activity_by_r2(activity_dict_SST, r2_SST_above_zero)
-#     activity_below_zero = filter_activity_by_r2(activity_dict_SST, r2_SST_below_zero)
-#
-#     first_mean_above, first_sem_above, last_mean_above, last_sem_above = compute_mean_and_sem_for_quintiles(
-#         activity_above_zero)
-#     first_mean_below, first_sem_below, last_mean_below, last_sem_below = compute_mean_and_sem_for_quintiles(
-#         activity_below_zero)
-#
-#     plt.figure(figsize=(10, 6))
-#     plt.errorbar(range(len(first_mean_above)), first_mean_above, yerr=first_sem_above, fmt='o-', color='blue',
-#                  label=f'{cell_type} Above Zero - First Quintile')
-#     plt.errorbar(range(len(last_mean_above)), last_mean_above, yerr=last_sem_above, fmt='o--', color='cyan',
-#                  label=f'{cell_type} Above Zero - Last Quintile')
-#
-#     plt.errorbar(range(len(first_mean_below)), first_mean_below, yerr=first_sem_below, fmt='o-', color='orange',
-#                  label=f'{cell_type} Below Zero - First Quintile')
-#     plt.errorbar(range(len(last_mean_below)), last_mean_below, yerr=last_sem_below, fmt='o--', color='red',
-#                  label=f'{cell_type} Below Zero - Last Quintile')
-#
-#     plt.xlabel("Position Bin")
-#     plt.ylabel("Z-Score Mean Activity")
-#     plt.title(f"Activity Split by Velocity Correlation ({cell_type})")
-#     plt.legend()
-#     plt.show()
-#
 
 def compute_mean_and_sem(activity_list):
     activity_array = np.array(activity_list)
@@ -525,10 +503,29 @@ def get_activity_by_animal(activity_SST_above):
 
     return per_animal_activity_SST_above
 
+def get_activity_by_animal_quintile_split(activity_SST_above):
+    per_animal_activity_SST_above = []
+
+    for animal in activity_SST_above:
+        animal_mean = []
+
+        for neuron in activity_SST_above[animal]:
+            trial_av = np.mean(activity_SST_above[animal][neuron], axis=1)
+            animal_mean.append(trial_av)
+
+        if not animal_mean: continue
+        animal_mean_array = np.stack(animal_mean)
+        per_animal_activity_SST_above.append(np.mean(animal_mean_array, axis=0))
+
+    return per_animal_activity_SST_above
+
 
 def get_animal_vel_correlations_activity(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True):
 
     r2_SST_above_zero, r2_SST_below_zero = get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, variable_to_correlate="Velocity")
+    print(f"len(r2_SST_above_zero) {len(r2_SST_above_zero)}")
+    print(f"len(r2_SST_above_zero[1].shape) {r2_SST_above_zero['animal_1']['cell_3']}")
+
     r2_NDNF_above_zero, r2_NDNF_below_zero = get_r2_above_and_below_zero(activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, variable_to_correlate="Velocity")
     r2_EC_above_zero, r2_EC_below_zero = get_r2_above_and_below_zero(activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, variable_to_correlate="Velocity")
 
@@ -549,7 +546,6 @@ def get_animal_vel_correlations_activity(activity_dict_SST, predicted_activity_d
 
     per_animal_activity_EC_above = get_activity_by_animal(activity_EC_above)
     per_animal_activity_EC_below = get_activity_by_animal(activity_EC_below)
-
 
     return per_animal_activity_SST_above, per_animal_activity_SST_below, per_animal_activity_NDNF_above, per_animal_activity_NDNF_below, per_animal_activity_EC_above, per_animal_activity_EC_below
 
@@ -587,6 +583,9 @@ def get_activity_by_r2_groups(activity_dict_SST, predicted_activity_dict_SST, fi
 
     trial_av_activity_SST_above = trial_average(activity_SST_above)
     trial_av_activity_SST_below = trial_average(activity_SST_below)
+
+    print(f"trial_av_activity_SST_above {len(trial_av_activity_SST_above)}")
+    print(f"trial_av_activity_SST_below {len(trial_av_activity_SST_below)}")
 
     trial_av_activity_NDNF_above = trial_average(activity_NDNF_above)
     trial_av_activity_NDNF_below = trial_average(activity_NDNF_below)
@@ -632,14 +631,14 @@ def split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST, filt
                                                                      filtered_factors_dict_EC,
                                                                      variable_to_correlate="Velocity")
 
-    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_selectivity_list, r2_SST_above_zero,
+    SST_above_zero, SST_below_zero, animal_list_above_zero_SST, animal_list_below_zero_SST = split_by_r2(neuron_mapping_SST, SST_selectivity_list, r2_SST_above_zero,
                                                  r2_SST_below_zero)
-    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_selectivity_list, r2_NDNF_above_zero,
+    NDNF_above_zero, NDNF_below_zero, animal_list_above_zero_NDNF, animal_list_below_zero_NDNF = split_by_r2(neuron_mapping_NDNF, NDNF_selectivity_list, r2_NDNF_above_zero,
                                                    r2_NDNF_below_zero)
-    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_selectivity_list, r2_EC_above_zero,
+    EC_above_zero, EC_below_zero, animal_list_above_zero_EC, animal_list_below_zero_EC = split_by_r2(neuron_mapping_EC, EC_selectivity_list, r2_EC_above_zero,
                                                r2_EC_below_zero)
 
-    return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
+    return SST_above_zero, SST_below_zero, animal_list_above_zero_SST, animal_list_below_zero_SST, NDNF_above_zero, NDNF_below_zero, animal_list_above_zero_NDNF, animal_list_below_zero_NDNF, EC_above_zero, EC_below_zero, animal_list_above_zero_EC, animal_list_below_zero_EC
 
 
 def setup_CDF_plotting_split_by_r2(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=False, compute_negative=False):
@@ -648,24 +647,25 @@ def setup_CDF_plotting_split_by_r2(activity_dict_SST, predicted_activity_dict_SS
     NDNF_factor_list, NDNF_negative_selectivity = get_selectivity_for_plotting(activity_dict_NDNF, predicted_activity_dict_NDNF, residual=residual)
     EC_factor_list, EC_negative_selectivity = get_selectivity_for_plotting(activity_dict_EC, predicted_activity_dict_EC, residual=residual)
 
-    SST_factor_above_zero, SST_factor_below_zero, NDNF_factor_above_zero, NDNF_factor_below_zero, EC_factor_above_zero, EC_factor_below_zero = split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=residual, compute_negative=compute_negative)
+    SST_factor_above_zero, SST_factor_below_zero, animal_list_above_zero_SST, animal_list_below_zero_SST, NDNF_factor_above_zero, NDNF_factor_below_zero, animal_list_above_zero_NDNF, animal_list_below_zero_NDNF, EC_factor_above_zero, EC_factor_below_zero, animal_list_above_zero_EC, animal_list_below_zero_EC = split_selectivity_by_r2(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=residual, compute_negative=compute_negative)
+    #
+    # print(f"animal_list_below_zero_SST {animal_list_below_zero_SST}")
+    # print(f"SST_factor_below_zero {SST_factor_below_zero}")
 
-
-    mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf(activity_dict_SST, SST_factor_above_zero,
+    mean_quantiles_SST_high, sem_quantiles_SST_high = get_quantiles_for_cdf_r2_split(animal_list_above_zero_SST, SST_factor_above_zero,
                                                                             n_bins=20)
-    mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf(activity_dict_SST, SST_factor_below_zero,
+    mean_quantiles_SST_low, sem_quantiles_SST_low = get_quantiles_for_cdf_r2_split(animal_list_below_zero_SST, SST_factor_below_zero,
                                                                           n_bins=20)
 
-    mean_quantiles_NDNF_high, sem_quantiles_NDNF_high = get_quantiles_for_cdf(activity_dict_NDNF,
+    mean_quantiles_NDNF_high, sem_quantiles_NDNF_high = get_quantiles_for_cdf_r2_split(animal_list_above_zero_NDNF,
                                                                               NDNF_factor_above_zero, n_bins=20)
-    mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf(activity_dict_NDNF, NDNF_factor_below_zero,
+    mean_quantiles_NDNF_low, sem_quantiles_NDNF_low = get_quantiles_for_cdf_r2_split(animal_list_below_zero_NDNF, NDNF_factor_below_zero,
                                                                             n_bins=20)
 
-    mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf(activity_dict_EC, EC_factor_above_zero,
+    mean_quantiles_EC_high, sem_quantiles_EC_high = get_quantiles_for_cdf_r2_split(animal_list_above_zero_EC, EC_factor_above_zero,
                                                                           n_bins=20)
-    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf(activity_dict_EC, EC_factor_below_zero,
+    mean_quantiles_EC_low, sem_quantiles_EC_low = get_quantiles_for_cdf_r2_split(animal_list_below_zero_EC, EC_factor_below_zero,
                                                                         n_bins=20)
-
 
 
     mean_quantiles_list = [mean_quantiles_SST_high, mean_quantiles_SST_low, mean_quantiles_NDNF_high,
@@ -682,14 +682,18 @@ def setup_CDF_plotting_split_by_r2(activity_dict_SST, predicted_activity_dict_SS
 def split_by_r2(neuron_mapping, factor_list, r2_above_zero, r2_below_zero):
     above_zero = []
     below_zero = []
+    animal_list_above_zero = []
+    animal_list_below_zero = []
 
     for idx, (animal, neuron) in enumerate(neuron_mapping):
         if animal in r2_above_zero and neuron in r2_above_zero[animal]:
             above_zero.append(factor_list[idx])
+            animal_list_above_zero.append(animal)
         elif animal in r2_below_zero and neuron in r2_below_zero[animal]:
             below_zero.append(factor_list[idx])
+            animal_list_below_zero.append(animal)
 
-    return above_zero, below_zero
+    return above_zero, below_zero, animal_list_above_zero, animal_list_below_zero
 
 
 def compute_mean_and_sem_for_quintiles(activity_dict, predicted_activity_dict):
@@ -758,56 +762,6 @@ def get_max_or_min(trial_av_list, argmax_or_argmin="argmax"):
     return value_list
 
 
-# def plot_frequency_hist_learning(SST_list_above, SST_list_below, NDNF_list_above, NDNF_list_below, EC_list_above, EC_list_below, selectivity_or_arg="selectivity", name=None):
-#
-#     if selectivity_or_arg == "selectivity":
-#         bin_edges = np.arange(0, 1.1, 0.1)
-#         bin_centers = bin_edges[:-1] + 0.05
-#         bin_labels = [f"{start:.1f}" for start in bin_edges[:-1]]
-#
-#     elif selectivity_or_arg == "arg":
-#         bin_edges = np.arange(0, 51, 5)
-#         bin_centers = bin_edges[:-1] + 2.5
-#         bin_labels = [f"{start}-{start + 4}" for start in bin_edges[:-1]]
-#
-#     else:
-#         raise ValueError(" selectivity_or_arg takes either selectivity or arg")
-#
-#     SST_hist_above, _ = np.histogram(SST_list_above, bins=bin_edges)
-#     NDNF_hist_above, _ = np.histogram(NDNF_list_above, bins=bin_edges)
-#     EC_hist_above, _ = np.histogram(EC_list_above, bins=bin_edges)
-#
-#     SST_fraction_above = SST_hist_above / np.sum(SST_hist_above)
-#     NDNF_fraction_above = NDNF_hist_above / np.sum(NDNF_hist_above)
-#     EC_fraction_above = EC_hist_above / np.sum(EC_hist_above)
-#
-#     SST_hist_below, _ = np.histogram(SST_list_below, bins=bin_edges)
-#     NDNF_hist_below, _ = np.histogram(NDNF_list_below, bins=bin_edges)
-#     EC_hist_below, _ = np.histogram(EC_list_below, bins=bin_edges)
-#
-#     SST_fraction_below = SST_hist_below / np.sum(SST_hist_below)
-#     NDNF_fraction_below = NDNF_hist_below / np.sum(NDNF_hist_below)
-#     EC_fraction_below = EC_hist_below / np.sum(EC_hist_below)
-#
-#     plt.figure(figsize=(8, 6))
-#     plt.plot(bin_centers, SST_fraction_above, marker='o', label=f'SST Early Learn (Q1)', linestyle='-', color='b')
-#     plt.plot(bin_centers, NDNF_fraction_above, marker='o', label=f'SST Late Learn (Q5)', linestyle='-', color='cyan')
-#     plt.plot(bin_centers, EC_fraction_above, marker='o', label=f'NDNF Early Learn (Q1)', linestyle='-', color='orange')
-#     plt.plot(bin_centers, SST_fraction_below, marker='o', label=f'NDNF Late Learn (Q5)', linestyle='-', color='red')
-#     plt.plot(bin_centers, NDNF_fraction_below, marker='o', label=f'EC Early Learn (Q1)', linestyle='-', color='green')
-#     plt.plot(bin_centers, EC_fraction_below, marker='o', label=f'EC Late Learn (Q5)', linestyle='-', color='gray')
-#
-#     plt.xlabel(name)
-#     plt.ylabel('Fraction of Cells')
-#     plt.title(f'{name} Split by Quintile')
-#     plt.xticks(bin_centers, bin_labels)
-#     #     plt.xticks(bin_centers[::2], bin_labels[::2])
-#     plt.legend()
-#
-#     plt.tight_layout()
-#     plt.show()
-#
-
 def get_argmin_argmax_split_learning_histogram(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, argmax_or_argmin=None):
 
 
@@ -836,8 +790,8 @@ def get_pop_correlation_to_variable(activity_dict_SST, predicted_activity_dict_S
     neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
         activity_dict_SST, predicted_activity_dict_SST)
 
-    filtered_input_variables = {var: [] for var in
-                                filtered_factors_dict_SST[next(iter(filtered_factors_dict_SST))].keys()}
+    filtered_input_variables = {var: [] for var in filtered_factors_dict_SST[next(iter(filtered_factors_dict_SST))].keys()}
+
     for animal in activity_dict_SST:
         for neuron in activity_dict_SST[animal]:
             for var in filtered_factors_dict_SST[animal]:
@@ -854,8 +808,8 @@ def get_pop_correlation_to_variable(activity_dict_SST, predicted_activity_dict_S
             flat_neuron_activity = neuron_activity_list_SST[idx].flatten()
             flat_residual = cell_residual_list_SST[idx].flatten()
             flat_variable_of_interest = filtered_input_variables[variable_to_correlate][idx].flatten()
-
             r2_variable_activity, _ = pearsonr(flat_neuron_activity, flat_variable_of_interest)
+            # print(r2_variable_activity)
             r2_variable_residual, _ = pearsonr(flat_residual, flat_variable_of_interest)
 
             r2_variable_activity_dict[animal][neuron] = r2_variable_activity
@@ -914,11 +868,11 @@ def split_argmin_argmax_by_r2(activity_dict_SST, predicted_activity_dict_SST, fi
 
     r2_EC_above_zero, r2_EC_below_zero = get_r2_above_and_below_zero(activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, variable_to_correlate="Velocity")
 
-    SST_above_zero, SST_below_zero = split_by_r2(neuron_mapping_SST, SST_factor_list, r2_SST_above_zero, r2_SST_below_zero)
+    SST_above_zero, SST_below_zero, animal_list_above_zero_SST, animal_list_below_zero_SST = split_by_r2(neuron_mapping_SST, SST_factor_list, r2_SST_above_zero, r2_SST_below_zero)
 
-    NDNF_above_zero, NDNF_below_zero = split_by_r2(neuron_mapping_NDNF, NDNF_factor_list, r2_NDNF_above_zero, r2_NDNF_below_zero)
+    NDNF_above_zero, NDNF_below_zero, animal_list_above_zero_NDNF, animal_list_below_zero_NDNF = split_by_r2(neuron_mapping_NDNF, NDNF_factor_list, r2_NDNF_above_zero, r2_NDNF_below_zero)
 
-    EC_above_zero, EC_below_zero = split_by_r2(neuron_mapping_EC, EC_factor_list, r2_EC_above_zero, r2_EC_below_zero)
+    EC_above_zero, EC_below_zero, animal_list_above_zero_EC, animal_list_below_zero_EC = split_by_r2(neuron_mapping_EC, EC_factor_list, r2_EC_above_zero, r2_EC_below_zero)
 
     return SST_above_zero, SST_below_zero, NDNF_above_zero, NDNF_below_zero, EC_above_zero, EC_below_zero
 
@@ -1041,36 +995,434 @@ def get_quantiles_for_cdf_list(animal_ID_list, values_list, n_bins=None):
     return mean_list, sem_list
 
 
-# def plot_cdf_split_learning(mean_quantiles_list, sem_quantiles_list, title=None, x_title=None, n_bins=None):
-#     bin_centers = np.arange(1, n_bins + 1)
-#
-#     plt.figure(figsize=(10, 6))
-#
-#     plt.errorbar(mean_quantiles_list[0], bin_centers, xerr=sem_quantiles_list[0], fmt='o-', color='blue', ecolor='blue',
-#                  capsize=8, label="SST Early Learn (Q1)")
-#     plt.errorbar(mean_quantiles_list[1], bin_centers, xerr=sem_quantiles_list[1], fmt='o-', color='c', ecolor='c',
-#                  capsize=8, label="SST Late Learn (Q5)")
-#
-#     plt.errorbar(mean_quantiles_list[2], bin_centers, xerr=sem_quantiles_list[2], fmt='o-', color='orange',
-#                  ecolor='orange',
-#                  capsize=8, label="NDNF Early Learn (Q1)")
-#     plt.errorbar(mean_quantiles_list[3], bin_centers, xerr=sem_quantiles_list[3], fmt='o-', color='r', ecolor='r',
-#                  capsize=8, label="NDNF Early Late Learn (Q5)")
-#
-#     plt.errorbar(mean_quantiles_list[4], bin_centers, xerr=sem_quantiles_list[4], fmt='o-', color='green',
-#                  ecolor='green',
-#                  capsize=8, label="EC Early Learn (Q1)")
-#     plt.errorbar(mean_quantiles_list[5], bin_centers, xerr=sem_quantiles_list[5], fmt='o-', color='gray', ecolor='gray',
-#                  capsize=8, label="EC Late Learn (Q5)")
-#
-#     plt.ylabel("Percentile of Data")
-#     plt.yticks(ticks=bin_centers, labels=[f"{int(val)}" for val in np.linspace((100 / n_bins), 100, n_bins)])
-#     plt.xlabel(f" Mean {x_title}")
-#     plt.title(title)
-#     plt.legend()
-#
-#     plt.show()
-#
+def quint_list(activity_SST_above):
+    first_quintile_list = []
+    last_quintile_list = []
+
+    for i in activity_SST_above:
+        sst_quintiles = split_into_quintiles(i)
+        first_quintile = sst_quintiles[0]
+        first_quintile_list.append(first_quintile)
+        last_quintile = sst_quintiles[-1]
+        last_quintile_list.append(last_quintile)
+    return first_quintile_list, last_quintile_list
+
+
+def get_activity_by_r2_groups_plus_learning(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True):
+    r2_SST_above_zero, r2_SST_below_zero = get_r2_above_and_below_zero(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, variable_to_correlate="Velocity")
+    r2_NDNF_above_zero, r2_NDNF_below_zero = get_r2_above_and_below_zero(activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, variable_to_correlate="Velocity")
+    r2_EC_above_zero, r2_EC_below_zero = get_r2_above_and_below_zero(activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, variable_to_correlate="Velocity")
+
+    activity_SST_above, velocity_list_out_SST_above = filter_activity_by_r2(activity_dict_SST, predicted_activity_dict_SST, r2_SST_above_zero, filtered_factors_dict_SST, residual=residual)
+    activity_SST_below, velocity_list_out_SST_below = filter_activity_by_r2(activity_dict_SST, predicted_activity_dict_SST, r2_SST_below_zero, filtered_factors_dict_SST, residual=residual)
+
+    activity_NDNF_above, velocity_list_out_NDNF_above = filter_activity_by_r2(activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_above_zero, filtered_factors_dict_NDNF, residual=residual)
+    activity_NDNF_below, velocity_list_out_NDNF_above = filter_activity_by_r2(activity_dict_NDNF, predicted_activity_dict_NDNF, r2_NDNF_below_zero, filtered_factors_dict_NDNF, residual=residual)
+
+    activity_EC_above, velocity_list_out_EC_above = filter_activity_by_r2(activity_dict_EC, predicted_activity_dict_EC, r2_EC_above_zero, filtered_factors_dict_EC, residual=residual)
+    activity_EC_below, velocity_list_out_EC_above = filter_activity_by_r2(activity_dict_EC, predicted_activity_dict_EC, r2_EC_below_zero, filtered_factors_dict_EC, residual=residual)
+
+    per_animal_activity_SST_above = get_activity_by_animal(activity_SST_above)
+    per_animal_activity_SST_below = get_activity_by_animal(activity_SST_below)
+
+    per_animal_activity_NDNF_above = get_activity_by_animal(activity_NDNF_above)
+    per_animal_activity_NDNF_below = get_activity_by_animal(activity_NDNF_below)
+
+    per_animal_activity_EC_above = get_activity_by_animal(activity_EC_above)
+    per_animal_activity_EC_below = get_activity_by_animal(activity_EC_below)
+
+    activity_SST_above = get_factor_as_list(activity_SST_above)
+    activity_SST_below = get_factor_as_list(activity_SST_below)
+    activity_NDNF_above = get_factor_as_list(activity_NDNF_above)
+    activity_NDNF_below = get_factor_as_list(activity_NDNF_below)
+    activity_EC_above = get_factor_as_list(activity_EC_above)
+    activity_EC_below = get_factor_as_list(activity_EC_below)
+
+    first_quintile_list_SST_above, last_quintile_list_SST_above = quint_list(activity_SST_above)
+    first_quintile_list_SST_below, last_quintile_list_SST_below = quint_list(activity_SST_below)
+
+    first_quintile_list_NDNF_above, last_quintile_list_NDNF_above = quint_list(activity_NDNF_above)
+    first_quintile_list_NDNF_below, last_quintile_list_NDNF_below = quint_list(activity_NDNF_below)
+
+    first_quintile_list_EC_above, last_quintile_list_EC_above = quint_list(activity_EC_above)
+    first_quintile_list_EC_below, last_quintile_list_EC_below = quint_list(activity_EC_below)
+
+    ######################
+
+    correlation_above_list_all_trials = []
+    correlation_below_list_all_trials = []
+
+    correlation_above_list_q1 = []
+    correlation_below_list_q1 = []
+
+    correlation_above_list_q5 = []
+    correlation_below_list_q5 = []
+
+    for i in range(len(activity_SST_above)):
+        flat_activity_SST_above = activity_SST_above[i].flatten()
+        flat_velocity_SST_above = velocity_list_out_SST_above[i].flatten()
+        correlation_above, _ = pearsonr(flat_activity_SST_above, flat_velocity_SST_above)
+        correlation_above_list_all_trials.append(correlation_above)
+
+        quintiles = split_into_quintiles(activity_SST_above[i])
+        quintiles_first = quintiles[0].flatten()
+        quintiles_last = quintiles[-1].flatten()
+        quintiles_velocity = split_into_quintiles(velocity_list_out_SST_above[i])
+        quintiles_velocity_first = quintiles_velocity[0].flatten()
+        quintiles_velocity_last = quintiles_velocity[-1].flatten()
+
+        correlation_first_above, _ = pearsonr(quintiles_first, quintiles_velocity_first)
+        correlation_above_list_q1.append(correlation_first_above)
+        correlation_last_above, _ = pearsonr(quintiles_last, quintiles_velocity_last)
+        correlation_above_list_q5.append(correlation_last_above)
+
+    for i in range(len(activity_SST_below)):
+        flat_activity_SST_below = activity_SST_below[i].flatten()
+        flat_velocity_SST_below = velocity_list_out_SST_below[i].flatten()
+        correlation_below, _ = pearsonr(flat_activity_SST_below, flat_velocity_SST_below)
+        correlation_below_list_all_trials.append(correlation_below)
+
+        quintiles = split_into_quintiles(activity_SST_below[i])
+        quintiles_first = quintiles[0].flatten()
+        quintiles_last = quintiles[-1].flatten()
+        quintiles_velocity = split_into_quintiles(velocity_list_out_SST_below[i])
+        quintiles_velocity_first = quintiles_velocity[0].flatten()
+        quintiles_velocity_last = quintiles_velocity[-1].flatten()
+
+        correlation_first_below, _ = pearsonr(quintiles_first, quintiles_velocity_first)
+        correlation_last_below, _ = pearsonr(quintiles_last, quintiles_velocity_last)
+        correlation_below_list_q1.append(correlation_first_below)
+        correlation_below_list_q5.append(correlation_last_below)
+
+    data = [correlation_above_list_all_trials, correlation_below_list_all_trials, correlation_above_list_q1, correlation_below_list_q1, correlation_above_list_q5, correlation_below_list_q5]
+
+    labels = ["Above All", "Below All", "Above Q1", "Below Q1", "Above Q5", "Below Q5"]
+
+    plt.figure(figsize=(10, 6))
+
+    correlation_lists = [
+        correlation_above_list_all_trials,
+        correlation_below_list_all_trials,
+        correlation_above_list_q1,
+        correlation_above_list_q5,
+        correlation_below_list_q1,
+        correlation_below_list_q5
+    ]
+
+    labels = ["Above All", "Below All", "Above Q1", "Above Q5", "Below Q1", "Below Q5"]
+
+    plt.figure(figsize=(10, 6))
+
+    x_positions = list(range(len(labels)))
+
+    for i, (corr_list, label) in enumerate(zip(correlation_lists, labels)):
+        x = np.full(len(corr_list), i)  # Assign x position
+        plt.scatter(x, corr_list, color='gray', alpha=0.7)  # Plot dots
+        mean_value = np.mean(corr_list)
+        plt.plot([i - 0.2, i + 0.2], [mean_value, mean_value], color='black', lw=2)  # Plot mean line
+
+    if len(correlation_above_list_q1) == len(correlation_above_list_q5):
+        for q1, q5 in zip(correlation_above_list_q1, correlation_above_list_q5):
+            plt.plot([x_positions[2], x_positions[3]], [q1, q5], color='red', linestyle='--', alpha=0.5)
+
+    if len(correlation_below_list_q1) == len(correlation_below_list_q5):
+        for q1, q5 in zip(correlation_below_list_q1, correlation_below_list_q5):
+            plt.plot([x_positions[4], x_positions[5]], [q1, q5], color='blue', linestyle='--', alpha=0.5)
+
+    plt.xticks(range(len(labels)), labels, rotation=45)
+    plt.ylabel("Correlation Values")
+    plt.title("R² Values Across Conditions with Q1-Q5 Connections")
+    plt.tight_layout()
+    plt.show()
+
+    #####################################
+
+    trial_av_activity_SST_above_q1 = trial_average(first_quintile_list_SST_above)
+    trial_av_activity_SST_above_q5 = trial_average(last_quintile_list_SST_above)
+    trial_av_activity_SST_below_q1 = trial_average(first_quintile_list_SST_below)
+    trial_av_activity_SST_below_q5 = trial_average(last_quintile_list_SST_below)
+
+    trial_average_activity_list_SST = [trial_av_activity_SST_above_q1, trial_av_activity_SST_above_q5, trial_av_activity_SST_below_q1, trial_av_activity_SST_below_q5]
+
+    trial_av_activity_NDNF_above_q1 = trial_average(first_quintile_list_NDNF_above)
+    trial_av_activity_NDNF_above_q5 = trial_average(last_quintile_list_NDNF_above)
+    trial_av_activity_NDNF_below_q1 = trial_average(first_quintile_list_NDNF_below)
+    trial_av_activity_NDNF_below_q5 = trial_average(last_quintile_list_NDNF_below)
+
+    trial_av_activity_EC_above_q1 = trial_average(first_quintile_list_EC_above)
+    trial_av_activity_EC_above_q5 = trial_average(last_quintile_list_EC_above)
+    trial_av_activity_EC_below_q1 = trial_average(first_quintile_list_EC_below)
+    trial_av_activity_EC_below_q5 = trial_average(last_quintile_list_EC_below)
+
+    mean_SST_above_q1, sem_SST_above_q1 = compute_mean_and_sem(trial_av_activity_SST_above_q1)
+    mean_SST_above_q5, sem_SST_above_q5 = compute_mean_and_sem(trial_av_activity_SST_above_q5)
+    mean_SST_below_q1, sem_SST_below_q1 = compute_mean_and_sem(trial_av_activity_SST_below_q1)
+    mean_SST_below_q5, sem_SST_below_q5 = compute_mean_and_sem(trial_av_activity_SST_below_q5)
+
+    mean_NDNF_above_q1, sem_NDNF_above_q1 = compute_mean_and_sem(trial_av_activity_NDNF_above_q1)
+    mean_NDNF_above_q5, sem_NDNF_above_q5 = compute_mean_and_sem(trial_av_activity_NDNF_above_q5)
+    mean_NDNF_below_q1, sem_NDNF_below_q1 = compute_mean_and_sem(trial_av_activity_NDNF_below_q1)
+    mean_NDNF_below_q5, sem_NDNF_below_q5 = compute_mean_and_sem(trial_av_activity_NDNF_below_q5)
+
+    mean_EC_above_q1, sem_EC_above_q1 = compute_mean_and_sem(trial_av_activity_EC_above_q1)
+    mean_EC_above_q5, sem_EC_above_q5 = compute_mean_and_sem(trial_av_activity_EC_above_q5)
+    mean_EC_below_q1, sem_EC_below_q1 = compute_mean_and_sem(trial_av_activity_EC_below_q1)
+    mean_EC_below_q5, sem_EC_below_q5 = compute_mean_and_sem(trial_av_activity_EC_below_q5)
+
+    mean_above_list = [mean_SST_above_q1, mean_SST_above_q5, mean_NDNF_above_q1, mean_NDNF_above_q5, mean_EC_above_q1, mean_EC_above_q5]
+    mean_below_list = [mean_SST_below_q1, mean_SST_below_q5, mean_NDNF_below_q1, mean_NDNF_below_q5, mean_EC_below_q1, mean_EC_below_q5]
+
+    sem_above_list = [sem_SST_above_q1, sem_SST_above_q5, sem_NDNF_above_q1, sem_NDNF_above_q5, sem_EC_above_q1, sem_EC_above_q5]
+    sem_below_list = [sem_SST_below_q1, sem_SST_below_q5, sem_NDNF_below_q1, sem_NDNF_below_q5, sem_EC_below_q1, sem_EC_below_q5]
+
+    return mean_above_list, mean_below_list, sem_above_list, sem_below_list, trial_average_activity_list_SST
+
+
+def confirm_model(GLM_params, factors_dict, filtered_factors_dict, predicted_activity_dict, activity_dict, cell_number, variable_to_correlate_list=["Licks", "Reward_loc", "Velocity"], variable_into_GLM="Velocity", cell_type="SST", quintile="Q1"):
+    input_variables = {var: [] for var in factors_dict[next(iter(factors_dict))].keys()}
+    filtered_input_variables = {var: [] for var in filtered_factors_dict[next(iter(filtered_factors_dict))].keys()}
+
+    for animal in activity_dict:
+        for neuron in activity_dict[animal]:
+            for var in factors_dict[animal]:
+                input_variables[var].append(factors_dict[animal][var])
+            for var in filtered_factors_dict[animal]:
+                filtered_input_variables[var].append(filtered_factors_dict[animal][var])
+
+    neuron_activity_list, predictions_list, cell_residual_list = get_neuron_activity_prediction_residual(activity_dict, predicted_activity_dict)
+
+    velocity_vs_activity_correlation_list = []
+    velocity_vs_residuals_correlation_list = []
+
+    cell_activity = neuron_activity_list[cell_number]
+    cell_residual = cell_residual_list[cell_number]
+    variable_of_interest = filtered_input_variables[variable_into_GLM][cell_number]
+
+    sst_quintiles_activity = split_into_quintiles(cell_activity)
+    sst_quintiles_residual = split_into_quintiles(cell_residual)
+    sst_quintiles_velocity = split_into_quintiles(variable_of_interest)
+
+    q1_activity = sst_quintiles_activity[0].flatten()
+    q2_activity = sst_quintiles_activity[1].flatten()
+    q3_activity = sst_quintiles_activity[2].flatten()
+    q4_activity = sst_quintiles_activity[3].flatten()
+    q5_activity = sst_quintiles_activity[4].flatten()
+
+    q1_residual = sst_quintiles_residual[0].flatten()
+    q2_residual = sst_quintiles_residual[1].flatten()
+    q3_residual = sst_quintiles_residual[2].flatten()
+    q4_residual = sst_quintiles_residual[3].flatten()
+    q5_residual = sst_quintiles_residual[4].flatten()
+    #
+    # for animal in activity_dict:
+    #     sst_quintiles_animal
+    q1_velocity = sst_quintiles_velocity[0]
+    q2_velocity = sst_quintiles_velocity[1]
+    q3_velocity = sst_quintiles_velocity[2]
+    q4_velocity = sst_quintiles_velocity[3]
+    q5_velocity = sst_quintiles_velocity[4]
+
+    oveall_mean_q1_velocity = np.mean(q1_velocity)
+    oveall_mean_q2_velocity = np.mean(q2_velocity)
+    oveall_mean_q3_velocity = np.mean(q3_velocity)
+    oveall_mean_q4_velocity = np.mean(q4_velocity)
+    oveall_mean_q5_velocity = np.mean(q5_velocity)
+
+    sem_velocity_q1 = sem(sst_quintiles_velocity[0], axis=1)
+    sem_velocity_q2 = sem(sst_quintiles_velocity[1], axis=1)
+    sem_velocity_q3 = sem(sst_quintiles_velocity[2], axis=1)
+    sem_velocity_q4 = sem(sst_quintiles_velocity[3], axis=1)
+    sem_velocity_q5 = sem(sst_quintiles_velocity[4], axis=1)
+
+    mean_velocity_q1 = np.mean(sst_quintiles_velocity[0], axis=1)
+    mean_velocity_q2 = np.mean(sst_quintiles_velocity[1], axis=1)
+    mean_velocity_q3 = np.mean(sst_quintiles_velocity[2], axis=1)
+    mean_velocity_q4 = np.mean(sst_quintiles_velocity[3], axis=1)
+    mean_velocity_q5 = np.mean(sst_quintiles_velocity[4], axis=1)
+
+    print(mean_velocity_q1.shape)
+
+    plt.figure()
+    plt.plot(mean_velocity_q1, color='b', label=f"Q1 {oveall_mean_q1_velocity:.3f}")
+    plt.fill_between(range(len(mean_velocity_q1)), mean_velocity_q1 + sem_velocity_q1, mean_velocity_q1 - sem_velocity_q1, color='b', alpha=0.2)
+    plt.plot(mean_velocity_q2, color='r', label=f"Q2 {oveall_mean_q2_velocity:.3f}")
+    plt.fill_between(range(len(mean_velocity_q2)), mean_velocity_q2 + sem_velocity_q2, mean_velocity_q2 - sem_velocity_q2, color='r', alpha=0.2)
+    plt.plot(mean_velocity_q3, color='orange', label=f"Q3 {oveall_mean_q3_velocity:.3f}")
+    plt.fill_between(range(len(mean_velocity_q3)), mean_velocity_q3 + sem_velocity_q3, mean_velocity_q3 - sem_velocity_q3, color='orange', alpha=0.2)
+    plt.plot(mean_velocity_q4, color='cyan', label=f"Q4 {oveall_mean_q4_velocity:.3f}")
+    plt.fill_between(range(len(mean_velocity_q4)), mean_velocity_q4 + sem_velocity_q4, mean_velocity_q4 - sem_velocity_q4, color='cyan', alpha=0.2)
+    plt.plot(mean_velocity_q5, color='green', label=f"Q5 {oveall_mean_q5_velocity:.3f}")
+    plt.fill_between(range(len(mean_velocity_q5)), mean_velocity_q5 + sem_velocity_q5, mean_velocity_q5 - sem_velocity_q5, color='green', alpha=0.2)
+    plt.ylabel("Velocity")
+    plt.xlabel("Position Bin")
+    plt.legend()
+    plt.show()
+
+    q1_velocity = sst_quintiles_velocity[0].flatten()
+    q2_velocity = sst_quintiles_velocity[1].flatten()
+    q3_velocity = sst_quintiles_velocity[2].flatten()
+    q4_velocity = sst_quintiles_velocity[3].flatten()
+    q5_velocity = sst_quintiles_velocity[4].flatten()
+
+    activity_vs_velocity_q1, _ = pearsonr(q1_activity, q1_velocity)
+    activity_vs_velocity_q2, _ = pearsonr(q1_activity, q2_velocity)
+    activity_vs_velocity_q3, _ = pearsonr(q1_activity, q3_velocity)
+    activity_vs_velocity_q4, _ = pearsonr(q1_activity, q4_velocity)
+    activity_vs_velocity_q5, _ = pearsonr(q1_activity, q5_velocity)
+
+    residual_vs_velocity_q1, _ = pearsonr(q1_residual, q1_velocity)
+    residual_vs_velocity_q2, _ = pearsonr(q1_residual, q2_velocity)
+    residual_vs_velocity_q3, _ = pearsonr(q1_residual, q3_velocity)
+    residual_vs_velocity_q4, _ = pearsonr(q1_residual, q4_velocity)
+    residual_vs_velocity_q5, _ = pearsonr(q1_residual, q5_velocity)
+
+    activity_vs_velocity_list = [activity_vs_velocity_q1, activity_vs_velocity_q2, activity_vs_velocity_q3, activity_vs_velocity_q4, activity_vs_velocity_q5]
+    residual_vs_velocity_list = [residual_vs_velocity_q1, residual_vs_velocity_q2, residual_vs_velocity_q3, residual_vs_velocity_q4, residual_vs_velocity_q5]
+
+    quintile_labels = ["Q1", "Q2", "Q3", "Q4", "Q5"]
+
+    x_activity = np.ones(len(activity_vs_velocity_list)) * 1  # Group 1
+    x_residual = np.ones(len(residual_vs_velocity_list)) * 2  # Group 2
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    ax.scatter(x_activity, activity_vs_velocity_list, color='blue', label="Activity vs Velocity")
+    ax.scatter(x_residual, residual_vs_velocity_list, color='red', label="Residual vs Velocity")
+
+    for i in range(len(activity_vs_velocity_list)):
+        ax.plot([x_activity[i], x_residual[i]], [activity_vs_velocity_list[i], residual_vs_velocity_list[i]],
+                color='gray', linestyle='-', alpha=0.7)
+
+    ax.hlines(np.mean(activity_vs_velocity_list), xmin=0.9, xmax=1.1, colors='blue', linestyles='dashed', linewidth=2)
+    ax.hlines(np.mean(residual_vs_velocity_list), xmin=1.9, xmax=2.1, colors='red', linestyles='dashed', linewidth=2)
+
+    ax.set_xticks([1, 2])
+    ax.set_xticklabels(["Activity vs Velocity", "Residual vs Velocity"])
+    ax.set_ylabel("Pearson Correlation")
+
+    for i, label in enumerate(quintile_labels):
+        ax.text(1.05, activity_vs_velocity_list[i], label, fontsize=10, verticalalignment='center', color='blue')
+        ax.text(2.05, residual_vs_velocity_list[i], label, fontsize=10, verticalalignment='center', color='red')
+
+    # Show the plot
+    plt.tight_layout()
+    plt.show()
+
+    sst_quintiles_residual = split_into_quintiles(cell_residual)
+    sst_quintiles_velocity = split_into_quintiles(variable_of_interest)
+    q1_residual = sst_quintiles_residual[0]
+    q2_residual = sst_quintiles_residual[1]
+    q3_residual = sst_quintiles_residual[2]
+    q4_residual = sst_quintiles_residual[3]
+    q5_residual = sst_quintiles_residual[4]
+
+    q1_velocity = sst_quintiles_velocity[0]
+    q2_velocity = sst_quintiles_velocity[1]
+    q3_velocity = sst_quintiles_velocity[2]
+    q4_velocity = sst_quintiles_velocity[3]
+    q5_velocity = sst_quintiles_velocity[4]
+
+    correlation_list_q1 = []
+    correlation_list_q2 = []
+    correlation_list_q3 = []
+    correlation_list_q4 = []
+    correlation_list_q5 = []
+
+    for trial in range(q1_residual.shape[1]):
+        residual_vel_correlation, _ = pearsonr(q1_residual[:, trial], q1_velocity[:, trial])
+        correlation_list_q1.append(residual_vel_correlation)
+
+    for trial in range(q2_residual.shape[1]):
+        residual_vel_correlation, _ = pearsonr(q2_residual[:, trial], q2_velocity[:, trial])
+        correlation_list_q2.append(residual_vel_correlation)
+
+    for trial in range(q3_residual.shape[1]):
+        residual_vel_correlation, _ = pearsonr(q3_residual[:, trial], q3_velocity[:, trial])
+        correlation_list_q3.append(residual_vel_correlation)
+
+    for trial in range(q4_residual.shape[1]):
+        residual_vel_correlation, _ = pearsonr(q4_residual[:, trial], q4_velocity[:, trial])
+        correlation_list_q4.append(residual_vel_correlation)
+
+    for trial in range(q5_residual.shape[1]):
+        residual_vel_correlation, _ = pearsonr(q5_residual[:, trial], q5_velocity[:, trial])
+        correlation_list_q5.append(residual_vel_correlation)
+
+    quintile_labels = ["Q1", "Q2", "Q3", "Q4", "Q5"]
+    correlation_lists = [correlation_list_q1, correlation_list_q2, correlation_list_q3, correlation_list_q4, correlation_list_q5]
+
+    correlation_arrays = [np.array(corrs) for corrs in correlation_lists]
+
+    x_positions = np.arange(1, 6)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for i, correlations in enumerate(correlation_arrays):
+        x_jitter = np.random.uniform(-0.05, 0.05, size=len(correlations))
+        ax.scatter(np.full_like(correlations, x_positions[i]) + x_jitter, correlations, alpha=0.6, label=f"{quintile_labels[i]}")
+
+        mean_corr = np.mean(correlations)
+        ax.plot([x_positions[i] - 0.2, x_positions[i] + 0.2], [mean_corr, mean_corr], color='black', linewidth=2)
+
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(quintile_labels, fontsize=12)
+    ax.set_ylabel("Pearson Correlation (r)", fontsize=12)
+    ax.set_title(f"Velocity vs Residuals Correlation Across Quintiles Cell#{cell_number}", fontsize=14)
+
+    plt.show()
+
+
+
+
+def plot_r2_above_below_per_animal_with_learning(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True):
+    mean_above_list, mean_below_list, sem_above_list, sem_below_list, trial_average_activity_list_SST = get_activity_by_r2_groups_plus_learning(
+        activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST,
+        activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF,
+        activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True)
+
+    labels = ["SST", "NDNF", "EC"]
+    colors_q1 = ["blue", "orange", "green"]
+    colors_q5 = ["cyan", "red", "limegreen"]
+
+    fig, axs = plt.subplots(3, 2, figsize=(7, 10))  # 3 rows, 2 columns
+
+    # Plot "Above 0" Correlations (Left Column)
+    for i in range(3):
+        axs[i, 0].plot(mean_above_list[i * 2], color=colors_q1[i], label=f'{labels[i]} R Above 0 Q1', markersize=1)
+        axs[i, 0].fill_between(range(len(mean_above_list[i * 2])),
+                               mean_above_list[i * 2] - sem_above_list[i * 2],
+                               mean_above_list[i * 2] + sem_above_list[i * 2],
+                               color=colors_q1[i], alpha=0.1)
+        axs[i, 0].plot(mean_above_list[i * 2 + 1], color=colors_q5[i], label=f'{labels[i]} R Above 0 Q5', markersize=1)
+        axs[i, 0].fill_between(range(len(mean_above_list[i * 2 + 1])),
+                               mean_above_list[i * 2 + 1] - sem_above_list[i * 2 + 1],
+                               mean_above_list[i * 2 + 1] + sem_above_list[i * 2 + 1],
+                               color=colors_q5[i], alpha=0.2)
+        axs[i, 0].set_xlabel("Position Bin")
+        axs[i, 0].set_ylabel("z-score DF/F")
+        axs[i, 0].set_title(f"{labels[i]} Velocity-Subtracted Residuals ABOVE ZERO", fontsize=9)
+        axs[i, 0].set_ylim(-1, 1)
+        axs[i, 0].legend(fontsize=10)
+
+    for i in range(3):
+        axs[i, 1].plot(mean_below_list[i * 2], color=colors_q1[i], label=f'{labels[i]} R Below 0 Q1', markersize=1)
+        axs[i, 1].fill_between(range(len(mean_below_list[i * 2])),
+                               mean_below_list[i * 2] - sem_below_list[i * 2],
+                               mean_below_list[i * 2] + sem_below_list[i * 2],
+                               color=colors_q1[i], alpha=0.1)
+        axs[i, 1].plot(mean_below_list[i * 2 + 1], color=colors_q5[i], label=f'{labels[i]} R Below 0 Q5', markersize=1)
+        axs[i, 1].fill_between(range(len(mean_below_list[i * 2 + 1])),
+                               mean_below_list[i * 2 + 1] - sem_below_list[i * 2 + 1],
+                               mean_below_list[i * 2 + 1] + sem_below_list[i * 2 + 1],
+                               color=colors_q5[i], alpha=0.2)
+        axs[i, 1].set_xlabel("Position Bin")
+        axs[i, 1].set_ylabel("z-score DF/F")
+        axs[i, 1].set_title(f"{labels[i]} Velocity-Subtracted Residuals BELOW ZERO", fontsize=9)
+        axs[i, 1].set_ylim(-1, 1)
+        axs[i, 1].legend(fontsize=10)
+
+    plt.tight_layout()
+    plt.show()
 
 def get_selectivity_for_plotting_lists(neuron_activity_list_SST, neuron_activity_list_NDNF, neuron_activity_list_EC):
 
@@ -1260,7 +1612,77 @@ def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
         mean_list.append(np.mean(column))
         sem_list.append((np.std(column) / np.sqrt(len(column))))
 
+
     return mean_list, sem_list
+
+def get_quantiles_for_cdf_r2_split(animal_ID_list, values_list, n_bins=None):
+
+    animal_to_values = defaultdict(list)
+
+    for animal, value in zip(animal_ID_list, values_list):
+        animal_to_values[animal].append(value)
+
+    animal_to_values = dict(animal_to_values)
+
+    edges_list = []
+    sep_dict = {}
+
+    for key, value in animal_to_values.items():
+        animal_edges = np.quantile(value, np.linspace(0, 1, n_bins))
+        edges_list.append(animal_edges)
+
+    stacked_edges = np.vstack(edges_list)
+
+    mean_list = []
+    sem_list = []
+
+    for i in range(stacked_edges.shape[1]):
+        column = stacked_edges[:, i]
+        mean_list.append(np.mean(column))
+        sem_list.append((np.std(column) / np.sqrt(len(column))))
+
+    return mean_list, sem_list
+
+# def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
+#     from collections import defaultdict
+#     import numpy as np
+#
+#     # Step 1: Organize values by animal
+#     animal_to_values = defaultdict(list)
+#
+#     for animal in activity_dict:
+#         print(f"activity_dict[animal] {activity_dict[animal]}")
+#         print(f"values_list {values_list}")
+#         for neuron, value in zip(activity_dict[animal], values_list):
+#             animal_to_values[animal].append(value)
+#
+#     animal_to_values = dict(animal_to_values)  # Convert to normal dict
+#
+#     # Step 2: Compute CDF per animal
+#     edges_list = []
+#     for key, value in animal_to_values.items():
+#         if len(value) > 1:  # Only compute quantiles if there's >1 value
+#             animal_edges = np.quantile(value, np.linspace(0, 1, n_bins))
+#             edges_list.append(animal_edges)
+#
+#     # If only one animal contributes, return NaNs for SEM
+#     if len(edges_list) == 1:
+#         return np.mean(edges_list, axis=0), np.full_like(edges_list[0], np.nan)
+#
+#     stacked_edges = np.vstack(edges_list)  # Stack animal CDFs
+#
+#     # Step 3: Compute mean and SEM across animals
+#     mean_list = np.mean(stacked_edges, axis=0)
+#
+#     sem_list = []
+#     for i in range(stacked_edges.shape[1]):
+#         column = stacked_edges[:, i]
+#         if len(column) > 1:
+#             sem_list.append(np.std(column, ddof=1) / np.sqrt(len(column)))  # Proper SEM
+#         else:
+#             sem_list.append(np.nan)  # If only one value, return NaN
+#
+#     return mean_list, sem_list
 
 
 def setup_argmin_argmax_cdf_plotting(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False):
@@ -1483,13 +1905,9 @@ def plot_activity_residuals_correlation(factors_dict, predicted_activity_list, n
             variable_data_list.append(factors_dict[animal][variable_to_corelate])
             print(f"factors_dict[key][variable_to_corelate].shape {factors_dict[animal][variable_to_corelate].shape}")
 
-    print(f"len(variable_data_list) {len(variable_data_list)}")
-
     trial_average_variable_data_list = []
     for i in variable_data_list:
         trial_average_variable_data_list.append(np.mean(i, axis=1))
-
-    print(f"len(trial_average_variable_data_list) {len(trial_average_variable_data_list)}")
 
     trial_av_prediction_list = []
     for i in predicted_activity_list:
@@ -1727,60 +2145,6 @@ def plot_sorted_activity(data, sorted_indices, title, ylabel, xlabel):
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     plt.show()
-#
-
-def plot_trial_averages(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
-
-    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
-        activity_dict_SST, predicted_activity_dict_SST)
-    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
-        activity_dict_EC, predicted_activity_dict_EC)
-
-    if residual:
-        trial_av_activity_SST = trial_average(cell_residual_list_SST)
-        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
-        trial_av_activity_EC = trial_average(cell_residual_list_EC)
-    else:
-        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
-        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
-        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
-
-    trial_av_activity_SST_stack = np.stack(trial_av_activity_SST)
-    trial_av_activity_NDNF_stack = np.stack(trial_av_activity_NDNF)
-    trial_av_activity_EC_stack = np.stack(trial_av_activity_EC)
-
-    trial_av_activity_SST = normalize(trial_av_activity_SST_stack, norm="z_score", per_cell=True)
-    trial_av_activity_NDNF = normalize(trial_av_activity_NDNF_stack, norm="z_score", per_cell=True)
-    trial_av_activity_EC = normalize(trial_av_activity_EC_stack, norm="z_score", per_cell=True)
-
-    if which_to_plot == "argmin":
-        sorted_indices_SST = np.argsort(np.argmin(trial_av_activity_SST, axis=1))
-        sorted_indices_NDNF = np.argsort(np.argmin(trial_av_activity_NDNF, axis=1))
-        sorted_indices_EC = np.argsort(np.argmin(trial_av_activity_EC, axis=1))
-
-        plot_sorted_activity(trial_av_activity_SST, sorted_indices_SST, f"{'Residuals' if residual else 'Raw Data'} SST Min Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_NDNF, sorted_indices_NDNF, f"{'Residuals' if residual else 'Raw Data'} NDNF Min Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_EC, sorted_indices_EC, f"{'Residuals' if residual else 'Raw Data'} EC Min Sorted", "Cell ID", "Position Bins")
-
-
-    elif which_to_plot == "argmax":
-        sorted_indices_SST = np.argsort(np.argmax(trial_av_activity_SST, axis=1))
-        sorted_indices_NDNF = np.argsort(np.argmax(trial_av_activity_NDNF, axis=1))
-        sorted_indices_EC = np.argsort(np.argmax(trial_av_activity_EC, axis=1))
-
-        plot_sorted_activity(trial_av_activity_SST, sorted_indices_SST, f"{'Residuals' if residual else 'Raw Data'} SST Peak Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_NDNF, sorted_indices_NDNF, f"{'Residuals' if residual else 'Raw Data'} NDNF Peak Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_EC, sorted_indices_EC, f"{'Residuals' if residual else 'Raw Data'} EC Peak Sorted", "Cell ID", "Position Bins")
-
-
-    else:
-        raise ValueError("Options for which_to_plot are 'argmin' or 'argmax'")
 
 
 def get_min_maxed_residuals_argmin_argmax_selectivity(avg_residuals):
