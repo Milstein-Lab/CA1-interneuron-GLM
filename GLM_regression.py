@@ -1396,58 +1396,6 @@ def confirm_model(GLM_params, factors_dict, filtered_factors_dict, predicted_act
     plt.show()
 
 
-
-
-def plot_r2_above_below_per_animal_with_learning(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True):
-    mean_above_list, mean_below_list, sem_above_list, sem_below_list, trial_average_activity_list_SST = get_activity_by_r2_groups_plus_learning(
-        activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST,
-        activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF,
-        activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True)
-
-    labels = ["SST", "NDNF", "EC"]
-    colors_q1 = ["blue", "orange", "green"]
-    colors_q5 = ["cyan", "red", "limegreen"]
-
-    fig, axs = plt.subplots(3, 2, figsize=(7, 10))  # 3 rows, 2 columns
-
-    # Plot "Above 0" Correlations (Left Column)
-    for i in range(3):
-        axs[i, 0].plot(mean_above_list[i * 2], color=colors_q1[i], label=f'{labels[i]} R Above 0 Q1', markersize=1)
-        axs[i, 0].fill_between(range(len(mean_above_list[i * 2])),
-                               mean_above_list[i * 2] - sem_above_list[i * 2],
-                               mean_above_list[i * 2] + sem_above_list[i * 2],
-                               color=colors_q1[i], alpha=0.1)
-        axs[i, 0].plot(mean_above_list[i * 2 + 1], color=colors_q5[i], label=f'{labels[i]} R Above 0 Q5', markersize=1)
-        axs[i, 0].fill_between(range(len(mean_above_list[i * 2 + 1])),
-                               mean_above_list[i * 2 + 1] - sem_above_list[i * 2 + 1],
-                               mean_above_list[i * 2 + 1] + sem_above_list[i * 2 + 1],
-                               color=colors_q5[i], alpha=0.2)
-        axs[i, 0].set_xlabel("Position Bin")
-        axs[i, 0].set_ylabel("z-score DF/F")
-        axs[i, 0].set_title(f"{labels[i]} Velocity-Subtracted Residuals ABOVE ZERO", fontsize=9)
-        axs[i, 0].set_ylim(-1, 1)
-        axs[i, 0].legend(fontsize=10)
-
-    for i in range(3):
-        axs[i, 1].plot(mean_below_list[i * 2], color=colors_q1[i], label=f'{labels[i]} R Below 0 Q1', markersize=1)
-        axs[i, 1].fill_between(range(len(mean_below_list[i * 2])),
-                               mean_below_list[i * 2] - sem_below_list[i * 2],
-                               mean_below_list[i * 2] + sem_below_list[i * 2],
-                               color=colors_q1[i], alpha=0.1)
-        axs[i, 1].plot(mean_below_list[i * 2 + 1], color=colors_q5[i], label=f'{labels[i]} R Below 0 Q5', markersize=1)
-        axs[i, 1].fill_between(range(len(mean_below_list[i * 2 + 1])),
-                               mean_below_list[i * 2 + 1] - sem_below_list[i * 2 + 1],
-                               mean_below_list[i * 2 + 1] + sem_below_list[i * 2 + 1],
-                               color=colors_q5[i], alpha=0.2)
-        axs[i, 1].set_xlabel("Position Bin")
-        axs[i, 1].set_ylabel("z-score DF/F")
-        axs[i, 1].set_title(f"{labels[i]} Velocity-Subtracted Residuals BELOW ZERO", fontsize=9)
-        axs[i, 1].set_ylim(-1, 1)
-        axs[i, 1].legend(fontsize=10)
-
-    plt.tight_layout()
-    plt.show()
-
 def get_selectivity_for_plotting_lists(neuron_activity_list_SST, neuron_activity_list_NDNF, neuron_activity_list_EC):
 
     trial_av_activity_SST = neuron_activity_list_SST
@@ -1487,47 +1435,6 @@ def get_animal_ID_list(activity_dict_SST):
         for neuron in activity_dict_SST[animal]:
             animal_ID_list.append(animal)
     return animal_ID_list
-
-
-def plot_positive_negative_selectivity_by_quintile(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC):
-
-    activity_list_SST_q1, activity_list_SST_q5, prediction_list_SST_q1, prediction_list_SST_q5, residual_q1_SST, residual_q5_SST = split_activity_and_prediction_into_quintiles(activity_dict_SST, predicted_activity_dict_SST)
-    activity_list_NDNF_q1, activity_list_NDNF_q5, prediction_list_NDNF_q1, prediction_list_NDNF_q5, residual_q1_NDNF, residual_q5_NDNF = split_activity_and_prediction_into_quintiles(activity_dict_NDNF, predicted_activity_dict_NDNF)
-    activity_list_EC_q1, activity_list_EC_q5, predicted_activity_list_EC_q1, predicted_activity_list_EC_q5, residual_q1_EC, residual_q5_EC = split_activity_and_prediction_into_quintiles(activity_dict_EC, predicted_activity_dict_EC)
-
-    SST_positive_selectivity_q1, SST_negative_selectivity_q1, NDNF_positive_selectivity_q1, NDNF_negative_selectivity_q1, EC_positive_selectivity_q1, EC_negative_selectivity_q1 = get_selectivity_for_plotting_lists(residual_q1_SST, residual_q1_NDNF, residual_q1_EC)
-
-    SST_positive_selectivity_q5, SST_negative_selectivity_q5, NDNF_positive_selectivity_q5, NDNF_negative_selectivity_q5, EC_positive_selectivity_q5, EC_negative_selectivity_q5 = get_selectivity_for_plotting_lists(residual_q5_SST, residual_q5_NDNF, residual_q5_EC)
-
-    animal_ID_list_SST = get_animal_ID_list(activity_dict_SST)
-    animal_ID_list_NDNF = get_animal_ID_list(activity_dict_NDNF)
-    animal_ID_list_EC = get_animal_ID_list(activity_dict_EC)
-
-    mean_quantiles_SST_q1, sem_quantiles_SST_q1 = get_quantiles_for_cdf_list(animal_ID_list_SST, SST_positive_selectivity_q1, n_bins=20)
-    mean_quantiles_SST_q5, sem_quantiles_SST_q5 = get_quantiles_for_cdf_list(animal_ID_list_SST, SST_positive_selectivity_q5, n_bins=20)
-
-    mean_quantiles_NDNF_q1, sem_quantiles_NDNF_q1 = get_quantiles_for_cdf_list(animal_ID_list_NDNF, NDNF_positive_selectivity_q1, n_bins=20)
-    mean_quantiles_NDNF_q5, sem_quantiles_NDNF_q5 = get_quantiles_for_cdf_list(animal_ID_list_NDNF, NDNF_positive_selectivity_q5, n_bins=20)
-
-    mean_quantiles_EC_q1, sem_quantiles_EC_q1 = get_quantiles_for_cdf_list(animal_ID_list_EC, EC_positive_selectivity_q1, n_bins=20)
-    mean_quantiles_EC_q5, sem_quantiles_EC_q5 = get_quantiles_for_cdf_list(animal_ID_list_EC, EC_positive_selectivity_q5, n_bins=20)
-
-    mean_quantiles_SST_q1_negative, sem_quantiles_SST_q1_negative = get_quantiles_for_cdf_list(animal_ID_list_SST, SST_negative_selectivity_q1, n_bins=20)
-    mean_quantiles_SST_q5_negative, sem_quantiles_SST_q5_negative = get_quantiles_for_cdf_list(animal_ID_list_SST, SST_negative_selectivity_q5, n_bins=20)
-
-    mean_quantiles_NDNF_q1_negative, sem_quantiles_NDNF_q1_negative = get_quantiles_for_cdf_list(animal_ID_list_NDNF, NDNF_negative_selectivity_q1, n_bins=20)
-    mean_quantiles_NDNF_q5_negative, sem_quantiles_NDNF_q5_negative = get_quantiles_for_cdf_list(animal_ID_list_NDNF, NDNF_negative_selectivity_q5, n_bins=20)
-
-    mean_quantiles_EC_q1_negative, sem_quantiles_EC_q1_negative = get_quantiles_for_cdf_list(animal_ID_list_EC, EC_negative_selectivity_q1, n_bins=20)
-    mean_quantiles_EC_q5_negative, sem_quantiles_EC_q5_negative = get_quantiles_for_cdf_list(animal_ID_list_EC, EC_negative_selectivity_q5, n_bins=20)
-
-    positive_mean_list = [mean_quantiles_SST_q1, mean_quantiles_SST_q5, mean_quantiles_NDNF_q1, mean_quantiles_NDNF_q5, mean_quantiles_EC_q1, mean_quantiles_EC_q5]
-    positive_sem_list = [sem_quantiles_SST_q1, sem_quantiles_SST_q5, sem_quantiles_NDNF_q1, sem_quantiles_NDNF_q5, sem_quantiles_EC_q1, sem_quantiles_EC_q5]
-
-    negative_mean_list = [mean_quantiles_SST_q1_negative, mean_quantiles_SST_q5_negative, mean_quantiles_NDNF_q1_negative, mean_quantiles_NDNF_q5_negative, mean_quantiles_EC_q1_negative, mean_quantiles_EC_q5_negative]
-    negative_sem_list = [sem_quantiles_SST_q1_negative, sem_quantiles_SST_q5_negative, sem_quantiles_NDNF_q1_negative, sem_quantiles_NDNF_q5_negative, sem_quantiles_EC_q1_negative, sem_quantiles_EC_q5_negative]
-
-    return positive_mean_list, positive_sem_list, negative_mean_list, negative_sem_list
 
 
 def get_argmin_argmax_split_learning(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC):
@@ -1640,6 +1547,7 @@ def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
 
     return mean_list, sem_list
 
+
 def get_quantiles_for_cdf_r2_split(animal_ID_list, values_list, n_bins=None):
 
     animal_to_values = defaultdict(list)
@@ -1667,47 +1575,6 @@ def get_quantiles_for_cdf_r2_split(animal_ID_list, values_list, n_bins=None):
         sem_list.append((np.std(column) / np.sqrt(len(column))))
 
     return mean_list, sem_list
-
-# def get_quantiles_for_cdf(activity_dict, values_list, n_bins=None):
-#     from collections import defaultdict
-#     import numpy as np
-#
-#     # Step 1: Organize values by animal
-#     animal_to_values = defaultdict(list)
-#
-#     for animal in activity_dict:
-#         print(f"activity_dict[animal] {activity_dict[animal]}")
-#         print(f"values_list {values_list}")
-#         for neuron, value in zip(activity_dict[animal], values_list):
-#             animal_to_values[animal].append(value)
-#
-#     animal_to_values = dict(animal_to_values)  # Convert to normal dict
-#
-#     # Step 2: Compute CDF per animal
-#     edges_list = []
-#     for key, value in animal_to_values.items():
-#         if len(value) > 1:  # Only compute quantiles if there's >1 value
-#             animal_edges = np.quantile(value, np.linspace(0, 1, n_bins))
-#             edges_list.append(animal_edges)
-#
-#     # If only one animal contributes, return NaNs for SEM
-#     if len(edges_list) == 1:
-#         return np.mean(edges_list, axis=0), np.full_like(edges_list[0], np.nan)
-#
-#     stacked_edges = np.vstack(edges_list)  # Stack animal CDFs
-#
-#     # Step 3: Compute mean and SEM across animals
-#     mean_list = np.mean(stacked_edges, axis=0)
-#
-#     sem_list = []
-#     for i in range(stacked_edges.shape[1]):
-#         column = stacked_edges[:, i]
-#         if len(column) > 1:
-#             sem_list.append(np.std(column, ddof=1) / np.sqrt(len(column)))  # Proper SEM
-#         else:
-#             sem_list.append(np.nan)  # If only one value, return NaN
-#
-#     return mean_list, sem_list
 
 
 def setup_argmin_argmax_cdf_plotting(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False):
@@ -1893,33 +1760,6 @@ def compute_temporal_correlation(reorganized_data):
     return r_all_neurons, r_per_animal, r_dict
 
 
-def plot_temporal_correlation(filepaths, output_to_plot='r', data_to_plot='all'):
-    overall_r_per_dataset = {}
-    per_animal_r_per_dataset = {}
-
-    for label, filepath in filepaths.items():
-        if data_to_plot == 'all' or data_to_plot.lower() == label.lower():
-            reorganized_data, _ = preprocess_data(filepath)
-            r_all_neurons, r_per_animal, _ = compute_temporal_correlation(reorganized_data)
-
-            if output_to_plot.lower() == 'r2':
-                r_all_neurons = np.array(r_all_neurons) ** 2
-                r_per_animal = np.array(r_per_animal) ** 2
-
-            overall_r_per_dataset[label] = r_all_neurons
-            per_animal_r_per_dataset[label] = r_per_animal
-
-    plot_results(overall_r_per_dataset, per_animal_r_per_dataset, output_to_plot)
-
-
-def plot_activity_residuals_correlation(reorganized_data, predicted_activity_list, neuron_activity_list, residuals_list, cell_number, variable_to_corelate=["Velocity"]):
-    velocity_list = []
-    for key, value in reorganized_data.items():
-        for key2, value2 in value.items():
-            velocity = value2["Velocity"]
-            velocity_list.append(velocity)
-
-
 def create_variable_lists(predicted_activity_dict, neuron_activity_list, variable_to_correlate_list):
     predicted_variable_lists = {}
 
@@ -1934,145 +1774,6 @@ def create_variable_lists(predicted_activity_dict, neuron_activity_list, variabl
         variable_lists[key] = predicted_list
 
     return predicted_variable_lists
-
-
-def plot_activity_residuals_correlation(factors_dict, predicted_activity_list, neuron_activity_list, residuals_list, cell_number, variable_to_corelate="Velocity"):
-    variable_data_list = []
-    for animal in activity_dict:
-        for neuron in activity_dict[animal]:
-            variable_data_list.append(factors_dict[animal][variable_to_corelate])
-            print(f"factors_dict[key][variable_to_corelate].shape {factors_dict[animal][variable_to_corelate].shape}")
-
-    trial_average_variable_data_list = []
-    for i in variable_data_list:
-        trial_average_variable_data_list.append(np.mean(i, axis=1))
-
-    trial_av_prediction_list = []
-    for i in predicted_activity_list:
-        trial_av_prediction_list.append(np.mean(i, axis=1))
-
-    trial_av_neuron_activity_list = []
-    for i in neuron_activity_list:
-        trial_av_neuron_activity_list.append(np.mean(i, axis=1))
-
-    trial_av_residuals_list = []
-    for i in residuals_list:
-        trial_av_residuals_list.append(np.mean(i, axis=1))
-
-    fig, axs = plt.subplots(2, 2, figsize=(12, 6))
-
-    axs[0, 0].plot(trial_av_neuron_activity_list[cell_number], color='k', label='neuron activity')
-    axs[0, 0].set_title(f"Firing Rate for Cell#{cell_number}", fontsize=6)
-    axs[0, 0].set_ylim(-1.5, 1)
-
-    axs[0, 1].plot(trial_average_variable_data_list[cell_number], color='g')
-    axs[0, 1].set_title(f"Run Velocity for Animal, Cell#{cell_number}", fontsize=6)
-    axs[0, 1].set_ylim(-1.5, 1)
-
-    axs[1, 0].plot(trial_av_residuals_list[cell_number], color='r', label='residuals')
-    axs[1, 0].set_title(f"Residuals: Firing Rate - Velocity-Only Prediction of FR for Cell#{cell_number}", fontsize=6)
-    axs[1, 0].set_ylim(-1.5, 1)
-
-    axs[1, 1].plot(trial_av_prediction_list[cell_number], color='b', label='velocity prediction')
-    axs[1, 1].set_title(f"Prediction of Firing Based on Velocity for Cell#{cell_number}", fontsize=6)
-    axs[1, 1].set_ylim(-1.5, 1)
-
-    r2_list_residuals = []
-    r2_list_activity = []
-    y_pred_activity_list = []
-    y_pred_residuals_list = []
-
-    for i in range(len(variable_data_list)):
-        velocity_flat = variable_data_list[i].flatten()
-        activity_flat = neuron_activity_list[i].flatten()
-        residuals_flat = residuals_list[i].flatten()
-
-        model_activity = LinearRegression()
-        model_activity.fit(velocity_flat.reshape(-1, 1), activity_flat)
-        y_pred_activity = model_activity.predict(velocity_flat.reshape(-1, 1))
-        r2_activity = r2_score(activity_flat, y_pred_activity)
-        r2_list_activity.append(r2_activity)
-        y_pred_activity_list.append(y_pred_activity)
-
-        model_residuals = LinearRegression()
-        model_residuals.fit(velocity_flat.reshape(-1, 1), residuals_flat)
-        y_pred_residuals = model_residuals.predict(velocity_flat.reshape(-1, 1))
-        r2_residuals = r2_score(residuals_flat, y_pred_residuals)
-        r2_list_residuals.append(r2_residuals)
-        y_pred_residuals_list.append(y_pred_residuals)
-
-    velocity_flat = variable_data_list[cell_number].flatten()
-    activity_flat = neuron_activity_list[cell_number].flatten()
-    residuals_flat = residuals_list[cell_number].flatten()
-
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-
-    axs[0].scatter(velocity_flat, activity_flat, color="g", s=10, alpha=0.3, label="Data")
-    axs[0].plot(
-        velocity_flat, y_pred_activity_list[cell_number], color="r", label=f"R² = {r2_list_activity[cell_number]:.3f}"
-    )
-    axs[0].set_title(f"Activity vs Velocity (Cell #{cell_number})")
-    axs[0].set_xlabel("Velocity")
-    axs[0].set_ylabel("Activity")
-    axs[0].legend()
-
-    axs[1].scatter(velocity_flat, residuals_flat, color="b", s=10, alpha=0.3, label="Data")
-    axs[1].plot(
-        velocity_flat, y_pred_residuals_list[cell_number], color="r", label=f"R² = {r2_list_residuals[cell_number]:.3f}"
-    )
-    axs[1].set_title(f"Residuals vs Velocity (Cell #{cell_number})")
-    axs[1].set_xlabel("Velocity")
-    axs[1].set_ylabel("Residuals")
-    axs[1].legend()
-
-    plt.tight_layout()
-    plt.show()
-
-    return r2_list_residuals, r2_list_activity
-
-
-def plot_r_difference_vs_variable(r2_list_activity, r2_list_residuals, variable_to_compare="Velocity"):
-    r2_list_activity = np.array(r2_list_activity)
-    r2_list_residuals = np.array(r2_list_residuals)
-
-    mean_activity = np.mean(r2_list_activity)
-    mean_residuals = np.mean(r2_list_residuals)
-    sem_activity = sem(r2_list_activity)
-    sem_residuals = sem(r2_list_residuals)
-
-    positions = [0, 1]
-
-    plt.figure(figsize=(8, 6))
-
-    # Scatter points
-    x_jitter_activity = np.random.normal(positions[0], 0.05, size=len(r2_list_activity))
-    x_jitter_residuals = np.random.normal(positions[1], 0.05, size=len(r2_list_residuals))
-    plt.scatter(x_jitter_activity, r2_list_activity, color='black', alpha=0.8, label='R² Activity', zorder=3)
-    plt.scatter(x_jitter_residuals, r2_list_residuals, color='red', alpha=0.8, label='R² Residuals', zorder=3)
-
-    # Connecting lines
-    for i in range(len(r2_list_activity)):
-        plt.plot([x_jitter_activity[i], x_jitter_residuals[i]],
-                 [r2_list_activity[i], r2_list_residuals[i]],
-                 color='gray', alpha=0.6, linewidth=0.8)
-
-    # Mean and SEM lines for Activity
-    plt.hlines(mean_activity, positions[0] - 0.2, positions[0] + 0.2, color='black', linewidth=2, zorder=4)
-    plt.vlines(positions[0], mean_activity - sem_activity, mean_activity + sem_activity, color='black', linewidth=2)
-
-    # Mean and SEM lines for Residuals
-    plt.hlines(mean_residuals, positions[1] - 0.2, positions[1] + 0.2, color='red', linewidth=2, zorder=4)
-    plt.vlines(positions[1], mean_residuals - sem_residuals, mean_residuals + sem_residuals, color='red', linewidth=2)
-
-    # Formatting
-    plt.xticks(positions, [f'Activity vs {variable_to_compare}', f'Residuals vs {variable_to_compare}'])
-    plt.ylabel("R Value")
-    plt.title(f"Activity vs {variable_to_compare} and Residuals vs {variable_to_compare}")
-    plt.grid(axis='y', linestyle='--', alpha=0.5)
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
 
 
 def compute_residual_activity_min_max(GLM_params, reorganized_data, quintile=None):
@@ -2176,70 +1877,6 @@ def normalize(x, norm, per_cell=True):
     return x
 
 
-def plot_sorted_activity(data, sorted_indices, title, ylabel, xlabel):
-    plt.figure()
-    plt.imshow(data[sorted_indices, :], aspect='auto')
-    plt.title(title)
-    plt.colorbar(label='Activity')
-    plt.ylabel(ylabel)
-    plt.xlabel(xlabel)
-    plt.show()
-
-
-def plot_trial_averages(activity_dict_SST, predicted_activity_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, residual=False, which_to_plot="argmin"):
-
-    neuron_activity_list_SST, predictions_list_SST, cell_residual_list_SST = get_neuron_activity_prediction_residual(
-        activity_dict_SST, predicted_activity_dict_SST)
-    neuron_activity_list_NDNF, predictions_list_NDNF, cell_residual_list_NDNF = get_neuron_activity_prediction_residual(
-        activity_dict_NDNF, predicted_activity_dict_NDNF)
-    neuron_activity_list_EC, predictions_list_EC, cell_residual_list_EC = get_neuron_activity_prediction_residual(
-        activity_dict_EC, predicted_activity_dict_EC)
-
-    if residual:
-        trial_av_activity_SST = trial_average(cell_residual_list_SST)
-        trial_av_activity_NDNF = trial_average(cell_residual_list_NDNF)
-        trial_av_activity_EC = trial_average(cell_residual_list_EC)
-    else:
-        trial_av_activity_SST = trial_average(neuron_activity_list_SST)
-        trial_av_activity_NDNF = trial_average(neuron_activity_list_NDNF)
-        trial_av_activity_EC = trial_average(neuron_activity_list_EC)
-
-    trial_av_activity_SST_stack = np.stack(trial_av_activity_SST)
-    trial_av_activity_NDNF_stack = np.stack(trial_av_activity_NDNF)
-    trial_av_activity_EC_stack = np.stack(trial_av_activity_EC)
-
-    trial_av_activity_SST = normalize(trial_av_activity_SST_stack, norm="z_score", per_cell=True)
-    trial_av_activity_NDNF = normalize(trial_av_activity_NDNF_stack, norm="z_score", per_cell=True)
-    trial_av_activity_EC = normalize(trial_av_activity_EC_stack, norm="z_score", per_cell=True)
-
-    if which_to_plot == "argmin":
-        sorted_indices_SST = np.argsort(np.argmin(trial_av_activity_SST, axis=1))
-        sorted_indices_NDNF = np.argsort(np.argmin(trial_av_activity_NDNF, axis=1))
-        sorted_indices_EC = np.argsort(np.argmin(trial_av_activity_EC, axis=1))
-
-        plot_sorted_activity(trial_av_activity_SST, sorted_indices_SST, f"{'Residuals' if residual else 'Raw Data'} SST Min Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_NDNF, sorted_indices_NDNF, f"{'Residuals' if residual else 'Raw Data'} NDNF Min Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_EC, sorted_indices_EC, f"{'Residuals' if residual else 'Raw Data'} EC Min Sorted", "Cell ID", "Position Bins")
-
-
-    elif which_to_plot == "argmax":
-        sorted_indices_SST = np.argsort(np.argmax(trial_av_activity_SST, axis=1))
-        sorted_indices_NDNF = np.argsort(np.argmax(trial_av_activity_NDNF, axis=1))
-        sorted_indices_EC = np.argsort(np.argmax(trial_av_activity_EC, axis=1))
-
-        plot_sorted_activity(trial_av_activity_SST, sorted_indices_SST, f"{'Residuals' if residual else 'Raw Data'} SST Peak Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_NDNF, sorted_indices_NDNF, f"{'Residuals' if residual else 'Raw Data'} NDNF Peak Sorted", "Cell ID", "Position Bins")
-
-        plot_sorted_activity(trial_av_activity_EC, sorted_indices_EC, f"{'Residuals' if residual else 'Raw Data'} EC Peak Sorted", "Cell ID", "Position Bins")
-
-
-    else:
-        raise ValueError("Options for which_to_plot are 'argmin' or 'argmax'")
-
-
 def get_min_maxed_residuals_argmin_argmax_selectivity(avg_residuals):
     argmax_list = []
     argmin_list = []
@@ -2319,152 +1956,6 @@ def select_neuron(GLM_params, variable_list, sort_by='R2', animal=None, cell=Non
     return animal, cell
 
 
-def plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by='R2', animal=None, cell=None, ax=None):
-    if animal is None or cell is None:
-        animal, cell = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, cell=cell)
-        print(f"Best neuron: {cell}, {animal}")
-
-    neuron_data = reorganized_data[animal][cell]
-    flattened_data = flatten_data(neuron_data)
-
-    input_variables = neuron_data[:,1:,:]
-    neuron_activity = neuron_data[:,0,:]
-
-    if ax is None:
-        fig = plt.figure(figsize=(14, 4))
-        ax_ = fig.add_subplot(111)
-    else:
-        fig = ax.get_figure()
-        ax_ = ax
-    ax_.axis('off')
-
-    axes = gs.GridSpecFromSubplotSpec(nrows=1, ncols=3, subplot_spec=ax_, wspace=0., width_ratios=[0.3, 0.22, 0.48])
-    ax = fig.add_subplot(axes[0])
-    ax.axis('off')
-    avg_variables = np.mean(input_variables, axis=2)
-    def plot_example_neuron_variables(variables, variable_list, ax, fig, weights=None):
-        variable_list = variable_list[1:]
-        height_ratios = np.ones(variables.shape[1])
-        height_ratios[-10:] = 0.5
-        axes = gs.GridSpecFromSubplotSpec(nrows=variables.shape[1], ncols=1, subplot_spec=ax, hspace=0.5, height_ratios=height_ratios)
-        for i in range(variables.shape[1]):
-            ax = fig.add_subplot(axes[i])
-            ax.plot(variables[:, i], color='k', linewidth=1)
-            ax.set_ylabel(variable_list[i], rotation=0, ha='right', va='center', labelpad=0)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            if weights is not None:
-                ax.scatter([50],[0.3], c='k', s=abs(weights[i])*20)
-        ax.set_xlabel('Position', labelpad=-10)
-        ax.set_xticks([0,50])
-
-        # Draw vertical line across all plots (remove axes and make the background transparent)
-        ax = fig.add_subplot(axes[:])
-        ax.vlines(25, 0, 1, linestyles='--', color='r', alpha=0.7)
-        ax.set_xlim([0, 49])
-        ax.set_ylim([0, 1])
-        ax.axis('off')
-        ax.patch.set_alpha(0)
-    plot_example_neuron_variables(avg_variables, variable_list, ax, fig)
-
-    ax = fig.add_subplot(axes[1])
-    ax.axis('off')
-    def plot_weight_lines(GLM_params, animal, cell, ax):
-        weights = GLM_params[animal][cell]['weights']
-        if len(weights) > 13:
-            line_spacing = -np.ones(len(weights)) * 1.4
-        else:
-            line_spacing = -np.ones(len(weights)) * 1.45
-        line_spacing[-10:] *= 0.615
-        y = np.cumsum(line_spacing) - 0.4/line_spacing[0]
-        w_max = np.max(np.abs(weights))
-        for i,w in enumerate(weights):
-            if abs(w)<0.05:
-                line, = ax.plot([0,1], [y[i],-len(weights)/2], color='lightgray', linestyle='--', linewidth=1)
-            elif w < 0:
-                line, = ax.plot([0,1], [y[i],-len(weights)/2], color='deepskyblue', linewidth=abs(w/w_max)*4)
-            else:
-                line, = ax.plot([0,1], [y[i],-len(weights)/2], color='black', linewidth=abs(w/w_max)*4)
-            line.set_solid_capstyle('round')
-        ax.set_ylim([-len(weights),0])
-
-        ax.plot([0,0], [0,0], color='lightgray', linewidth=1.5, linestyle='--', label='Small weights')
-        ax.plot([0,0], [0,0], color='deepskyblue', linewidth=1.5, label='Negative weights')
-        ax.plot([0,0], [0,0], color='black', linewidth=1.5, label='Positive weights')
-        ax.legend(fontsize=10, loc='upper right', frameon=False, handlelength=1.5, handletextpad=0.5, labelspacing=0.2, borderpad=0)
-        max_weight = np.max(weights)
-        min_weight = np.min(weights)
-        ax.text(1, -13, f'Max weight: {max_weight:.2f}', ha='right', va='bottom', fontsize=10)
-        ax.text(1, -12, f'Min weight: {min_weight:.2f}', ha='right', va='bottom', fontsize=10)
-    plot_weight_lines(GLM_params, animal, cell, ax)
-
-    # Plot prediction vs actual neuron activity
-    glm_model = GLM_params[animal][cell]['model']
-    flattened_input_variables = flattened_data[:,1:]
-    predicted_activity = glm_model.predict(flattened_input_variables)
-
-    pearson_R = np.corrcoef(predicted_activity, flattened_data[:,0])[0,1]
-    print("pearson R2 across all trials:", pearson_R**2)
-
-    predicted_activity = predicted_activity.reshape(neuron_activity.shape)
-    avg_predicted_activity = np.mean(predicted_activity, axis=1)
-    std_predicted_activity = np.std(predicted_activity, axis=1)
-    sem_predicted_activity = std_predicted_activity / np.sqrt(predicted_activity.shape[1])
-    avg_neuron_activity = np.mean(neuron_activity, axis=1)
-    std_neuron_activity = np.std(neuron_activity, axis=1)
-    sem_neuron_activity = std_neuron_activity / np.sqrt(neuron_activity.shape[1])
-
-    pearson_R = np.corrcoef(avg_predicted_activity, avg_neuron_activity)[0,1]
-    print("pearson R2 (average prediction vs average activity):", pearson_R**2)
-
-    axes = gs.GridSpecFromSubplotSpec(nrows=3, ncols=3, subplot_spec=ax_, wspace=0., width_ratios=[0.3, 0.3, 0.4], height_ratios=[0.2,1,0.2])
-    ax = fig.add_subplot(axes[1,2])
-    ax.plot(avg_predicted_activity, label='GLM prediction', c='gray', linestyle='--')
-    ax.plot(avg_neuron_activity, label='Actual activity', c='k')
-    ax.fill_between(np.arange(avg_neuron_activity.shape[0]), avg_neuron_activity-sem_neuron_activity, avg_neuron_activity+sem_neuron_activity, alpha=0.1, color='k')
-    ax.fill_between(np.arange(avg_predicted_activity.shape[0]), avg_predicted_activity-sem_predicted_activity, avg_predicted_activity+sem_predicted_activity, alpha=0.1, color='gray')
-    ax.set_xlabel("Position")
-    ax.set_ylabel("dF/F activity (Z-scored)")
-    ax.legend(loc='upper right', bbox_to_anchor=(1, 1.2))
-
-
-def plot_GLM_summary_data(GLM_params, variable_list, ax=None):
-    if ax is None:
-        fig, ax = plt.subplots(1, 1)
-
-    jitter = 0.5
-    animal_xoffset = 0.2
-
-    params_all_animals = []
-    for animal_id in GLM_params:
-        params_all_neurons = []
-        for neuron_id in GLM_params[animal_id]:
-            weights = GLM_params[animal_id][neuron_id]['weights']
-            intercept = GLM_params[animal_id][neuron_id]['intercept']
-            all_params = np.concatenate([weights, [intercept]])
-            params_all_neurons.append(all_params)
-            jittered_x = np.arange(len(all_params)) + np.random.uniform(0.3, jitter, len(all_params))
-            ax.scatter(jittered_x, all_params, color='grey', alpha=0.2, s=10)
-
-        params_all_neurons = np.array(params_all_neurons)
-        mean_params = np.mean(params_all_neurons, axis=0)
-        params_all_animals.append(mean_params)
-        ax.scatter(np.arange(len(mean_params))+animal_xoffset, mean_params, color='black', label=f'Animal {animal_id}', s=20)
-
-    params_all_animals = np.array(params_all_animals)
-    global_mean = np.mean(params_all_animals, axis=0)
-    global_std = np.std(params_all_animals, axis=0)
-    ax.errorbar(np.arange(len(global_mean)), global_mean, yerr=global_std, fmt='o', color='red', ecolor='red', capsize=5, label='Average of all animals', markersize=7)
-
-    ax.set_xticks(np.arange(len(global_mean)))
-    xtick_labels = variable_list[1:] + ['Intercept']
-    ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
-    ax.set_ylabel('Weights')
-
-    ax.hlines(0, -0.5, len(variable_list) - 0.5, linestyles='--', color='black', alpha=0.5)
-    ax.set_xlim([-0.5, len(global_mean) - 0.4])
-
-
 def compute_spatial_selectivity_index(avg_residuals):
     spatial_selectivity_index = []
     for cell_residual in avg_residuals:
@@ -2496,83 +1987,6 @@ def compute_velocity_subtracted_residuals(reorganized_data, variable_list, quint
     return avg_residuals, GLM_params
 
 
-def plot_quintile_comparison(reorganized_data, variable_list, filename, quintiles=(1,5), save=False):
-    avg_residuals_ls = []
-    GLM_params_ls = []
-    for quintile in quintiles:
-        avg_residuals, GLM_params = compute_velocity_subtracted_residuals(reorganized_data, variable_list, quintile)
-        avg_residuals_ls.append(avg_residuals)
-        GLM_params_ls.append(GLM_params)
-
-    sorting_idx = np.argsort(np.argmax(avg_residuals_ls[1], axis=1))
-    avg_residuals_ls = [avg_residuals[sorting_idx] for avg_residuals in avg_residuals_ls]
-
-    fig = plt.figure(figsize=(14, 14))
-    axes = gs.GridSpec(nrows=3, ncols=3, hspace=0.2, wspace=0.4, height_ratios=[3,1,2])
-    fig.suptitle(filename, fontsize=15, y=0.93)
-
-    vmax = np.max([np.abs(avg_residuals_ls[0]), np.abs(avg_residuals_ls[1])])
-    plot_scale = np.max([np.abs(np.mean(avg_residuals_ls[0], axis=0))+np.std(avg_residuals_ls[0], axis=0), np.abs(np.mean(avg_residuals_ls[1], axis=0))+np.std(avg_residuals_ls[1], axis=0)])
-
-    for col, quintile_data in enumerate(avg_residuals_ls):
-        # Plot heatmap
-        ax = fig.add_subplot(axes[0,col])
-        im = ax.imshow(quintile_data, aspect='auto', cmap='bwr', vmin=-vmax, vmax=vmax)
-        x,y,w,h = ax.get_position().bounds
-        cax = fig.add_axes([x+w*1.02, y, w*0.05, h])
-        cbar = plt.colorbar(im, cax=cax)
-        ax.set_xlim([0, 50])
-        if quintiles[col] == 1:
-            ax.set_title(f'First 20% of trials')
-        elif quintiles[col] == 5:
-            ax.set_title(f'Last 20% of trials')
-        else:
-            ax.set_title(f'Quintile {quintiles[col]}')
-        if col == 0:
-            ax.set_ylabel('Neuron #')
-
-        # Plot average activity
-        ax = fig.add_subplot(axes[1,col])
-        ax.plot(np.mean(quintile_data, axis=0), c='k', lw=2)
-        std = np.std(quintile_data, axis=0)
-        sem = std / np.sqrt(quintile_data.shape[0])
-        ax.fill_between(np.arange(50), np.mean(quintile_data, axis=0)-std, np.mean(quintile_data, axis=0)+std, color='gray', alpha=0.2)
-        ax.hlines(0, 0, 50, color='gray', linestyle='--')
-        ax.set_xlim([0, 50])
-        if col == 0:
-            ax.set_ylabel('dF/F residual activity \n(Z-scored)')
-        ax.set_xlabel('Position')
-        ax.set_ylim([-plot_scale, plot_scale])
-
-    # Plot delta
-    delta_residuals = avg_residuals_ls[1] - avg_residuals_ls[0]
-    ax = fig.add_subplot(axes[0,2])
-    vmax = np.max(np.abs(delta_residuals))
-    im = ax.imshow(delta_residuals, aspect='auto', cmap='bwr', vmin=-vmax, vmax=vmax)
-    x,y,w,h = ax.get_position().bounds
-    cax = fig.add_axes([x+w*1.02, y, w*0.05, h])
-    cbar = fig.colorbar(im, cax=cax)
-    ax.set_xlim([0, 50])
-    ax.set_title('Difference')
-
-    ax = fig.add_subplot(axes[1,2])
-    ax.plot(np.mean(delta_residuals, axis=0), c='k', lw=2)
-    std = np.std(delta_residuals, axis=0)
-    sem = std / np.sqrt(delta_residuals.shape[0])
-    ax.fill_between(np.arange(50), np.mean(delta_residuals, axis=0)-std, np.mean(delta_residuals, axis=0)+std, color='gray', alpha=0.2)
-    ax.set_xlim([0, 50])
-    ax.set_xlabel('Position')
-    ax.hlines(0, 0, 50, color='gray', linestyle='--')
-
-    ax = fig.add_subplot(axes[2,:])
-    delta_weights = calculate_delta_weights(GLM_params_ls[0], GLM_params_ls[1])
-    plot_delta_weights_summary(delta_weights, variable_list, model_name=None, save=False, ax=ax)
-
-    if save:
-        fig.savefig(f'figures/{filename.split(".")[0]}_residuals.png', dpi=300)
-        fig.savefig(f'figures/{filename.split(".")[0]}_residuals.svg', dpi=300)
-
-
 def get_GLM_R2(GLM_params):
     all_R2_values = np.array([GLM_params[animal][neuron]['R2_trialavg'] for animal in GLM_params for neuron in GLM_params[animal]])
     return all_R2_values
@@ -2583,84 +1997,6 @@ def get_GLM_weights(GLM_params, variable_list):
     for i,var_name in enumerate(variable_list[1:]):
         all_weights[var_name] = np.array([GLM_params[animal][neuron]['weights'][i] for animal in GLM_params for neuron in GLM_params[animal]])
     return all_weights
-
-
-def plot_R2_distribution(GLM_params, ax=None, title=None):
-    if ax is None:
-        fig, ax = plt.subplots(1,1, figsize=(4,5))
-    else:
-        fig = ax.get_figure()
-
-    if isinstance(GLM_params, list):
-        model_list = GLM_params
-    else:
-        model_list = [GLM_params]
-
-    all_R2_values = {}
-    for i, model_params in enumerate(model_list, start=1):
-        all_R2_values[i] = []
-        animal_avg_R2_values = []
-        for animal in model_params:
-            animal_R2_values = []
-            for neuron in model_params[animal]:
-                all_R2_values[i].append(model_params[animal][neuron]['R2_trialavg'])
-                animal_R2_values.append(model_params[animal][neuron]['R2_trialavg'])
-            animal_avg_R2_values.append(np.mean(animal_R2_values))
-        all_R2_values[i] = np.array(all_R2_values[i])
-
-        jitter = 0.2
-        jittered_x = i*np.ones(all_R2_values[i].shape) + np.random.uniform(0.1, jitter, all_R2_values[i].shape)
-        ax.scatter(jittered_x, all_R2_values[i], color='grey', alpha=0.2, s=10)
-        ax.scatter(i*np.ones(len(animal_avg_R2_values)), animal_avg_R2_values, color='black', label='Average R2 value', s=20)
-        ax.errorbar(i*0.9, np.mean(animal_avg_R2_values), yerr=np.std(animal_avg_R2_values), fmt='o', color='red', ecolor='red',
-                    capsize=5, label='Average of all animals', markersize=7)
-
-    ax.set_ylabel("R² value")
-    ax.set_xlim([0.8,2*i])
-    ax.set_ylim([0,1])
-    if len(model_list) > 1:
-        # ax.set_xticks([0.8, i+0.2])
-        # ax.set_xticklabels(['First quintile', 'Last quintile'])
-        ax.set_xticks([1, 2, 3])
-        ax.set_xticklabels(['All data', 'No licks', 'No Reward loc'])
-        ax.set_xlim([0.8,3.2])
-        if title is not None:
-            fig.suptitle(title)
-            fig.savefig(f"figures/R2_distribution_{title}.png", bbox_inches='tight')
-    else:
-        ax.set_xticks([])
-        ax.spines['bottom'].set_visible(False)
-
-    # Statistical test
-    if len(model_list) == 2:
-        t, p = stats.ttest_ind(all_R2_values[1], all_R2_values[2])
-        if p < 0.001:
-            ax.text(0.1, 0.2, f"p = {p:.2e}", transform=ax.transAxes, fontsize=12)
-        else:
-            ax.text(0.1, 0.2, f"p = {p:.3f}", transform=ax.transAxes, fontsize=12)
-
-
-def plot_combined_figure(reorganized_data, GLM_params, variable_list, sort_by='R2', animal=None, cell=None, model_name=None, save=False):
-    animal, cell = select_neuron(GLM_params, variable_list, sort_by=sort_by, animal=animal, cell=cell)
-
-    fig = plt.figure(figsize=(10,6))
-    axes = gs.GridSpec(nrows=1, ncols=1, top=1, bottom=0.5, left=0, right=1)
-    ax = fig.add_subplot(axes[0])
-    plot_example_neuron(reorganized_data, GLM_params, variable_list, sort_by=sort_by, animal=animal, cell=cell, ax=ax)
-
-    # Plot R2 distribution
-    axes = gs.GridSpec(nrows=1, ncols=1, top=0.4, bottom=0, left=0., right=0.2)
-    ax = fig.add_subplot(axes[0])
-    plot_R2_distribution(GLM_params, ax=ax)
-
-    # Plot summary data
-    axes = gs.GridSpec(nrows=1, ncols=1, top=0.4, bottom=0, left=0.3, right=1)
-    ax = fig.add_subplot(axes[0])
-    plot_GLM_summary_data(GLM_params, variable_list, ax=ax)
-
-    if save and model_name is not None:
-        fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{cell}.png", bbox_inches='tight', dpi=300)
-        fig.savefig(f"figures/GLM_regression_{model_name}_{animal}_{cell}.svg", bbox_inches='tight', dpi=300)
 
 
 def calculate_delta_weights(GLM_params_first, GLM_params_last):
@@ -2679,21 +2015,6 @@ def calculate_delta_weights(GLM_params_first, GLM_params_last):
             delta_intercept = intercept_last - intercept_first
             delta_params[animal][cell] = {'weights':delta_weights, 'intercept':delta_intercept}
     return delta_params
-
-
-def plot_delta_weights_summary(delta_weights, variable_list, model_name=None, save=False, ax=None):
-    if ax is None:
-        fig, ax = plt.subplots(1, 1)
-
-    plot_GLM_summary_data(delta_weights, variable_list, ax=ax)
-    ax.set_ylabel('Δ Weights\n(Last - First Quintile)')
-
-    if model_name is not None:
-        ax.set_title(model_name)
-
-    if model_name is not None and save:
-        fig.savefig(f"figures/{model_name}_delta_weights.png", dpi=300)
-
 
 
 if __name__ == "__main__":
