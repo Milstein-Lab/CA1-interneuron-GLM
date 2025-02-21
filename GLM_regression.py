@@ -2105,7 +2105,7 @@ def get_synthetic_data(activity_dict_SST, factors_dict_SST, weight_type, noise_s
     print(f"MSE Between Ground Truth Place Field and Velcity-Subtracted Residuals {MSE}")
 
     if plot:
-        return a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field
+        return weight, a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field
 
     else:
         return MSE
@@ -2275,7 +2275,7 @@ def get_synthetic_data_seperate_quintiles(activity_dict_SST, factors_dict_SST, w
     print(f"field_rotation_factor {field_rotation_factor} place_field_sf {place_field_sf}")
 
     if plot:
-        return a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field
+        return weight, a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field
     else:
         return MSE
 
