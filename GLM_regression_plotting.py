@@ -2320,3 +2320,566 @@ def plot_activity_residuals_correlation(reorganized_data, predicted_activity_lis
             velocity = value2["Velocity"]
             velocity_list.append(velocity)
 
+
+def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field):
+
+    residual_q1 = quintiles_list[0]
+    residual_q5 = quintiles_list[1]
+    gaussian_q1 = quintiles_list[2]
+    gaussian_q5 = quintiles_list[3]
+    divided_q1 = quintiles_list[4]
+    divided_q5 = quintiles_list[5]
+    ground_truth_q1 = quintiles_list[6]
+    ground_truth_q5 = quintiles_list[7]
+
+    mean_residual_q1 = mean_quintiles_list[0]
+    mean_residual_q5 = mean_quintiles_list[1]
+    mean_gaussian_q1 = mean_quintiles_list[2]
+    mean_gaussian_q5 = mean_quintiles_list[3]
+    mean_divided_q1 = mean_quintiles_list[4]
+    mean_divided_q5 = mean_quintiles_list[5]
+    mean_truth_q1 = mean_quintiles_list[6]
+    mean_truth_q5 = mean_quintiles_list[7]
+
+
+    ################## overall correlations
+
+    flat_velocity = velocity.flatten()
+    flat_activity = combined_gaussian_with_velocity.flatten()
+
+    velocity_activity_correlation, _ = pearsonr(flat_velocity, flat_activity)
+
+    slope, intercept, r_value, p_value, std_err = linregress(flat_velocity, flat_activity)
+
+    x_vals = np.linspace(flat_velocity.min(), flat_velocity.max(), 100)
+    y_vals = slope * x_vals + intercept
+
+
+    flat_residual = residual.flatten()
+
+    velocity_residual_correlation, _ = pearsonr(flat_velocity, flat_residual)
+    slope_pred, intercept_pred, r_value_pred, p_value_pred, std_err_pred = linregress(flat_velocity, flat_residual)
+
+    x_vals_pred = np.linspace(flat_velocity.min(), flat_velocity.max(), 100)
+    y_vals_pred = slope_pred * x_vals_pred + intercept_pred
+
+
+    ################### Trial by trial correlations
+
+    prediction_velocity_correlation_list = []
+    activity_velocity_correlation_list = []
+    residual_velocity_correlation_list = []
+    divided_velocity_correlation_list = []
+
+    for i in range(neuron_predicted_activity.shape[1]):
+        trial_predicted_activity = neuron_predicted_activity[:, i]
+        trial_velocity = velocity[:, i]
+        trial_activity = combined_gaussian_with_velocity[:, i]
+        trial_residual = residual[:, i]
+        trial_divided = divide_data_by_velocity[:, i]
+
+        prediction_velocity_correlation, _ = pearsonr(trial_predicted_activity, trial_velocity)
+        prediction_velocity_correlation_list.append(prediction_velocity_correlation)
+
+        activity_velocity_correlation, _ = pearsonr(trial_activity, trial_velocity)
+        activity_velocity_correlation_list.append(activity_velocity_correlation)
+
+        residual_velocity_correlation, _ = pearsonr(trial_residual, trial_velocity)
+        residual_velocity_correlation_list.append(residual_velocity_correlation)
+
+        divided_velocity_correlation, _ = pearsonr(trial_divided, trial_velocity)
+        divided_velocity_correlation_list.append(divided_velocity_correlation)
+
+    #############################
+
+
+    fig, axs = plt.subplots(5, 3, figsize=(12, 14))
+
+    im1 = axs[0, 0].imshow(a.T, cmap='magma', aspect='auto')
+    axs[0, 0].set_xlabel("Trial", fontsize=12)
+    axs[0, 0].set_ylabel("Position Bin", fontsize=12)
+    if ramping_field:
+        axs[0, 0].set_title("Acquired Place Field", fontsize=14)
+    else:
+        axs[0, 0].set_title("Pure Gaussian Place Field", fontsize=14)
+    fig.colorbar(im1, ax=axs[0, 0])
+
+    im3 = axs[0, 1].imshow(velocity.T, cmap='viridis', aspect='auto')
+    axs[0, 1].set_title("Velocity - Real Animals", fontsize=14)
+    axs[0, 1].set_xlabel("Trial", fontsize=12)
+    axs[0, 1].set_ylabel("Position Bin", fontsize=12)
+    fig.colorbar(im3, ax=axs[0, 1])
+
+    im2 = axs[0, 2].imshow(combined_gaussian_with_velocity.T, cmap='magma', aspect='auto')
+    axs[0, 2].set_xlabel("Trial", fontsize=12)
+    axs[0, 2].set_ylabel("Position Bin", fontsize=12)
+    axs[0, 2].set_title("Synthetic Neural Activity", fontsize=14)
+    fig.colorbar(im2, ax=axs[0, 2])
+
+    num_points, num_trials = velocity.shape
+    trial_colors = np.repeat(np.linspace(0,1,num_trials), num_points)
+
+    cmap = plt.colormaps.get_cmap("viridis")
+
+    sc = axs[1, 0].scatter(flat_velocity, flat_activity, c=[cmap(t) for t in trial_colors], alpha=0.7)
+    axs[1, 0].plot(x_vals, y_vals, color='red', linewidth=2, label="Best Fit Line")
+    axs[1, 0].set_xlabel("Velocity", fontsize=12)
+    axs[1, 0].set_ylabel("Synthetic Neural Activity", fontsize=12)
+    axs[1, 0].set_title(f"Velocity vs. Activity R={velocity_activity_correlation:.2f}", fontsize=14)
+
+
+    sc = axs[1, 1].scatter(flat_velocity, flat_residual, c=[cmap(t) for t in trial_colors], alpha=0.7)
+    axs[1, 1].plot(x_vals_pred, y_vals_pred, color='red', linewidth=2, label="Best Fit Line")
+    axs[1, 1].set_xlabel("Velocity", fontsize=12)
+    axs[1, 1].set_ylabel("Synthetic Neural Activity", fontsize=12)
+    axs[1, 1].set_title(f"Velocity vs. Residuals R={velocity_residual_correlation:.2f}", fontsize=14)
+
+    im5 = axs[1, 2].imshow(residual.T, cmap='magma', aspect='auto')
+    axs[1, 2].set_xlabel("Trial", fontsize=12)
+    axs[1, 2].set_ylabel("Position Bin", fontsize=12)
+    axs[1, 2].set_title("GLM Velocity-Subtracted Residuals", fontsize=14)
+    fig.colorbar(im5, ax=axs[1, 2])
+
+
+    data_list1 = [mean_gaussian_q1, mean_gaussian_q5, mean_residual_q1, mean_residual_q5, mean_divided_q1, mean_divided_q5]
+    max_list = []
+    for i in data_list1:
+        max_val = np.max(i)
+        max_list.append(max_val)
+    max_list = np.array(max_list)
+    max_data1 = np.max(max_list)
+
+    min_list = []
+    for i in data_list1:
+        min_val = np.min(i)
+        min_list.append(min_val)
+    min_list = np.array(min_list)
+    min_data1 = np.min(min_list)
+
+    data_list2 = [activity_velocity_correlation_list, residual_velocity_correlation_list, divided_velocity_correlation_list]
+    max_list = []
+    for i in data_list1:
+        max_val = np.max(i)
+        max_list.append(max_val)
+    max_list = np.array(max_list)
+    max_data2 = np.max(max_list)
+
+    min_list = []
+    for i in data_list1:
+        min_val = np.min(i)
+        min_list.append(min_val)
+    min_list = np.array(min_list)
+    min_data2 = np.min(min_list)
+
+
+    mean_corr_activity = np.mean(activity_velocity_correlation_list)
+    mean_corr_residual = np.mean(residual_velocity_correlation_list)
+    mean_corr_divide = np.mean(divided_velocity_correlation_list)
+
+    axs[2, 0].plot(mean_gaussian_q1, color='r', label="Q1 Gaussian + Velocity", marker='o', markersize=3, alpha=0.8)
+    axs[2, 0].plot(mean_gaussian_q5, color='b', label="Q5 Gaussian + Velocity", marker='x', markersize=3, alpha=0.8)
+    axs[2, 0].set_xlabel("Position Bin", fontsize=12)
+    axs[2, 0].set_ylabel("Mean Activity", fontsize=12)
+    axs[2, 0].set_title("Mean Neural Activity Q1 Q5", fontsize=14)
+    axs[2, 0].set_ylim(min_data1-0.2, max_data1+0.2)
+    axs[2, 0].legend(fontsize=10)
+
+    axs[2, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Gaussian", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Gaussian", alpha=0.8)
+    axs[2, 1].set_xlabel("Position Bin", fontsize=12)
+    axs[2, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
+    axs[2, 1].set_title(f"Ground Truth Q1 Q5 \nMSE={MSE:.3f}", fontsize=14)
+    axs[2, 1].set_ylim(min_data1-0.2, max_data1+0.2)
+    axs[2, 1].legend(fontsize=10)
+
+    trial_numbers=np.arange(len(activity_velocity_correlation_list))
+    slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, activity_velocity_correlation_list)
+    trend_line = intercept + slope*trial_numbers
+
+    axs[2, 2].scatter(trial_numbers, activity_velocity_correlation_list, alpha=0.5, label="Data")
+    axs[2, 2].plot(trial_numbers, trend_line, color="red", linewidth=2, linestyle="dashed", label=f"Trend (slope={slope:.4f})")
+    axs[2, 2].set_xlabel("Trial #", fontsize=12)
+    axs[2, 2].set_ylabel("R Value Activity vs Velocity", fontsize=12)
+    axs[2, 2].set_title(f"Trial# vs Individual Trial R Value \nSlope={slope:.4f}", fontsize=14)
+    axs[2, 2].set_ylim(-1.2, 1.2)
+
+    axs[3, 0].plot(mean_residual_q1, color='r', label="Q1 Residuals", marker='o', markersize=3, alpha=0.8)
+    axs[3, 0].plot(mean_residual_q5, color='b', label="Q5 Residuals", marker='x', markersize=3, alpha=0.8)
+    axs[3, 0].set_xlabel("Position Bin", fontsize=12)
+    axs[3, 0].set_ylabel("Mean Residual Activity", fontsize=12)
+    axs[3, 0].set_title("Mean Residuals Q1 Q5", fontsize=14)
+    axs[3, 0].set_ylim(min_data2-0.2, max_data2+0.2)
+    axs[3, 0].legend(fontsize=10)
+
+    axs[3, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Gaussian", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Gaussian", alpha=0.8)
+    axs[3, 1].set_xlabel("Position Bin", fontsize=12)
+    axs[3, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
+    axs[3, 1].set_title(f"Ground Truth Q1 Q5 \nMSE={MSE:.3f}", fontsize=14)
+    axs[3, 1].set_ylim(min_data1-0.2, max_data1+0.2)
+    axs[3, 1].legend(fontsize=10)
+
+    trial_numbers=np.arange(len(residual_velocity_correlation_list))
+    slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, residual_velocity_correlation_list)
+    trend_line = intercept + slope*trial_numbers
+
+    residual_corr_array = np.array(residual_velocity_correlation_list)
+    r_value_over_trials, _ = pearsonr(trial_numbers, residual_corr_array)
+
+    axs[3, 2].scatter(trial_numbers, residual_velocity_correlation_list, alpha=0.5, label="Data")
+    axs[3, 2].plot(trial_numbers, trend_line, color="red", linewidth=2, linestyle="dashed", label=f"Trend (slope={slope:.4f})")
+    axs[3, 2].set_xlabel("Trial #", fontsize=12)
+    axs[3, 2].set_ylabel("R Value Residual vs Velocity", fontsize=12)
+    axs[3, 2].set_title(f"Trial# vs Individual Trial R Value \nSlope={slope:.4f}", fontsize=14)
+    axs[3, 2].set_ylim(-1.2, 1.2)
+
+
+#############  Dividing by velocity - Christines original model
+
+    axs[4, 0].plot(mean_divided_q1, color='r', label="Q1 Gaussian / Velocity", marker='o', markersize=3, alpha=0.8)
+    axs[4, 0].plot(mean_divided_q5, color='b', label="Q5 Gaussian / Velocity", marker='x', markersize=3, alpha=0.8)
+    axs[4, 0].set_xlabel("Position Bin", fontsize=12)
+    axs[4, 0].set_ylabel("Mean Activity", fontsize=12)
+    axs[4, 0].set_title("Mean Neural Activity / Velocity Q1 Q5", fontsize=14)
+    axs[4, 0].set_ylim(min_data2-0.2, max_data2+0.2)
+    axs[4, 0].legend(fontsize=10)
+
+    axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Gaussian", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Gaussian", alpha=0.8)
+    axs[4, 1].set_xlabel("Position Bin", fontsize=12)
+    axs[4, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
+    axs[4, 1].set_title(f"Ground Truth Q1 Q5 \nMSE={MSE:.3f}", fontsize=14)
+    axs[4, 1].set_ylim(min_data1-0.2, max_data1+0.2)
+    axs[4, 1].legend(fontsize=10)
+
+    trial_numbers=np.arange(len(divided_velocity_correlation_list))
+    slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, divided_velocity_correlation_list)
+    trend_line = intercept + slope*trial_numbers
+
+    divided_corr_array = np.array(divided_velocity_correlation_list)
+    r_value_over_trials, _ = pearsonr(trial_numbers, divided_corr_array)
+
+    axs[4, 2].scatter(trial_numbers, divided_velocity_correlation_list, alpha=0.5, label="Data")
+    axs[4, 2].plot(trial_numbers, trend_line, color="red", linewidth=2, linestyle="dashed", label=f"Trend (slope={slope:.4f})")
+    axs[4, 2].set_xlabel("Trial #", fontsize=12)
+    axs[4, 2].set_ylabel("R Value Divided vs Velocity", fontsize=12)
+    axs[4, 2].set_title(f"Trial# vs Individual Trial R Value \nR={slope:.4f}", fontsize=14)
+    axs[4, 2].set_ylim(-1.2, 1.2)
+
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_synthetic_data_seperate_quintiles(a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field=True):
+
+    velocity_array = list_of_arrays[0]
+    residual_array = list_of_arrays[1]
+    gaussian_array = list_of_arrays[2]
+    divided_array = list_of_arrays[3]
+    predicted_array = list_of_arrays[4]
+
+    mean_residual_array = list_of_mean_arrays[0]
+    mean_gaussian_array = list_of_mean_arrays[1]
+    mean_divided_array = list_of_mean_arrays[2]
+    mean_velocity_array = list_of_mean_arrays[3]
+
+    mean_residual_list = list_of_mean_lists[0]
+    mean_gaussian_list = list_of_mean_lists[1]
+    mean_divided_list = list_of_mean_lists[2]
+
+    residual_list = list_of_lists[0]
+    gaussian_list = list_of_lists[1]
+    divided_list = list_of_lists[2]
+    velocity_list = list_of_lists[3]
+    predicted_list = list_of_lists[4]
+
+    ################## overall correlations
+
+    ground_truth_q1 = ground_truth_qunitles_list[0]
+    ground_truth_q5 = ground_truth_qunitles_list[4]
+
+    mean_truth_q1 = np.mean(ground_truth_q1, axis=1)
+    mean_truth_q5 = np.mean(ground_truth_q5, axis=1)
+
+    flat_velocity = velocity_array.flatten()
+    flat_residual = residual_array.flatten()
+    flat_activity = gaussian_array.flatten()
+
+    velocity_activity_correlation, _ = pearsonr(flat_velocity, flat_activity)
+
+    slope, intercept, r_value, p_value, std_err = linregress(flat_velocity, flat_activity)
+
+    x_vals = np.linspace(flat_velocity.min(), flat_velocity.max(), 100)
+    y_vals = slope * x_vals + intercept
+
+    velocity_residual_correlation, _ = pearsonr(flat_velocity, flat_residual)
+    slope_pred, intercept_pred, r_value_pred, p_value_pred, std_err_pred = linregress(flat_velocity, flat_residual)
+
+    x_vals_pred = np.linspace(flat_velocity.min(), flat_velocity.max(), 100)
+    y_vals_pred = slope_pred * x_vals_pred + intercept_pred
+
+    ################### Trial by trial correlations
+
+    prediction_velocity_correlation_list = []
+    activity_velocity_correlation_list = []
+    residual_velocity_correlation_list = []
+    divided_velocity_correlation_list = []
+
+    for i in range(mean_gaussian_array.shape[1]):
+        trial_predicted_activity = predicted_array[:, i]
+        trial_velocity = velocity_array[:, i]
+        trial_activity = gaussian_array[:, i]
+        trial_residual = residual_array[:, i]
+        trial_divided = divided_array[:, i]
+
+        prediction_velocity_correlation, _ = pearsonr(trial_predicted_activity, trial_velocity)
+        prediction_velocity_correlation_list.append(prediction_velocity_correlation)
+
+        activity_velocity_correlation, _ = pearsonr(trial_activity, trial_velocity)
+        activity_velocity_correlation_list.append(activity_velocity_correlation)
+
+        residual_velocity_correlation, _ = pearsonr(trial_residual, trial_velocity)
+        residual_velocity_correlation_list.append(residual_velocity_correlation)
+
+        divided_velocity_correlation, _ = pearsonr(trial_divided, trial_velocity)
+        divided_velocity_correlation_list.append(divided_velocity_correlation)
+
+    #############################
+
+    fig, axs = plt.subplots(5, 3, figsize=(12, 14))
+
+    im1 = axs[0, 0].imshow(a.T, cmap='magma', aspect='auto')
+    axs[0, 0].set_xlabel("Trial", fontsize=12)
+    axs[0, 0].set_ylabel("Position Bin", fontsize=12)
+    if ramping_field:
+        axs[0, 0].set_title("Acquired Place Field", fontsize=14)
+    else:
+        axs[0, 0].set_title("Pure Gaussian Place Field", fontsize=14)
+    fig.colorbar(im1, ax=axs[0, 0])
+
+    im3 = axs[0, 1].imshow(velocity.T, cmap='viridis', aspect='auto')
+    axs[0, 1].set_title("Velocity - Real Animals", fontsize=14)
+    axs[0, 1].set_xlabel("Trial", fontsize=12)
+    axs[0, 1].set_ylabel("Position Bin", fontsize=12)
+    fig.colorbar(im3, ax=axs[0, 1])
+
+    im2 = axs[0, 2].imshow(combined_gaussian_with_velocity.T, cmap='magma', aspect='auto')
+    axs[0, 2].set_xlabel("Trial", fontsize=12)
+    axs[0, 2].set_ylabel("Position Bin", fontsize=12)
+    axs[0, 2].set_title("Synthetic Neural Activity", fontsize=14)
+    fig.colorbar(im2, ax=axs[0, 2])
+
+    num_points, num_trials = velocity.shape
+    trial_colors = np.repeat(np.linspace(0, 1, num_trials), num_points)
+
+    cmap = plt.colormaps.get_cmap("viridis")
+
+    sc = axs[1, 0].scatter(flat_velocity, flat_activity, c=[cmap(t) for t in trial_colors], alpha=0.7)
+    axs[1, 0].plot(x_vals, y_vals, color='red', linewidth=2, label="Best Fit Line")
+    axs[1, 0].set_xlabel("Velocity", fontsize=12)
+    axs[1, 0].set_ylabel("Synthetic Neural Activity", fontsize=12)
+    axs[1, 0].set_title(f"Velocity vs. Activity R={velocity_activity_correlation:.2f}", fontsize=14)
+
+    sc = axs[1, 1].scatter(flat_velocity, flat_residual, c=[cmap(t) for t in trial_colors], alpha=0.7)
+    axs[1, 1].plot(x_vals_pred, y_vals_pred, color='red', linewidth=2, label="Best Fit Line")
+    axs[1, 1].set_xlabel("Velocity", fontsize=12)
+    axs[1, 1].set_ylabel("Synthetic Neural Activity", fontsize=12)
+    axs[1, 1].set_title(f"Velocity vs. Residuals R={velocity_residual_correlation:.2f}", fontsize=14)
+
+    im5 = axs[1, 2].imshow(residual_array.T, cmap='magma', aspect='auto')
+    axs[1, 2].set_xlabel("Trial", fontsize=12)
+    axs[1, 2].set_ylabel("Position Bin", fontsize=12)
+    axs[1, 2].set_title("GLM Velocity-Subtracted Residuals", fontsize=14)
+    fig.colorbar(im5, ax=axs[1, 2])
+
+    data_list1 = [gaussian_list[0], gaussian_list[4], residual_list[0], residual_list[4], divided_list[0], divided_list[4]]
+    max_list = []
+    for i in data_list1:
+        max_val = np.max(i)
+        max_list.append(max_val)
+    max_list = np.array(max_list)
+    max_data1 = np.max(max_list)
+
+    min_list = []
+    for i in data_list1:
+        min_val = np.min(i)
+        min_list.append(min_val)
+    min_list = np.array(min_list)
+    min_data1 = np.min(min_list)
+
+    data_list2 = [activity_velocity_correlation_list, residual_velocity_correlation_list, divided_velocity_correlation_list]
+    max_list = []
+    for i in data_list1:
+        max_val = np.max(i)
+        max_list.append(max_val)
+    max_list = np.array(max_list)
+    max_data2 = np.max(max_list)
+
+    min_list = []
+    for i in data_list1:
+        min_val = np.min(i)
+        min_list.append(min_val)
+    min_list = np.array(min_list)
+    min_data2 = np.min(min_list)
+
+    mean_corr_activity = np.mean(activity_velocity_correlation_list)
+    mean_corr_residual = np.mean(residual_velocity_correlation_list)
+    mean_corr_divide = np.mean(divided_velocity_correlation_list)
+
+    axs[2, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[2, 1].plot(mean_gaussian_list[0], color='r', label="Q1 Activity", alpha=0.8)
+    axs[2, 1].plot(mean_gaussian_list[4], color='b', label="Q5 Activity", alpha=0.8)
+    axs[2, 1].set_xlabel("Position Bin", fontsize=12)
+    axs[2, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
+    axs[2, 1].set_title(f"MSE={np.mean(MSE_by_quintile_list):.3f}", fontsize=14)
+    axs[2, 1].legend(fontsize=7)
+
+    trial_numbers = np.arange(len(activity_velocity_correlation_list))
+    slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, activity_velocity_correlation_list)
+    trend_line = intercept + slope * trial_numbers
+
+    axs[2, 2].scatter(trial_numbers, activity_velocity_correlation_list, alpha=0.5, label="Data")
+    axs[2, 2].plot(trial_numbers, trend_line, color="red", linewidth=2, linestyle="dashed", label=f"Trend (slope={slope:.4f})")
+    axs[2, 2].set_xlabel("Trial #", fontsize=12)
+    axs[2, 2].set_ylabel("R Value Activity vs Velocity", fontsize=12)
+    axs[2, 2].set_title(f"Trial# vs Individual Trial R Value \nSlope={slope:.4f}", fontsize=14)
+    axs[2, 2].set_ylim(-1.2, 1.2)
+
+    axs[3, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_residual_list[0], color='r', label="Q1 Residuals", alpha=0.8)
+    axs[3, 1].plot(mean_residual_list[4], color='b', label="Q5 Residuals", alpha=0.8)
+    axs[3, 1].set_xlabel("Position Bin", fontsize=12)
+    axs[3, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
+    axs[3, 1].set_title(f"MSE={np.mean(MSE_by_quintile_list):.3f}", fontsize=14)
+    axs[3, 1].legend(fontsize=7)
+
+    trial_numbers = np.arange(len(residual_velocity_correlation_list))
+    slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, residual_velocity_correlation_list)
+    trend_line = intercept + slope * trial_numbers
+
+    residual_corr_array = np.array(residual_velocity_correlation_list)
+    r_value_over_trials, _ = pearsonr(trial_numbers, residual_corr_array)
+
+    axs[3, 2].scatter(trial_numbers, residual_velocity_correlation_list, alpha=0.5, label="Data")
+    axs[3, 2].plot(trial_numbers, trend_line, color="red", linewidth=2, linestyle="dashed", label=f"Trend (slope={slope:.4f})")
+    axs[3, 2].set_xlabel("Trial #", fontsize=12)
+    axs[3, 2].set_ylabel("R Value Residual vs Velocity", fontsize=12)
+    axs[3, 2].set_title(f"Trial# vs Individual Trial R Value \nSlope={slope:.4f}", fontsize=14)
+    axs[3, 2].set_ylim(-1.2, 1.2)
+
+    #############  Dividing by velocity - Christines original model
+
+    im = axs[4, 0].imshow(divided_array.T, aspect='auto')
+    axs[4, 0].set_xlabel("Position Bin", fontsize=12)
+    axs[4, 0].set_ylabel("Trial", fontsize=12)
+    axs[4, 0].set_title("Neural Activity / Velocity", fontsize=14)
+    plt.colorbar(im, ax=axs[4, 0])
+
+    axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_divided_list[0], color='r', label="Q1 Activity / Velocity", alpha=0.8)
+    axs[4, 1].plot(mean_divided_list[4], color='b', label="Q5 Activity / Velocity", alpha=0.8)
+    axs[4, 1].set_xlabel("Position Bin", fontsize=12)
+    axs[4, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
+    axs[4, 1].set_title(f"MSE={np.mean(MSE_by_quintile_list):.3f}", fontsize=14)
+    axs[4, 1].set_ylim(min_data1 - 2, max_data1 + 2)
+    axs[4, 1].legend(fontsize=7)
+
+    trial_numbers = np.arange(len(divided_velocity_correlation_list))
+    slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, divided_velocity_correlation_list)
+    trend_line = intercept + slope * trial_numbers
+
+    divided_corr_array = np.array(divided_velocity_correlation_list)
+    r_value_over_trials, _ = pearsonr(trial_numbers, divided_corr_array)
+
+    axs[4, 2].scatter(trial_numbers, divided_velocity_correlation_list, alpha=0.5, label="Data")
+    axs[4, 2].plot(trial_numbers, trend_line, color="red", linewidth=2, linestyle="dashed", label=f"Trend (slope={slope:.4f})")
+    axs[4, 2].set_xlabel("Trial #", fontsize=12)
+    axs[4, 2].set_ylabel("R Value Divided vs Velocity", fontsize=12)
+    axs[4, 2].set_title(f"Trial# vs Individual Trial R Value \nR={slope:.4f}", fontsize=14)
+    axs[4, 2].set_ylim(-1.2, 1.2)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def get_MSE_array_and_plot(activity_dict_SST, factors_dict_SST, cell_type="SST", weight_type="flat", noise_sf=0., ramping_field=True, use_GAM=False, power=1, weight_scale=1, multimodel=False):
+    rotation_array = np.array([-25, -12, 0, 12, 25])
+    pf_amplitude_list = [1.0, 0.5, 0., -0.5, -1.0]
+
+    y_labels = [str(a) for a in pf_amplitude_list]
+    x_labels = [str(r) for r in rotation_array]
+
+    overall_modulation_list = []
+    for i in rotation_array:
+        aplitude_list = []
+        for j in pf_amplitude_list:
+            if multimodel:
+                MSE = get_synthetic_data_seperate_quintiles(activity_dict_SST, factors_dict_SST, weight_type=weight_type, noise_sf=noise_sf, ramping_field=ramping_field, use_GAM=use_GAM, power=power, weight_scale=weight_scale, cell_type=cell_type, plot=False, field_rotation_factor=i, place_field_sf=j)
+            else:
+                MSE = get_synthetic_data(activity_dict_SST, factors_dict_SST, weight_type=weight_type, noise_sf=noise_sf, ramping_field=ramping_field, use_GAM=use_GAM, power=power, weight_scale=weight_scale, plot=False, field_rotation_factor=i, place_field_sf=j)
+
+            aplitude_list.append(MSE)
+        overall_modulation_list.append(aplitude_list)
+
+    test_array = np.array(overall_modulation_list)
+    print(f"test_array {test_array}")
+
+    plt.imshow(test_array.T, aspect="auto")
+    plt.yticks(ticks=np.arange(len(y_labels)), labels=y_labels)
+    plt.xticks(ticks=np.arange(len(x_labels)), labels=x_labels)
+    plt.xlabel("Position Bin Rotation")
+    plt.ylabel("Place Field Amplitude")
+    if ramping_field:
+        if weight_type == "flat":
+            if multimodel:
+                if use_GAM:
+                    plt.title(f"Multimodel GAM Ramping PF, Flat Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Multimodel GLM Ramping PF, Flat Vel Wt={weight_scale}")
+            else:
+                if use_GAM:
+                    plt.title(f"Single Model GAM Ramping PF, Flat Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Single Model GLM Ramping PF, Flat Vel Wt={weight_scale}")
+        else:
+            if multimodel:
+                if use_GAM:
+                    plt.title(f"Multimodel GAM Ramping PF, Ramping Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Multimodel GLM Ramping PF, Ramping Vel Wt={weight_scale}")
+            else:
+                if use_GAM:
+                    plt.title(f"Single Model GAM Ramping PF, Ramping Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Single Model GLM Ramping PF, Ramping Vel Wt={weight_scale}")
+    else:
+        if weight_type == "flat":
+            if multimodel:
+                if use_GAM:
+                    plt.title(f"Multimodel GAM Flat PF, Flat Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Multimodel GLM Flat PF, Flat Vel Wt={weight_scale}")
+            else:
+                if use_GAM:
+                    plt.title(f"Single Model GAM Flat PF, Flat Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Single Model GLM Flat PF, Flat Vel Wt={weight_scale}")
+        else:
+            if multimodel:
+                if use_GAM:
+                    plt.title(f"Multimodel GAM Flat PF, Ramping Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Multimodel GLM Flat PF, Ramping Vel Wt={weight_scale}")
+            else:
+                if use_GAM:
+                    plt.title(f"Single Model GAM Flat PF, Ramping Vel Wt={weight_scale}")
+                else:
+                    plt.title(f"Single Model GLM Flat PF, Ramping Vel Wt={weight_scale}")
+
+    print(f"weight_type {weight_type}")
+    plt.colorbar(label="MSE")
+    plt.show()
