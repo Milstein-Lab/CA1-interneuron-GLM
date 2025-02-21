@@ -14,6 +14,13 @@ from scipy.stats import sem
 from collections import defaultdict
 import os
 import sys
+from scipy.stats import f_oneway
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from scipy.stats import ttest_rel
+from itertools import chain
+from pygam import LinearGAM
+import matplotlib.cm as cm
+from scipy.stats import linregress, pearsonr
 
 plt.rcParams.update({'font.size': 10,
                     'axes.spines.right': False,
@@ -1987,6 +1994,295 @@ def compute_velocity_subtracted_residuals(reorganized_data, variable_list, quint
     return avg_residuals, GLM_params
 
 
+def get_synthetic_data(activity_dict_SST, factors_dict_SST, weight_type, noise_sf, ramping_field=True, use_GAM=False, power=1, weight_scale=None, plot=False, field_rotation_factor=0, place_field_sf=0):
+    num_trials=212
+    pf_scale = np.linspace(0, place_field_sf, num_trials)
+
+    per_cell_velocity = []
+    for animal in activity_dict_SST:
+        for neuron in activity_dict_SST[animal]:
+            per_cell_velocity.append(factors_dict_SST[animal]['Velocity'])
+
+    activity_list = []
+    for animal in activity_dict_SST:
+        for neuron in activity_dict_SST[animal]:
+            activity_list.append(np.mean(activity_dict_SST[animal][neuron], axis=1))
+
+    neurons_array = np.stack(activity_list)
+    combined_gaussian = np.mean(neurons_array, axis=0)
+    num_trials = per_cell_velocity[0].shape[1]
+
+    velocity = per_cell_velocity[0]
+
+    if weight_type=="flat":
+        weight = np.ones(num_trials)
+
+    elif weight_type=="ramping_weight":
+        weight = pf_scale
+
+    elif weight_type=="step_weight":
+        weight = np.zeros(num_trials)
+        quint = len(weight) // 5
+
+        for i in range(5):
+            weight[i * quint: (i + 1) * quint] = (i + 1) / 5
+
+    weight = weight * weight_scale
+
+    velocity_correlation = weight * velocity**(power)
+
+    a = np.tile(combined_gaussian, (num_trials, 1)).T
+
+    if ramping_field:
+        a = a * pf_scale
+
+    a = np.roll(a, shift=field_rotation_factor, axis=0)
+
+    noise = noise_sf * np.random.normal(0, 1, a.shape)
+
+    combined_gaussian_with_velocity = a + velocity_correlation + noise
+
+    ################# Fitting Model (GLM or GAM)
+
+    neuron_activity_flat = combined_gaussian_with_velocity.flatten()
+    flattened_data = velocity.flatten().reshape(-1, 1)  # Ensure shape compatibility
+
+    if use_GAM:
+        # Fit a Generalized Additive Model (GAM)
+        model = LinearGAM().fit(flattened_data, neuron_activity_flat)
+        neuron_predicted_activity = model.predict(flattened_data)
+    else:
+        # Fit a Generalized Linear Model (GLM) using Ridge Regression
+        alphas = [0.1, 1, 10, 100, 1000, 5000]
+        model = RidgeCV(alphas=alphas, cv=None)
+        model.fit(flattened_data, neuron_activity_flat)
+        neuron_predicted_activity = model.predict(flattened_data)
+
+    neuron_predicted_activity = neuron_predicted_activity.reshape(velocity.shape)
+
+    ################## Plotting Residuals
+
+    residual = combined_gaussian_with_velocity - neuron_predicted_activity
+
+    ################## plotting quintiles
+
+
+    num_trials = residual.shape[1]
+    quintile_size = num_trials // 5
+
+    divide_data_by_velocity = np.divide(combined_gaussian_with_velocity, velocity, out=np.zeros_like(combined_gaussian_with_velocity), where=velocity!=0)
+
+
+    residual_q1 = residual[:, :quintile_size]
+    residual_q5 = residual[:, -quintile_size:]
+
+    gaussian_q1 = combined_gaussian_with_velocity[:, :quintile_size]
+    gaussian_q5 = combined_gaussian_with_velocity[:, -quintile_size:]
+
+    divided_q1 = divide_data_by_velocity[:, :quintile_size]
+    divided_q5 = divide_data_by_velocity[:, -quintile_size:]
+
+    mean_residual_q1 = np.mean(residual_q1, axis=1)
+    mean_residual_q5 = np.mean(residual_q5, axis=1)
+
+    mean_gaussian_q1 = np.mean(gaussian_q1, axis=1)
+    mean_gaussian_q5 = np.mean(gaussian_q5, axis=1)
+
+    mean_divided_q1 = np.mean(divided_q1, axis=1)
+    mean_divided_q5 = np.mean(divided_q5, axis=1)
+
+    ground_truth_q1 = a[:, :quintile_size]
+    ground_truth_q5 = a[:, -quintile_size:]
+
+    mean_truth_q1 = np.mean(ground_truth_q1, axis=1)
+    mean_truth_q5 = np.mean(ground_truth_q5, axis=1)
+
+    quintiles_list = [residual_q1, residual_q5, gaussian_q1, gaussian_q5, divided_q1, divided_q5, ground_truth_q1, ground_truth_q5]
+    mean_quintiles_list = [mean_residual_q1, mean_residual_q5, mean_gaussian_q1, mean_gaussian_q5, mean_divided_q1, mean_divided_q5, mean_truth_q1, mean_truth_q5]
+
+    MSE = (a-residual)**2
+    MSE = np.mean(MSE)
+    print(f"MSE Between Ground Truth Place Field and Velcity-Subtracted Residuals {MSE}")
+
+    if plot:
+        return a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field
+
+    else:
+        return MSE
+
+
+def get_synthetic_data_seperate_quintiles(activity_dict_SST, factors_dict_SST, weight_type, noise_sf, ramping_field=True, use_GAM=False, power=1, weight_scale=None, cell_type="SST", plot=False, field_rotation_factor=0, place_field_sf=1):
+    if cell_type == "SST":
+
+        per_cell_velocity = []
+        for animal in activity_dict_SST:
+            for neuron in activity_dict_SST[animal]:
+                per_cell_velocity.append(factors_dict_SST[animal]['Velocity'])
+
+        num_trials = per_cell_velocity[0].shape[1]
+        pf_scale = np.linspace(0, place_field_sf, num_trials)
+
+        activity_list = []
+        for animal in activity_dict_SST:
+            for neuron in activity_dict_SST[animal]:
+                activity_list.append(np.mean(activity_dict_SST[animal][neuron], axis=1))
+
+        neurons_array = np.stack(activity_list)
+        combined_gaussian = np.mean(neurons_array, axis=0)
+
+    elif cell_type == "NDNF":
+
+        per_cell_velocity = []
+        for animal in activity_dict_NDNF:
+            for neuron in activity_dict_NDNF[animal]:
+                per_cell_velocity.append(factors_dict_NDNF[animal]['Velocity'])
+
+        num_trials = per_cell_velocity[0].shape[1]
+        pf_scale = np.linspace(0, place_field_sf, num_trials)
+
+        activity_list = []
+        for animal in activity_dict_NDNF:
+            for neuron in activity_dict_NDNF[animal]:
+                activity_list.append(np.mean(activity_dict_NDNF[animal][neuron], axis=1))
+
+        neurons_array = np.stack(activity_list)
+        combined_gaussian = np.mean(neurons_array, axis=0)
+
+    velocity = per_cell_velocity[0]
+
+    if weight_type == "flat":
+        weight = np.ones(num_trials)
+
+    elif weight_type == "ramping_weight":
+        weight = pf_scale
+
+    elif weight_type == "step_weight":
+        weight = np.zeros(num_trials)
+        quint = len(weight) // 5
+
+        for i in range(5):
+            weight[i * quint: (i + 1) * quint] = (i + 1) / 5
+
+    weight = weight * weight_scale
+    velocity_correlation = weight * velocity ** (power)
+
+    #################### new function
+
+    a = np.tile(combined_gaussian, (num_trials, 1)).T
+    if ramping_field:
+        a = a * pf_scale
+
+    a = np.roll(a, shift=field_rotation_factor, axis=0)
+
+    noise = noise_sf * np.random.normal(0, 1, a.shape)
+
+    combined_gaussian_with_velocity = a + velocity_correlation + noise
+    std_dev = np.std(combined_gaussian_with_velocity)
+
+    num_trials = combined_gaussian_with_velocity.shape[1]
+    quintile_size = num_trials // 5
+
+    gaussian_quintiles = []
+    velocity_quintiles = []
+    ground_truth_qunitles_list = []
+
+    for i in range(5):
+        start_idx = i * quintile_size
+        end_idx = (num_trials if i == 4 else (i + 1) * quintile_size)
+
+        gaussian_quintile = combined_gaussian_with_velocity[:, start_idx:end_idx]
+        gaussian_quintiles.append(gaussian_quintile)
+
+        velocity_quintile = velocity[:, start_idx:end_idx]
+        velocity_quintiles.append(velocity_quintile)
+
+        ground_truth_qunitle = a[:, start_idx:end_idx]
+        ground_truth_qunitles_list.append(ground_truth_qunitle)
+
+    ################# Fitting Model (GLM or GAM)
+
+    mean_residual_list = []
+    mean_gaussian_list = []
+    mean_divided_list = []
+
+    residual_list = []
+    gaussian_list = []
+    divided_list = []
+    velocity_list = []
+    predicted_list = []
+
+    list_of_mean_lists = [mean_residual_list, mean_gaussian_list, mean_divided_list]
+    list_of_lists = [residual_list, gaussian_list, divided_list, velocity_list, predicted_list]
+
+    for i in range(5):
+        gaussian_quintile = gaussian_quintiles[i]
+        velocity_quintile = velocity_quintiles[i]
+
+        neuron_activity_flat = gaussian_quintile.flatten()
+        flattened_velocity = velocity_quintile.flatten().reshape(-1, 1)
+
+        if use_GAM:
+            model = LinearGAM().fit(flattened_velocity, neuron_activity_flat)
+            neuron_predicted_activity = model.predict(flattened_velocity)
+
+        else:
+            alphas = [0.1, 1, 10, 100, 1000, 5000]
+            model = RidgeCV(alphas=alphas, cv=None)
+            model.fit(flattened_velocity, neuron_activity_flat)
+            neuron_predicted_activity = model.predict(flattened_velocity)
+
+        neuron_predicted_activity = neuron_predicted_activity.reshape(velocity_quintile.shape)
+
+        residual = gaussian_quintile - neuron_predicted_activity
+
+        #         divide_data_by_velocity = np.where(velocity_quintile != 0, gaussian_quintile / velocity_quintile, np.nan)
+        #         divide_data_by_velocity = np.nan_to_num(divide_data_by_velocity, nan=0)
+
+        divide_data_by_velocity = np.divide(gaussian_quintile, velocity_quintile,
+                                            out=np.zeros_like(gaussian_quintile), where=velocity_quintile != 0)
+
+        mean_residual_list.append(np.mean(residual, axis=1))
+        mean_gaussian_list.append(np.mean(gaussian_quintile, axis=1))
+        mean_divided_list.append(np.mean(divide_data_by_velocity, axis=1))
+
+        gaussian_list.append(gaussian_quintile)
+        velocity_list.append(velocity_quintile)
+        residual_list.append(residual)
+        divided_list.append(divide_data_by_velocity)
+        predicted_list.append(neuron_predicted_activity)
+
+    residual_array = np.concatenate(residual_list, axis=1)
+    gaussian_array = np.concatenate(gaussian_list, axis=1)
+    divided_array = np.concatenate(divided_list, axis=1)
+    velocity_array = np.concatenate(velocity_list, axis=1)
+    predicted_array = np.concatenate(predicted_list, axis=1)
+
+    mean_residual_array = np.concatenate(residual_list, axis=1)
+    mean_gaussian_array = np.concatenate(gaussian_list, axis=1)
+    mean_divided_array = np.concatenate(divided_list, axis=1)
+    mean_velocity_array = np.concatenate(velocity_list, axis=1)
+
+    list_of_mean_arrays = [mean_residual_array, mean_gaussian_array, mean_divided_array, mean_velocity_array]
+    list_of_arrays = [residual_array, gaussian_array, divided_array, velocity_array, predicted_array]
+
+    MSE_by_quintile_list = []
+
+    for i in range(5):
+        MSE = (ground_truth_qunitles_list[i] - residual_list[i]) ** 2
+        MSE = np.mean(MSE)
+        MSE_by_quintile_list.append(MSE)
+        print(f"Q{i} MSE (Ground Truth - Residual)={MSE:.3f}")
+
+    print(f"Overall MSE All Quintiles {np.mean(MSE_by_quintile_list):.3f}")
+
+    print(f"field_rotation_factor {field_rotation_factor} place_field_sf {place_field_sf}")
+
+    if plot:
+        return a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field
+    else:
+        return MSE
+
+
 def get_GLM_R2(GLM_params):
     all_R2_values = np.array([GLM_params[animal][neuron]['R2_trialavg'] for animal in GLM_params for neuron in GLM_params[animal]])
     return all_R2_values
@@ -2015,6 +2311,10 @@ def calculate_delta_weights(GLM_params_first, GLM_params_last):
             delta_intercept = intercept_last - intercept_first
             delta_params[animal][cell] = {'weights':delta_weights, 'intercept':delta_intercept}
     return delta_params
+
+
+
+
 
 
 if __name__ == "__main__":
