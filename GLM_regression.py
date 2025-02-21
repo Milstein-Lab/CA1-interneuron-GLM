@@ -2235,9 +2235,6 @@ def get_synthetic_data_seperate_quintiles(activity_dict_SST, factors_dict_SST, w
 
         residual = gaussian_quintile - neuron_predicted_activity
 
-        #         divide_data_by_velocity = np.where(velocity_quintile != 0, gaussian_quintile / velocity_quintile, np.nan)
-        #         divide_data_by_velocity = np.nan_to_num(divide_data_by_velocity, nan=0)
-
         divide_data_by_velocity = np.divide(gaussian_quintile, velocity_quintile,
                                             out=np.zeros_like(gaussian_quintile), where=velocity_quintile != 0)
 

@@ -2322,7 +2322,7 @@ def plot_activity_residuals_correlation(reorganized_data, predicted_activity_lis
 
 
 def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field):
-
+  
     residual_q1 = quintiles_list[0]
     residual_q5 = quintiles_list[1]
     gaussian_q1 = quintiles_list[2]
@@ -2573,10 +2573,11 @@ def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, c
 
 def plot_synthetic_data_seperate_quintiles(a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field=True):
 
-    velocity_array = list_of_arrays[0]
-    residual_array = list_of_arrays[1]
-    gaussian_array = list_of_arrays[2]
-    divided_array = list_of_arrays[3]
+
+    residual_array = list_of_arrays[0]
+    gaussian_array = list_of_arrays[1]
+    divided_array = list_of_arrays[2]
+    velocity_array = list_of_arrays[3]
     predicted_array = list_of_arrays[4]
 
     mean_residual_array = list_of_mean_arrays[0]
