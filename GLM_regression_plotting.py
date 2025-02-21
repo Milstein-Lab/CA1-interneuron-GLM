@@ -2322,7 +2322,7 @@ def plot_activity_residuals_correlation(reorganized_data, predicted_activity_lis
 
 
 def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field):
-  
+
     residual_q1 = quintiles_list[0]
     residual_q5 = quintiles_list[1]
     gaussian_q1 = quintiles_list[2]
@@ -2476,21 +2476,23 @@ def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, c
     mean_corr_residual = np.mean(residual_velocity_correlation_list)
     mean_corr_divide = np.mean(divided_velocity_correlation_list)
 
-    axs[2, 0].plot(mean_gaussian_q1, color='r', label="Q1 Gaussian + Velocity", marker='o', markersize=3, alpha=0.8)
-    axs[2, 0].plot(mean_gaussian_q5, color='b', label="Q5 Gaussian + Velocity", marker='x', markersize=3, alpha=0.8)
-    axs[2, 0].set_xlabel("Position Bin", fontsize=12)
-    axs[2, 0].set_ylabel("Mean Activity", fontsize=12)
-    axs[2, 0].set_title("Mean Neural Activity Q1 Q5", fontsize=14)
-    axs[2, 0].set_ylim(min_data1-0.2, max_data1+0.2)
-    axs[2, 0].legend(fontsize=10)
+    # axs[2, 0].plot(mean_gaussian_q1, color='r', label="Q1 Gaussian + Velocity", marker='o', markersize=3, alpha=0.8)
+    # axs[2, 0].plot(mean_gaussian_q5, color='b', label="Q5 Gaussian + Velocity", marker='x', markersize=3, alpha=0.8)
+    # axs[2, 0].set_xlabel("Position Bin", fontsize=12)
+    # axs[2, 0].set_ylabel("Mean Activity", fontsize=12)
+    # axs[2, 0].set_title("Mean Neural Activity Q1 Q5", fontsize=14)
+    # axs[2, 0].set_ylim(min_data1-0.2, max_data1+0.2)
+    # axs[2, 0].legend(fontsize=10)
 
-    axs[2, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Gaussian", alpha=0.8)
-    axs[2, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Gaussian", alpha=0.8)
+    axs[2, 1].plot(mean_gaussian_q1, color='r', label="Q1 Activity", alpha=0.8)
+    axs[2, 1].plot(mean_gaussian_q5, color='b', label="Q5 Activity", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[2, 1].set_xlabel("Position Bin", fontsize=12)
     axs[2, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
     axs[2, 1].set_title(f"Ground Truth Q1 Q5 \nMSE={MSE:.3f}", fontsize=14)
     axs[2, 1].set_ylim(min_data1-0.2, max_data1+0.2)
-    axs[2, 1].legend(fontsize=10)
+    axs[2, 1].legend(fontsize=7)
 
     trial_numbers=np.arange(len(activity_velocity_correlation_list))
     slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, activity_velocity_correlation_list)
@@ -2503,21 +2505,23 @@ def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, c
     axs[2, 2].set_title(f"Trial# vs Individual Trial R Value \nSlope={slope:.4f}", fontsize=14)
     axs[2, 2].set_ylim(-1.2, 1.2)
 
-    axs[3, 0].plot(mean_residual_q1, color='r', label="Q1 Residuals", marker='o', markersize=3, alpha=0.8)
-    axs[3, 0].plot(mean_residual_q5, color='b', label="Q5 Residuals", marker='x', markersize=3, alpha=0.8)
-    axs[3, 0].set_xlabel("Position Bin", fontsize=12)
-    axs[3, 0].set_ylabel("Mean Residual Activity", fontsize=12)
-    axs[3, 0].set_title("Mean Residuals Q1 Q5", fontsize=14)
-    axs[3, 0].set_ylim(min_data2-0.2, max_data2+0.2)
-    axs[3, 0].legend(fontsize=10)
+    # axs[3, 0].plot(mean_residual_q1, color='r', label="Q1 Residuals", marker='o', markersize=3, alpha=0.8)
+    # axs[3, 0].plot(mean_residual_q5, color='b', label="Q5 Residuals", marker='x', markersize=3, alpha=0.8)
+    # axs[3, 0].set_xlabel("Position Bin", fontsize=12)
+    # axs[3, 0].set_ylabel("Mean Residual Activity", fontsize=12)
+    # axs[3, 0].set_title("Mean Residuals Q1 Q5", fontsize=14)
+    # axs[3, 0].set_ylim(min_data2-0.2, max_data2+0.2)
+    # axs[3, 0].legend(fontsize=10)
 
-    axs[3, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Gaussian", alpha=0.8)
-    axs[3, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Gaussian", alpha=0.8)
+    axs[3, 1].plot(mean_residual_q1, color='r', label="Q1 Residuals", alpha=0.8)
+    axs[3, 1].plot(mean_residual_q5, color='b', label="Q5 Residuals", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[3, 1].set_xlabel("Position Bin", fontsize=12)
     axs[3, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
     axs[3, 1].set_title(f"Ground Truth Q1 Q5 \nMSE={MSE:.3f}", fontsize=14)
     axs[3, 1].set_ylim(min_data1-0.2, max_data1+0.2)
-    axs[3, 1].legend(fontsize=10)
+    axs[3, 1].legend(fontsize=7)
 
     trial_numbers=np.arange(len(residual_velocity_correlation_list))
     slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, residual_velocity_correlation_list)
@@ -2536,21 +2540,23 @@ def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, c
 
 #############  Dividing by velocity - Christines original model
 
-    axs[4, 0].plot(mean_divided_q1, color='r', label="Q1 Gaussian / Velocity", marker='o', markersize=3, alpha=0.8)
-    axs[4, 0].plot(mean_divided_q5, color='b', label="Q5 Gaussian / Velocity", marker='x', markersize=3, alpha=0.8)
-    axs[4, 0].set_xlabel("Position Bin", fontsize=12)
-    axs[4, 0].set_ylabel("Mean Activity", fontsize=12)
-    axs[4, 0].set_title("Mean Neural Activity / Velocity Q1 Q5", fontsize=14)
-    axs[4, 0].set_ylim(min_data2-0.2, max_data2+0.2)
-    axs[4, 0].legend(fontsize=10)
 
-    axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Gaussian", alpha=0.8)
-    axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Gaussian", alpha=0.8)
+    imd = axs[4, 0].imshow(divide_data_by_velocity.T, aspect="auto")
+    axs[4, 0].set_xlabel("Position Bin", fontsize=12)
+    axs[4, 0].set_ylabel("Divided Activity", fontsize=12)
+    axs[4, 0].set_title("Activity/Velocity", fontsize=14)
+    axs[4, 0].legend(fontsize=10)
+    fig.colorbar(imd, ax=axs[4,0])
+
+    axs[4, 1].plot(mean_divided_q1, color='r', label="Q1 Activity/Velocity", alpha=0.8)
+    axs[4, 1].plot(mean_divided_q5, color='b', label="Q5 Activity/Velocity", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[4, 1].set_xlabel("Position Bin", fontsize=12)
     axs[4, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
     axs[4, 1].set_title(f"Ground Truth Q1 Q5 \nMSE={MSE:.3f}", fontsize=14)
     axs[4, 1].set_ylim(min_data1-0.2, max_data1+0.2)
-    axs[4, 1].legend(fontsize=10)
+    axs[4, 1].legend(fontsize=7)
 
     trial_numbers=np.arange(len(divided_velocity_correlation_list))
     slope, intercept, r_value, p_value, std_err = linregress(trial_numbers, divided_velocity_correlation_list)
@@ -2572,7 +2578,6 @@ def plot_synthetic_data(a, MSE, quintiles_list, mean_quintiles_list, velocity, c
 
 
 def plot_synthetic_data_seperate_quintiles(a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field=True):
-
 
     residual_array = list_of_arrays[0]
     gaussian_array = list_of_arrays[1]
