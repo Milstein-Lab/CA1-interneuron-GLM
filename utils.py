@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from tqdm.autonotebook import tqdm
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LinearRegression
+from scipy.stats import norm
+import random
 # from pygam import LinearGAM
 
 ###############################################################################################
@@ -121,6 +123,52 @@ def create_RNN_data_sequences(data_x, data_y, seq_length, split='trial'):
     return torch.tensor(np.array(X_seq), dtype=torch.float32), torch.tensor(np.array(y_seq), dtype=torch.float32)
 
 
+
+def example_EC_cell(velocity):
+    length = 50
+    num_trials = velocity.shape[1]
+    x = np.linspace(0, length - 1, length)
+
+    mean1 = 15
+    std_dev1 = 5
+    original_gaussian1 = norm.pdf(x, mean1, std_dev1)
+
+    mean2 = 35
+    std_dev2 = 5
+    original_gaussian2 = norm.pdf(x, mean2, std_dev2)
+
+    gaussian_list = []
+
+    for i in range(num_trials):
+        appear_1 = np.random.choice([0, 1])
+        appear_2 = np.random.choice([0, 1])
+
+        gaussian1 = original_gaussian1 * appear_1
+        gaussian2 = original_gaussian2 * appear_2
+
+        combined_gaussian = gaussian1 + gaussian2
+
+        bimodal_gaussian = combined_gaussian / np.max(combined_gaussian) if np.max(combined_gaussian) != 0 else combined_gaussian
+
+        gaussian_list.append(bimodal_gaussian)
+
+    pf = np.stack(gaussian_list)
+
+    return pf
+
+
+
+def BTSP_field(num_trials):
+    BTSP_trial = random.randint(0, num_trials)
+
+    trial_weights = np.zeros(num_trials)
+
+    trial_weights[BTSP_trial:] = 1
+
+    return trial_weights
+
+
+
 def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_field_scale=1, place_field_shift=0, velocity_weight_type='flat', velocity_weight=1, velocity_power=1, noise_scale=1):
     # 1. Make "ground truth" place field
     def get_average_cell_profile(activity_dict):
@@ -143,14 +191,25 @@ def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_f
     match place_field_type:
         case "flat":
             place_field_scale = np.ones(num_trials)
+            place_field *= place_field_scale
         case "positive_ramp":
             place_field_scale = np.linspace(0, place_field_scale, num_trials)
+            place_field *= place_field_scale
         case "negative_ramp":
             place_field_scale = np.linspace(place_field_scale, 0, num_trials)
+            place_field *= place_field_scale
         case "step":
             place_field_scale = staircase_vector(0, place_field_scale, num_steps=2, length=num_trials)
-    place_field *= place_field_scale
+            place_field *= place_field_scale
+        case "BTSP":
+            place_field_scale = BTSP_field(num_trials)
+            place_field *= place_field_scale
+        case "EC":
+            place_field = example_EC_cell(velocity)
+            place_field = place_field.T
+
     place_field = np.roll(place_field, shift=place_field_shift, axis=0)
+
 
     # 2. Combine the synthetic place field with velocity
     match velocity_weight_type:
