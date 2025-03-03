@@ -95,6 +95,17 @@ def get_residual_activity_dict(activity_dict, predicted_activity_dict):
     return residual_activity_dict
 
 
+def get_animal_neural_tensor(activity_dict, animal, renormalize=True):
+    # Get activity data in shape (trials x neurons x timebins)
+    neural_data = []
+    for cell_nr, activity_data in activity_dict[animal].items():
+        if renormalize: # Z-score the activity for each cell
+            activity_data = (activity_data - activity_data.mean()) / activity_data.std()
+        neural_data.append(activity_data.T)
+    neural_data = np.stack(neural_data, axis=1)
+    return neural_data
+
+
 def flatten_data(neuron_dict):
     flattened_data = {}
     for var in neuron_dict:
@@ -177,7 +188,7 @@ def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_f
 
 ############### Simple models ###############
 
-def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='ridge', renormalize=True, alphas=None):
+def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='ridge', alphas=None):
     GLM_params = {}
     predicted_activity_dict = {}
 
@@ -192,15 +203,11 @@ def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='r
             for var in animal_factors_dict:
                 animal_factors_dict[var] = animal_factors_dict[var][:, start_idx:end_idx]
 
-        if renormalize:
-            normalize_data(animal_factors_dict)
-
         for neuron_idx in activity_dict[animal]:
             neuron_activity = activity_dict[animal][neuron_idx]
             neuron_GLM_params, neuron_predicted_activity = fit_GLM(animal_factors_dict, neuron_activity, regression, alphas)
             GLM_params[animal][neuron_idx] = neuron_GLM_params
-            predicted_activity_dict[animal][neuron_idx] = neuron_predicted_activity.reshape(
-                activity_dict[animal][neuron_idx].shape)
+            predicted_activity_dict[animal][neuron_idx] = neuron_predicted_activity.reshape(activity_dict[animal][neuron_idx].shape)
                 
     return GLM_params, predicted_activity_dict
 
@@ -348,7 +355,7 @@ class ConvModel1D(nn.Module):
         out = self.conv1(x)
         return out
 
-    def fit(self, velocity, activity, learning_rate=0.0005, num_iterations = 10_000, plot=False):
+    def fit(self, velocity, activity, learning_rate=0.0005, num_iterations = 10_000, plot=False, ax=None):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         velocity_flat = torch.tensor(velocity.flatten()).float().unsqueeze(0).unsqueeze(0).to(device)
         activity_flat = torch.tensor(activity.flatten()).float().unsqueeze(0).unsqueeze(0).to(device)
@@ -356,7 +363,7 @@ class ConvModel1D(nn.Module):
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
         train_loss = []
-        for epoch in tqdm(range(num_iterations)): 
+        for epoch in range(num_iterations): 
             optimizer.zero_grad()
             activity_pred = self.forward(velocity_flat)
             loss = criterion(activity_pred, activity_flat)
@@ -367,13 +374,13 @@ class ConvModel1D(nn.Module):
 
         if plot:
             # Plot Training Loss
-            fig, ax = plt.subplots(figsize=(8, 3))
+            if ax is None:
+                fig, ax = plt.subplots(figsize=(8, 3))
             ax.set_xlabel("Epoch")
             ax.set_ylabel("Train Loss", color="k")
             ax.plot(train_loss, label="Train Loss", color="k")
             ax.tick_params(axis="y", labelcolor="k")
             plt.title("Training Loss")
-            fig.tight_layout()
             plt.show()
 
         return activity_pred[0,0].detach().cpu().numpy()
