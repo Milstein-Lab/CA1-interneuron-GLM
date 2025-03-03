@@ -2321,34 +2321,57 @@ def plot_activity_residuals_correlation(reorganized_data, predicted_activity_lis
             velocity_list.append(velocity)
 
 
-def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, velocity, combined_gaussian_with_velocity, neuron_predicted_activity, residual, divide_data_by_velocity, ramping_field):
+def get_overall_max_min(l, m, n, o, p, q, r, s):
+    maxs_list = []
+    mins_list = []
+    data_list = [l, m, n, o, p, q, r, s]
+    for i in data_list:
+        maxs_list.append(np.max(i))
+        mins_list.append(np.min(i))
 
-    non_z_score_MSE = np.mean((a-residual)**2)
-    print(f"non_z_score_MSE {non_z_score_MSE}")
+    overall_max = np.max(maxs_list)
+    overall_min = np.min(mins_list)
 
-    residual_q1 = quintiles_list[0]
-    residual_q5 = quintiles_list[1]
-    gaussian_q1 = quintiles_list[2]
-    gaussian_q5 = quintiles_list[3]
-    divided_q1 = quintiles_list[4]
-    divided_q5 = quintiles_list[5]
-    ground_truth_q1 = quintiles_list[6]
-    ground_truth_q5 = quintiles_list[7]
+    return overall_max, overall_min
 
-    mean_residual_q1 = mean_quintiles_list[0]
-    mean_residual_q5 = mean_quintiles_list[1]
-    mean_gaussian_q1 = mean_quintiles_list[2]
-    mean_gaussian_q5 = mean_quintiles_list[3]
-    mean_divided_q1 = mean_quintiles_list[4]
-    mean_divided_q5 = mean_quintiles_list[5]
-    mean_truth_q1 = mean_quintiles_list[6]
-    mean_truth_q5 = mean_quintiles_list[7]
+
+def plot_synthetic_data(MSE_activity, MSE_residual, MSE_divided, velocity_weight, place_field, velocity, combined_activity, neuron_predicted_activity, residual, divided_array, place_field_type, z_score=False):
+
+    activity_quintiles = get_quintiles_synthetic(combined_activity)
+    velocity_quintiles = get_quintiles_synthetic(velocity)
+    ground_truth_qunitles = get_quintiles_synthetic(place_field)
+    residuals_quintiles = get_quintiles_synthetic(residual)
+    divided_quintiles = get_quintiles_synthetic(divided_array)
+
+    residual_q1 = residuals_quintiles[0]
+    residual_q5 = residuals_quintiles[4]
+
+    activity_q1 = activity_quintiles[0]
+    activity_q5 = activity_quintiles[4]
+
+    divided_q1 = divided_quintiles[0]
+    divided_q5 = divided_quintiles[4]
+
+    ground_truth_q1 = ground_truth_qunitles[0]
+    ground_truth_q5 = ground_truth_qunitles[4]
+
+    mean_residual_q1 = np.mean(residual_q1, axis=1)
+    mean_residual_q5 = np.mean(residual_q5, axis=1)
+
+    mean_activity_q1 = np.mean(activity_q1, axis=1)
+    mean_activity_q5 = np.mean(activity_q5, axis=1)
+
+    mean_divided_q1 = np.mean(divided_q1, axis=1)
+    mean_divided_q5 = np.mean(divided_q5, axis=1)
+
+    mean_truth_q1 = np.mean(ground_truth_q1, axis=1)
+    mean_truth_q5 = np.mean(ground_truth_q5, axis=1)
 
 
     ################## overall correlations
 
     flat_velocity = velocity.flatten()
-    flat_activity = combined_gaussian_with_velocity.flatten()
+    flat_activity = combined_activity.flatten()
 
     velocity_activity_correlation, _ = pearsonr(flat_velocity, flat_activity)
 
@@ -2376,9 +2399,9 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
     for i in range(neuron_predicted_activity.shape[1]):
         trial_predicted_activity = neuron_predicted_activity[:, i]
         trial_velocity = velocity[:, i]
-        trial_activity = combined_gaussian_with_velocity[:, i]
+        trial_activity = combined_activity[:, i]
         trial_residual = residual[:, i]
-        trial_divided = divide_data_by_velocity[:, i]
+        trial_divided = divided_array[:, i]
 
         prediction_velocity_correlation, _ = pearsonr(trial_predicted_activity, trial_velocity)
         prediction_velocity_correlation_list.append(prediction_velocity_correlation)
@@ -2398,16 +2421,15 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
 
     fig, axs = plt.subplots(5, 3, figsize=(12, 14))
 
-    im1 = axs[0, 0].imshow(a.T, cmap='magma', aspect='auto')
+    im1 = axs[0, 0].imshow(place_field.T, cmap='magma', aspect='auto')
     axs[0, 0].set_xlabel("Trial", fontsize=12)
     axs[0, 0].set_ylabel("Position Bin", fontsize=12)
-    if ramping_field:
-        axs[0, 0].set_title("Acquired Place Field", fontsize=14)
-    else:
-        axs[0, 0].set_title("Pure Gaussian Place Field", fontsize=14)
+    axs[0, 0].set_title("Place Field", fontsize=14)
     fig.colorbar(im1, ax=axs[0, 0])
 
-    axs[0, 1].plot(weight)
+    weight_length = np.ones(place_field.shape[1])
+
+    axs[0, 1].plot(velocity_weight*weight_length)
     axs[0, 1].set_title("Velocity Weight", fontsize=14)
     axs[0, 1].set_xlabel("Trial", fontsize=12)
     axs[0, 1].set_ylabel("Weight", fontsize=12)
@@ -2439,7 +2461,7 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
 
 
 
-    data_list1 = [mean_gaussian_q1, mean_gaussian_q5, mean_residual_q1, mean_residual_q5, mean_divided_q1, mean_divided_q5]
+    data_list1 = [mean_activity_q1, mean_activity_q5, mean_residual_q1, mean_residual_q5, mean_divided_q1, mean_divided_q5]
     max_list = []
     for i in data_list1:
         max_val = np.max(i)
@@ -2474,38 +2496,30 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
     mean_corr_residual = np.mean(residual_velocity_correlation_list)
     mean_corr_divide = np.mean(divided_velocity_correlation_list)
 
-    combined_gaussian_with_velocity_normalized = (combined_gaussian_with_velocity - np.mean(combined_gaussian_with_velocity)) / np.std(combined_gaussian_with_velocity)
-    ground_truth_2d_normalized = (a - np.mean(a)) / np.std(a)
-    residuals_normalized = (residual - np.mean(residual)) / np.std(residual)
-
-    MSE_gaussian = (ground_truth_2d_normalized - combined_gaussian_with_velocity_normalized) ** 2
-    MSE_gaussian = np.mean(MSE_gaussian)
+    if z_score:
+        combined_activity = (combined_activity - np.mean(combined_activity)) / np.std(combined_activity)
+        place_field = (place_field - np.mean(place_field)) / np.std(place_field)
+        residual = (residual - np.mean(residual)) / np.std(residual)
 
     num_trials = residual.shape[1]
     quintile_size = num_trials // 5
-    ground_truth_q1 = np.mean(ground_truth_2d_normalized[:, :quintile_size], axis=1)
-    ground_truth_q5 = np.mean(ground_truth_2d_normalized[:, -quintile_size:], axis=1)
 
-    activity_q1 = np.mean(combined_gaussian_with_velocity_normalized[:, :quintile_size], axis=1)
-    activity_q5 = np.mean(combined_gaussian_with_velocity_normalized[:, -quintile_size:], axis=1)
-
-    residuals_q1 = np.mean(residuals_normalized[:, :quintile_size], axis=1)
-    residuals_q5 = np.mean(residuals_normalized[:, -quintile_size:], axis=1)
-
-    im2 = axs[2, 0].imshow(combined_gaussian_with_velocity.T, cmap='magma', aspect='auto')
+    im2 = axs[2, 0].imshow(combined_activity.T, cmap='magma', aspect='auto')
     axs[2, 0].set_xlabel("Trial", fontsize=12)
     axs[2, 0].set_ylabel("Position Bin", fontsize=12)
     axs[2, 0].set_title("Synthetic Neural Activity", fontsize=14)
     fig.colorbar(im2, ax=axs[2, 0])
 
-    axs[2, 1].plot(activity_q1, color='r', label="Q1 Activity", alpha=0.8)
-    axs[2, 1].plot(activity_q5, color='b', label="Q5 Activity", alpha=0.8)
-    axs[2, 1].plot(ground_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
-    axs[2, 1].plot(ground_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    overall_max, overall_min = get_overall_max_min(mean_divided_q1, mean_divided_q1, mean_residual_q1, mean_residual_q5, mean_activity_q1, mean_activity_q5, mean_truth_q1, mean_truth_q5)
+
+    axs[2, 1].plot(mean_activity_q1, color='r', label="Q1 Activity", alpha=0.8)
+    axs[2, 1].plot(mean_activity_q5, color='b', label="Q5 Activity", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[2, 1].set_xlabel("Position Bin", fontsize=12)
     axs[2, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
-    axs[2, 1].set_title(f"z-score normalized activity, gaussian\nMSE={MSE_gaussian:.3f}", fontsize=14)
-    axs[2, 1].set_ylim(-5, 5)
+    axs[2, 1].set_title(f"z-score normalized activity, gaussian\nMSE={MSE_activity:.3f}", fontsize=14)
+    axs[2, 1].set_ylim(overall_min, overall_max)
     axs[2, 1].legend(fontsize=7)
 
     trial_numbers=np.arange(len(activity_velocity_correlation_list))
@@ -2519,33 +2533,20 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
     axs[2, 2].set_title(f"Trial# vs Individual Trial R Value \nSlope={slope:.4f}", fontsize=14)
     axs[2, 2].set_ylim(-1.2, 1.2)
 
-    # axs[3, 0].plot(mean_residual_q1, color='r', label="Q1 Residuals", marker='o', markersize=3, alpha=0.8)
-    # axs[3, 0].plot(mean_residual_q5, color='b', label="Q5 Residuals", marker='x', markersize=3, alpha=0.8)
-    # axs[3, 0].set_xlabel("Position Bin", fontsize=12)
-    # axs[3, 0].set_ylabel("Mean Residual Activity", fontsize=12)
-    # axs[3, 0].set_title("Mean Residuals Q1 Q5", fontsize=14)
-    # axs[3, 0].set_ylim(min_data2-0.2, max_data2+0.2)
-    # axs[3, 0].legend(fontsize=10)
-
-    # ground_truth_q1 = combined_gaussian_with_velocity_normalized[:, :quintile_size]
-    # ground_truth_q5 = combined_gaussian_with_velocity_normalized[:, -quintile_size:]
-
-    MSE_gaussian = np.mean((ground_truth_2d_normalized - residuals_normalized) ** 2)
-
     im5 = axs[3, 0].imshow(residual.T, cmap='magma', aspect='auto')
     axs[3, 0].set_xlabel("Trial", fontsize=12)
     axs[3, 0].set_ylabel("Position Bin", fontsize=12)
     axs[3, 0].set_title("GLM Velocity-Subtracted Residuals", fontsize=14)
     fig.colorbar(im5, ax=axs[3, 0])
 
-    axs[3, 1].plot(residuals_q1, color='r', label="Q1 Residuals", alpha=0.8)
-    axs[3, 1].plot(residuals_q5, color='b', label="Q5 Residuals", alpha=0.8)
-    axs[3, 1].plot(ground_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
-    axs[3, 1].plot(ground_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_residual_q1, color='r', label="Q1 Residuals", alpha=0.8)
+    axs[3, 1].plot(mean_residual_q5, color='b', label="Q5 Residuals", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[3, 1].set_xlabel("Position Bin", fontsize=12)
     axs[3, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
-    axs[3, 1].set_title(f"z-scored residual, gaussian \nMSE={MSE_gaussian:.3f}", fontsize=14)
-    axs[3, 1].set_ylim(-5, 5)
+    axs[3, 1].set_title(f"z-scored residual, gaussian \nMSE={MSE_residual:.3f}", fontsize=14)
+    axs[3, 1].set_ylim(overall_min, overall_max)
     axs[3, 1].legend(fontsize=7)
 
     trial_numbers=np.arange(len(residual_velocity_correlation_list))
@@ -2566,39 +2567,29 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
 #############  Dividing by velocity - Christines original model
 
 
-    imd = axs[4, 0].imshow(divide_data_by_velocity.T, cmap='magma', aspect="auto", vmin=0, vmax=5)
+    imd = axs[4, 0].imshow(divided_array.T, cmap='magma', aspect="auto")
     axs[4, 0].set_xlabel("Position Bin", fontsize=12)
     axs[4, 0].set_ylabel("Divided Activity", fontsize=12)
     axs[4, 0].set_title("Activity/Velocity", fontsize=14)
     fig.colorbar(imd, ax=axs[4,0])
 
-    divide_data_by_velocity_normalized = (divide_data_by_velocity - np.mean(divide_data_by_velocity)) / np.std(divide_data_by_velocity)
-    # ground_truth_2d_normalized = (a - np.mean(a)) / np.std(a)
+    if z_score:
+        divided_array = (divided_array - np.mean(divided_array)) / np.std(divided_array)
 
-    MSE_divided = (ground_truth_2d_normalized - divide_data_by_velocity_normalized) ** 2
-    MSE_divided = np.mean(MSE_divided)
+    # MSE_divided = (a - divide_data_by_velocity) ** 2
+    # MSE_divided = np.mean(MSE_divided)
 
-    # mean_truth_q1_normalized = (mean_truth_q1 - np.mean(mean_truth_q1)) / np.std(mean_truth_q1)
-    # mean_truth_q5_normalized = (mean_truth_q5 - np.mean(mean_truth_q5)) / np.std(mean_truth_q5)
+    mean_divided_q1_norm = np.mean(divided_array[:,:quintile_size], axis=1)
+    mean_divided_q5_norm = np.mean(divided_array[:, -quintile_size:], axis=1)
 
-    # mean_gaussian_list_norm_q1 = (mean_gaussian_q1 - np.mean(mean_gaussian_q1)) / np.std(mean_gaussian_q1)
-    # mean_gaussian_list_norm_q5 = (mean_gaussian_q5 - np.mean(mean_gaussian_q5)) / np.std(mean_gaussian_q5)
-
-    mean_divided_q1_norm = np.mean(divide_data_by_velocity_normalized[:,:quintile_size], axis=1)
-    mean_divided_q5_norm = np.mean(divide_data_by_velocity_normalized[:, -quintile_size:], axis=1)
-
-
-    # mean_divided_q1_norm = (mean_divided_q1 - np.mean(mean_divided_q1)) / np.std(mean_divided_q1)
-    # mean_divided_q5_norm = (mean_divided_q5 - np.mean(mean_divided_q5)) / np.std(mean_divided_q5)
-
-    axs[4, 1].plot(mean_divided_q1_norm, color='r', label="Q1 Activity/Velocity", alpha=0.8)
-    axs[4, 1].plot(mean_divided_q5_norm, color='b', label="Q5 Activity/Velocity", alpha=0.8)
-    axs[4, 1].plot(ground_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
-    axs[4, 1].plot(ground_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_divided_q1, color='r', label="Q1 Activity/Velocity", alpha=0.8)
+    axs[4, 1].plot(mean_divided_q5, color='b', label="Q5 Activity/Velocity", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[4, 1].set_xlabel("Position Bin", fontsize=12)
     axs[4, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
     axs[4, 1].set_title(f"z-score divided, ground truth \nMSE={MSE_divided:.3f}", fontsize=14)
-    axs[4, 1].set_ylim(-5, 5)
+    axs[4, 1].set_ylim(overall_min, overall_max)
     axs[4, 1].legend(fontsize=7)
 
     trial_numbers=np.arange(len(divided_velocity_correlation_list))
@@ -2620,40 +2611,24 @@ def plot_synthetic_data(weight, a, MSE, quintiles_list, mean_quintiles_list, vel
     plt.show()
 
 
-def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussian_with_velocity, ground_truth_qunitles_list, list_of_lists, list_of_mean_lists, list_of_arrays, list_of_mean_arrays, MSE, MSE_by_quintile_list, ramping_field=True, z_score=False):
+def plot_synthetic_data_seperate_quintiles(MSE_gaussian, MSE_residual, MSE_divided, place_field, velocity_array, residual_array, combined_activity, divided_array, predicted_array, velocity_weight, place_field_type="flat", z_score=False):
 
-
-    residual_array = list_of_arrays[0]
-    gaussian_array = list_of_arrays[1]
-    divided_array = list_of_arrays[2]
-    velocity_array = list_of_arrays[3]
-    predicted_array = list_of_arrays[4]
-
-    mean_residual_array = list_of_mean_arrays[0]
-    mean_gaussian_array = list_of_mean_arrays[1]
-    mean_divided_array = list_of_mean_arrays[2]
-    mean_velocity_array = list_of_mean_arrays[3]
-
-    mean_residual_list = list_of_mean_lists[0]
-    mean_gaussian_list = list_of_mean_lists[1]
-    mean_divided_list = list_of_mean_lists[2]
-
-    residual_list = list_of_lists[0]
-    gaussian_list = list_of_lists[1]
-    divided_list = list_of_lists[2]
-    velocity_list = list_of_lists[3]
-    predicted_list = list_of_lists[4]
+    gaussian_quintiles = get_quintiles_synthetic(combined_activity)
+    velocity_quintiles = get_quintiles_synthetic(velocity_array)
+    ground_truth_qunitles = get_quintiles_synthetic(place_field)
+    residuals_quintiles = get_quintiles_synthetic(residual_array)
+    divided_quintiles = get_quintiles_synthetic(divided_array)
 
     ################## overall correlations
-    ground_truth_q1 = ground_truth_qunitles_list[0]
-    ground_truth_q5 = ground_truth_qunitles_list[4]
+    ground_truth_q1 = ground_truth_qunitles[0]
+    ground_truth_q5 = ground_truth_qunitles[4]
 
     mean_truth_q1 = np.mean(ground_truth_q1, axis=1)
     mean_truth_q5 = np.mean(ground_truth_q5, axis=1)
 
     flat_velocity = velocity_array.flatten()
     flat_residual = residual_array.flatten()
-    flat_activity = gaussian_array.flatten()
+    flat_activity = combined_activity.flatten()
 
     velocity_activity_correlation, _ = pearsonr(flat_velocity, flat_activity)
 
@@ -2675,10 +2650,10 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
     residual_velocity_correlation_list = []
     divided_velocity_correlation_list = []
 
-    for i in range(mean_gaussian_array.shape[1]):
+    for i in range(predicted_array.shape[1]):
         trial_predicted_activity = predicted_array[:, i]
         trial_velocity = velocity_array[:, i]
-        trial_activity = gaussian_array[:, i]
+        trial_activity = combined_activity[:, i]
         trial_residual = residual_array[:, i]
         trial_divided = divided_array[:, i]
 
@@ -2698,28 +2673,28 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
 
     fig, axs = plt.subplots(5, 3, figsize=(12, 14))
 
-    im1 = axs[0, 0].imshow(a.T, cmap='magma', aspect='auto')
+    im1 = axs[0, 0].imshow(place_field.T, cmap='magma', aspect='auto')
     axs[0, 0].set_xlabel("Trial", fontsize=12)
     axs[0, 0].set_ylabel("Position Bin", fontsize=12)
-    if ramping_field:
-        axs[0, 0].set_title("Acquired Place Field", fontsize=14)
-    else:
-        axs[0, 0].set_title("Pure Gaussian Place Field", fontsize=14)
+    axs[0, 0].set_title("Place Field", fontsize=14)
     fig.colorbar(im1, ax=axs[0, 0])
 
-    axs[0, 1].plot(weight)
+    weights = np.ones(place_field.shape[1])
+
+    axs[0, 1].plot(weights*velocity_weight)
     axs[0, 1].set_title("Velocity Weight", fontsize=14)
     axs[0, 1].set_xlabel("Trial", fontsize=12)
     axs[0, 1].set_ylabel("Position Bin", fontsize=12)
 
-    im3 = axs[0, 2].imshow(velocity.T, cmap='viridis', aspect='auto')
+    im3 = axs[0, 2].imshow(velocity_array.T, cmap='viridis', aspect='auto')
     axs[0, 2].set_title("Velocity", fontsize=14)
-    axs[0, 2].set_xlabel("Trial", fontsize=12)
-    axs[0, 2].set_ylabel("Position Bin", fontsize=12)
+    axs[0, 2].set_xlabel("Position Bin", fontsize=12)
+    axs[0, 2].set_ylabel("Trial", fontsize=12)
     fig.colorbar(im3, ax=axs[0, 2])
 
 
-    num_points, num_trials = velocity.shape
+    num_points, num_trials = velocity_array.shape
+
     trial_colors = np.repeat(np.linspace(0, 1, num_trials), num_points)
 
     cmap = plt.colormaps.get_cmap("viridis")
@@ -2736,7 +2711,7 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
     axs[1, 1].set_ylabel("Synthetic Neural Activity", fontsize=12)
     axs[1, 1].set_title(f"Velocity vs. Residuals R={velocity_residual_correlation:.2f}", fontsize=14)
 
-    data_list1 = [gaussian_list[0], gaussian_list[4], residual_list[0], residual_list[4], divided_list[0], divided_list[4]]
+    data_list1 = [gaussian_quintiles[0], gaussian_quintiles[4], residuals_quintiles[0], residuals_quintiles[4], divided_quintiles[0], divided_quintiles[4]]
     max_list = []
     for i in data_list1:
         max_val = np.max(i)
@@ -2770,50 +2745,49 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
     mean_corr_residual = np.mean(residual_velocity_correlation_list)
     mean_corr_divide = np.mean(divided_velocity_correlation_list)
 
-    ground_truth_2d = np.concatenate(ground_truth_qunitles_list, axis=1)
+    ground_truth_2d = np.concatenate(ground_truth_qunitles, axis=1)
 
     if z_score:
-        gaussian_array = (gaussian_array - np.mean(gaussian_array)) / np.std(gaussian_array)
+        combined_activity = (combined_activity - np.mean(combined_activity)) / np.std(combined_activity)
         ground_truth_2d = (ground_truth_2d - np.mean(ground_truth_2d)) / np.std(ground_truth_2d)
-        residuals_array = (residual_array - np.mean(residual_array)) / np.std(residual_array)
+        residual_array = (residual_array - np.mean(residual_array)) / np.std(residual_array)
         divided_array = (divided_array - np.mean(divided_array)) / np.std(divided_array)
-
-    MSE_gaussian = np.mean((ground_truth_2d - gaussian_array) ** 2)
-
-    MSE_residuals = np.mean((ground_truth_2d - residuals_array) **2)
 
 
     num_trials = residual_array.shape[1]
     quintile_size = num_trials // 5
 
-    mean_truth_q1_normalized = np.mean(ground_truth_2d[:, :quintile_size], axis=1)
-    mean_truth_q5_normalized = np.mean(ground_truth_2d[:, -quintile_size:], axis=1)
+    mean_truth_q1 = np.mean(ground_truth_2d[:, :quintile_size], axis=1)
+    mean_truth_q5 = np.mean(ground_truth_2d[:, -quintile_size:], axis=1)
 
-    mean_gaussian_list_norm_q1 = np.mean(gaussian_array_normalized[:, :quintile_size], axis=1)
-    mean_gaussian_list_norm_q5 = np.mean(gaussian_array_normalized[:, -quintile_size:], axis=1)
+    mean_gaussian_q1 = np.mean(combined_activity[:, :quintile_size], axis=1)
+    mean_gaussian_q5 = np.mean(combined_activity[:, -quintile_size:], axis=1)
 
-    residuals_normalized_q1 = np.mean(residuals_normalized[:, :quintile_size], axis=1)
-    residuals_normalized_q5 = np.mean(residuals_normalized[:, -quintile_size:], axis=1)
+    mean_residuals_q1 = np.mean(residual_array[:, :quintile_size], axis=1)
+    mean_residuals_q5 = np.mean(residual_array[:, -quintile_size:], axis=1)
 
-    divided_array_q1 = np.mean(divided_array[:, :quintile_size], axis=1)
-    divided_array_q5 = np.mean(divided_array[:, -quintile_size:], axis=1)
+    mean_divided_array_q1 = np.mean(divided_array[:, :quintile_size], axis=1)
+    mean_divided_array_q5 = np.mean(divided_array[:, -quintile_size:], axis=1)
 
-    im2 = axs[2, 0].imshow(combined_gaussian_with_velocity.T, cmap='magma', aspect='auto')
-    axs[2, 0].set_xlabel("Trial", fontsize=12)
-    axs[2, 0].set_ylabel("Position Bin", fontsize=12)
+    im2 = axs[2, 0].imshow(combined_activity.T, cmap='magma', aspect='auto')
+    axs[2, 0].set_ylabel("Trial", fontsize=12)
+    axs[2, 0].set_xlabel("Position Bin", fontsize=12)
     axs[2, 0].set_title("Synthetic Neural Activity", fontsize=14)
     fig.colorbar(im2, ax=axs[2, 0])
 
-    axs[2, 1].plot(mean_truth_q1_normalized, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
-    axs[2, 1].plot(mean_truth_q5_normalized, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
-    axs[2, 1].plot(mean_gaussian_list_norm_q1, color='r', label="Q1 Activity", alpha=0.8)
-    axs[2, 1].plot(mean_gaussian_list_norm_q5, color='b', label="Q5 Activity", alpha=0.8)
+    overall_max, overall_min = get_overall_max_min(mean_truth_q1, mean_truth_q5, mean_gaussian_q1, mean_gaussian_q5, mean_residuals_q1, mean_residuals_q5, mean_divided_array_q1, mean_divided_array_q5)
+
+    axs[2, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[2, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[2, 1].plot(mean_gaussian_q1, color='r', label="Q1 Activity", alpha=0.8)
+    axs[2, 1].plot(mean_gaussian_q5, color='b', label="Q5 Activity", alpha=0.8)
     axs[2, 1].set_xlabel("Position Bin", fontsize=12)
     axs[2, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
     if z_score:
         axs[2, 1].set_title(f"z-scored activity, gaussian \nMSE={MSE_gaussian:.3f}", fontsize=14)
     else:
         axs[2, 1].set_title(f"activity, gaussian \nMSE={MSE_gaussian:.3f}", fontsize=14)
+    axs[2, 1].set_ylim(-3, 3)
     axs[2, 1].legend(fontsize=7)
 
     trial_numbers = np.arange(len(activity_velocity_correlation_list))
@@ -2828,21 +2802,20 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
     axs[2, 2].set_ylim(-1.2, 1.2)
 
     im5 = axs[3, 0].imshow(residual_array.T, cmap='magma', aspect='auto')
-    axs[3, 0].set_xlabel("Trial", fontsize=12)
-    axs[3, 0].set_ylabel("Position Bin", fontsize=12)
+    axs[3, 0].set_ylabel("Trial", fontsize=12)
+    axs[3, 0].set_xlabel("Position Bin", fontsize=12)
     axs[3, 0].set_title("GLM Velocity-Subtracted Residuals", fontsize=14)
     fig.colorbar(im5, ax=axs[3, 0])
 
-    axs[3, 1].plot(mean_truth_q1_normalized, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
-    axs[3, 1].plot(mean_truth_q5_normalized, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
-    axs[3, 1].plot(residuals_normalized_q1, color='r', label="Q1 Residuals", alpha=0.8)
-    axs[3, 1].plot(residuals_normalized_q5, color='b', label="Q5 Residuals", alpha=0.8)
+
+    axs[3, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[3, 1].plot(mean_residuals_q1, color='r', label="Q1 Residuals", alpha=0.8)
+    axs[3, 1].plot(mean_residuals_q5, color='b', label="Q5 Residuals", alpha=0.8)
     axs[3, 1].set_xlabel("Position Bin", fontsize=12)
     axs[3, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
-    #if z_score:
-    axs[3, 1].set_title(f"z-scored residuals, gaussian \nMSE={MSE_residuals_normalized:.3f}", fontsize=14)
-    # else:
-    #     axs[3, 1].set_title(f"residuals, gaussian \nMSE={np.mean(MSE_by_quintile_list):.3f}", fontsize=14)
+    axs[3, 1].set_ylim(overall_min, overall_max)
+    axs[3, 1].set_title(f"z-scored residuals, gaussian \nMSE={MSE_residual:.3f}", fontsize=14)
     axs[3, 1].legend(fontsize=7)
 
     trial_numbers = np.arange(len(residual_velocity_correlation_list))
@@ -2861,31 +2834,31 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
 
     #############  Dividing by velocity - Christines original model
 
-    im = axs[4, 0].imshow(divided_array.T, cmap='magma', aspect='auto', vmin=0, vmax=5)
-    axs[4, 0].set_xlabel("Position Bin", fontsize=12)
-    axs[4, 0].set_ylabel("Trial", fontsize=12)
+    im = axs[4, 0].imshow(divided_array.T, cmap='magma', aspect='auto')
+    axs[4, 0].set_ylabel("Position Bin", fontsize=12)
+    axs[4, 0].set_xlabel("Trial", fontsize=12)
     axs[4, 0].set_title("Neural Activity / Velocity", fontsize=14)
     plt.colorbar(im, ax=axs[4, 0])
 
     # ground_truth_2d = np.concatenate(ground_truth_qunitles_list, axis=1)
+    #
+    # divided_array_normalized = (divided_array - np.mean(divided_array)) / np.std(divided_array)
 
-    divided_array_normalized = (divided_array - np.mean(divided_array)) / np.std(divided_array)
+    # MSE_divided = (ground_truth_2d - divided_array) ** 2
+    # MSE_divided = np.mean(MSE_divided)
 
-    MSE_divided = (ground_truth_2d_normalized - divided_array_normalized) ** 2
-    MSE_divided = np.mean(MSE_divided)
+    mean_divided_q1_norm = np.mean(divided_array[:,:quintile_size], axis=1)
+    mean_divided_q5_norm = np.mean(divided_array[:, -quintile_size:], axis=1)
 
-    mean_divided_q1_norm = np.mean(divided_array_normalized[:,:quintile_size], axis=1)
-    mean_divided_q5_norm = np.mean(divided_array_normalized[:, -quintile_size:], axis=1)
-
-
-    axs[4, 1].plot(mean_truth_q1_normalized, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
-    axs[4, 1].plot(mean_truth_q5_normalized, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
-    axs[4, 1].plot(mean_divided_q1_norm, color='r', label="Q1 Activity / Velocity", alpha=0.8)
-    axs[4, 1].plot(mean_divided_q5_norm, color='b', label="Q5 Activity / Velocity", alpha=0.8)
+    
+    axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
+    axs[4, 1].plot(mean_divided_array_q1, color='r', label="Q1 Activity / Velocity", alpha=0.8)
+    axs[4, 1].plot(mean_divided_array_q5, color='b', label="Q5 Activity / Velocity", alpha=0.8)
     axs[4, 1].set_xlabel("Position Bin", fontsize=12)
     axs[4, 1].set_ylabel("Ground Truth Q1 Q5", fontsize=12)
     axs[4, 1].set_title(f"z-scored normalized divided, gaussian \nMSE={MSE_divided:.3f}", fontsize=14)
-    # axs[4, 1].set_ylim(min_data1 - 2, max_data1 + 2)
+    axs[4, 1].set_ylim(overall_min, overall_max)
     axs[4, 1].legend(fontsize=7)
 
     trial_numbers = np.arange(len(divided_velocity_correlation_list))
@@ -2906,7 +2879,7 @@ def plot_synthetic_data_seperate_quintiles(weight, a, velocity, combined_gaussia
     plt.show()
 
 
-def get_MSE_array_and_plot(activity_dict_SST, factors_dict_SST, cell_type="SST", weight_type="flat", noise_sf=0., ramping_field=True, use_GAM=False, power=1, weight_scale=1, multimodel=False):
+def get_MSE_array_and_plot(activity_dict, factors_dict, velocity_weight_type="flat", noise_scale=0., place_field_type="flat", use_GAM=True, velocity_power=1, velocity_weight=10, multimodel=False, z_score=False, which_MSE="residual"):
     rotation_array = np.array([-25, -12, 0, 12, 25])
     pf_amplitude_list = [1.0, 0.5, 0., -0.5, -1.0]
 
@@ -2917,69 +2890,57 @@ def get_MSE_array_and_plot(activity_dict_SST, factors_dict_SST, cell_type="SST",
     for i in rotation_array:
         aplitude_list = []
         for j in pf_amplitude_list:
-            if multimodel:
-                MSE = get_synthetic_data_seperate_quintiles(activity_dict_SST, factors_dict_SST, weight_type=weight_type, noise_sf=noise_sf, ramping_field=ramping_field, use_GAM=use_GAM, power=power, weight_scale=weight_scale, cell_type=cell_type, plot=False, field_rotation_factor=i, place_field_sf=j)
-            else:
-                MSE = get_synthetic_data(activity_dict_SST, factors_dict_SST, weight_type=weight_type, noise_sf=noise_sf, ramping_field=ramping_field, use_GAM=use_GAM, power=power, weight_scale=weight_scale, plot=False, field_rotation_factor=i, place_field_sf=j)
 
-            aplitude_list.append(MSE)
+            if multimodel:
+
+                MSE_activity, MSE_residual, MSE_divided, velocity_weight, place_field, velocity, residual, combined_activity, divided_array, neuron_predicted_activity, place_field_type, z_score = get_synthetic_data(activity_dict, factors_dict, velocity_weight_type=velocity_weight_type, noise_scale=noise_scale, place_field_type=place_field_type, use_GAM=use_GAM, velocity_power=velocity_power, velocity_weight=velocity_weight, place_field_shift=i, place_field_scale=j, z_score=z_score)
+
+
+            else:
+
+                MSE_activity, MSE_residual, MSE_divided, velocity_weight, place_field, velocity, residual_array, gaussian_array, divided_array, predicted_array, place_field_type, z_score = get_synthetic_data_seperate_quintiles(activity_dict, factors_dict, velocity_weight_type=velocity_weight_type, noise_scale=noise_scale, place_field_type=place_field_type, use_GAM=use_GAM, velocity_power=velocity_power,
+                                                                                                                                                                                                                                   velocity_weight=velocity_weight, place_field_shift=i, place_field_scale=j, z_score=z_score)
+            if which_MSE == "residual":
+                aplitude_list.append(MSE_residual)
+            elif which_MSE == "activity":
+                aplitude_list.append(MSE_activity)
+            elif which_MSE == "divided":
+                aplitude_list.append(MSE_divided)
+            else:
+                raise ValueError("which_mse takes 'residual', 'activity' ir 'divided'")
+
         overall_modulation_list.append(aplitude_list)
 
     test_array = np.array(overall_modulation_list)
-    print(f"test_array {test_array}")
+
+    print(f"which_MSE={which_MSE}")
+
+    #     print(f"velocity_weight_type {velocity_weight_type}")
+    #     print(f"noise_scale {noise_scale}")
+    #     print(f"place_field_type {place_field_type}")
+    #     print(f"use_GAM {use_GAM}")
+    #     print(f"velocity_weight {velocity_weight}")
+    #     print(f"multimodel {multimodel}")
 
     plt.imshow(test_array.T, aspect="auto")
     plt.yticks(ticks=np.arange(len(y_labels)), labels=y_labels)
     plt.xticks(ticks=np.arange(len(x_labels)), labels=x_labels)
     plt.xlabel("Position Bin Rotation")
     plt.ylabel("Place Field Amplitude")
-    if ramping_field:
-        if weight_type == "flat":
-            if multimodel:
-                if use_GAM:
-                    plt.title(f"Multimodel GAM Ramping PF, Flat Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Multimodel GLM Ramping PF, Flat Vel Wt={weight_scale}")
-            else:
-                if use_GAM:
-                    plt.title(f"Single Model GAM Ramping PF, Flat Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Single Model GLM Ramping PF, Flat Vel Wt={weight_scale}")
+    #     if ramping_field:
+    if multimodel:
+        if use_GAM:
+            plt.title(f"Multimodel GAM, PF={place_field_type}, Flat Vel Wt={velocity_weight}, noise={noise_scale}")
         else:
-            if multimodel:
-                if use_GAM:
-                    plt.title(f"Multimodel GAM Ramping PF, Ramping Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Multimodel GLM Ramping PF, Ramping Vel Wt={weight_scale}")
-            else:
-                if use_GAM:
-                    plt.title(f"Single Model GAM Ramping PF, Ramping Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Single Model GLM Ramping PF, Ramping Vel Wt={weight_scale}")
+            plt.title(f"Multimodel GLM, PF={place_field_type}, Flat Vel Wt={velocity_weight}, noise={noise_scale}")
     else:
-        if weight_type == "flat":
-            if multimodel:
-                if use_GAM:
-                    plt.title(f"Multimodel GAM Flat PF, Flat Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Multimodel GLM Flat PF, Flat Vel Wt={weight_scale}")
-            else:
-                if use_GAM:
-                    plt.title(f"Single Model GAM Flat PF, Flat Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Single Model GLM Flat PF, Flat Vel Wt={weight_scale}")
+        if use_GAM:
+            plt.title(f"Single Model GAM, PF={place_field_type}, Flat Vel Wt={velocity_weight}, noise={noise_scale}")
         else:
-            if multimodel:
-                if use_GAM:
-                    plt.title(f"Multimodel GAM Flat PF, Ramping Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Multimodel GLM Flat PF, Ramping Vel Wt={weight_scale}")
-            else:
-                if use_GAM:
-                    plt.title(f"Single Model GAM Flat PF, Ramping Vel Wt={weight_scale}")
-                else:
-                    plt.title(f"Single Model GLM Flat PF, Ramping Vel Wt={weight_scale}")
+            plt.title(f"Single Model GLM, PF={place_field_type}, Flat Vel Wt={velocity_weight}, noise={noise_scale}")
 
-    print(f"weight_type {weight_type}")
     plt.colorbar(label="MSE")
     plt.show()
+
+
+
