@@ -46,6 +46,7 @@ def plot_cell_trial_average_variable_subtraction(activity_dict_SST, activity_dic
     sem_residual_list_EC = np.std(neuron_residual_list_EC_array, axis=0) / np.sqrt(
         neuron_residual_list_EC_array.shape[0])
 
+
     plt.figure()
     plt.plot(cell_av_neuron_activity_list_SST, color='k', label='Raw Activity')
     plt.fill_between(range(len(cell_av_neuron_activity_list_SST)),
@@ -63,6 +64,13 @@ def plot_cell_trial_average_variable_subtraction(activity_dict_SST, activity_dic
     plt.ylim(-0.5, 0.5)
     plt.legend()
     plt.show()
+
+    print(f"cell_av_neuron_activity_list_NDNF[0] {cell_av_neuron_activity_list_NDNF[0]}")
+    print(f"cell_av_neuron_activity_list_NDNF[-1] {cell_av_neuron_activity_list_NDNF[-1]}")
+    print(f"max={np.max(cell_av_neuron_activity_list_NDNF)} at index {np.argmax(cell_av_neuron_activity_list_NDNF)}")
+    print(f"min={np.min(cell_av_neuron_activity_list_NDNF)} at index {np.argmin(cell_av_neuron_activity_list_NDNF)}")
+    print(f"np.mean(cell_av_neuron_activity_list_NDNF) {np.mean(cell_av_neuron_activity_list_NDNF)}")
+
 
     plt.figure()
     plt.plot(cell_av_neuron_activity_list_NDNF, color='k', label='Raw Activity')
@@ -82,6 +90,13 @@ def plot_cell_trial_average_variable_subtraction(activity_dict_SST, activity_dic
     plt.ylim(-0.5, 0.5)
     plt.legend()
     plt.show()
+
+    print(f"cell_av_neuron_activity_list_EC[0] {cell_av_neuron_activity_list_EC[0]}")
+    print(f"cell_av_neuron_activity_list_EC[-1] {cell_av_neuron_activity_list_EC[-1]}")
+    print(f"max={np.max(cell_av_neuron_activity_list_EC)} at index {np.argmax(cell_av_neuron_activity_list_EC)}")
+    print(f"min={np.min(cell_av_neuron_activity_list_EC)} at index {np.argmin(cell_av_neuron_activity_list_EC)}")
+    print(f"np.mean(cell_av_neuron_activity_list_EC) {np.mean(cell_av_neuron_activity_list_EC)}")
+
 
     plt.figure()
     plt.plot(cell_av_neuron_activity_list_EC, color='k', label='Raw Activity')
@@ -787,6 +802,55 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
 
     first_raw_EC, last_raw_EC, first_mean_EC, first_sem_EC, last_mean_EC, last_sem_EC, animal_mean_residual_first_EC, animal_mean_residual_last_EC, first_quintile_residuals_EC, last_quintile_residuals_EC = compute_mean_and_sem_for_quintiles(activity_dict_EC, predicted_activity_dict_EC)
 
+
+    print(f"np.mean(first_mean_SST) {np.mean(first_mean_SST)}")
+    print(f"np.max(first_mean_SST) {np.max(first_mean_SST)}")
+    print(f"np.min(first_mean_SST) {np.min(first_mean_SST)}")
+    print(f"np.argmax(first_mean_SST) {np.argmax(first_mean_SST)}")
+    print(f"np.argmin(first_mean_SST) {np.argmin(first_mean_SST)}")
+    print(f"first_mean_SST[0] {first_mean_SST[0]}")
+    print(f"first_mean_SST[0] {np.argmin(first_mean_SST[-1])}")
+
+    print(f"np.mean(last_mean_SST) {np.mean(last_mean_SST)}")
+    print(f"np.max(last_mean_SST) {np.max(last_mean_SST)}")
+    print(f"np.min(last_mean_SST) {np.min(last_mean_SST)}")
+    print(f"np.argmax(last_mean_SST) {np.argmax(last_mean_SST)}")
+    print(f"np.argmin(last_mean_SST) {np.argmin(last_mean_SST)}")
+    print(f"last_mean_SST[0] {last_mean_SST[0]}")
+    print(f"last_mean_SST[0] {np.argmin(last_mean_SST[-1])}")
+
+    print(f"np.mean(first_mean_NDNF) {np.mean(first_mean_NDNF)}")
+    print(f"np.max(first_mean_NDNF) {np.max(first_mean_NDNF)}")
+    print(f"np.min(first_mean_NDNF) {np.min(first_mean_NDNF)}")
+    print(f"np.argmax(first_mean_NDNF) {np.argmax(first_mean_NDNF)}")
+    print(f"np.argmin(first_mean_NDNF) {np.argmin(first_mean_NDNF)}")
+    print(f"first_mean_NDNF[0] {first_mean_NDNF[0]}")
+    print(f"first_mean_NDNF[0] {np.argmin(first_mean_NDNF[-1])}")
+
+    print(f"np.mean(last_mean_NDNF) {np.mean(last_mean_NDNF)}")
+    print(f"np.max(last_mean_NDNF) {np.max(last_mean_NDNF)}")
+    print(f"np.min(last_mean_NDNF) {np.min(last_mean_NDNF)}")
+    print(f"np.argmax(last_mean_NDNF) {np.argmax(last_mean_NDNF)}")
+    print(f"np.argmin(last_mean_NDNF) {np.argmin(last_mean_NDNF)}")
+    print(f"last_mean_NDNF[0] {last_mean_NDNF[0]}")
+    print(f"last_mean_NDNF[0] {np.argmin(last_mean_NDNF[-1])}")
+
+    print(f"np.mean(first_mean_EC) {np.mean(first_mean_EC)}")
+    print(f"np.max(first_mean_EC) {np.max(first_mean_EC)}")
+    print(f"np.min(first_mean_EC) {np.min(first_mean_EC)}")
+    print(f"np.argmax(first_mean_EC) {np.argmax(first_mean_EC)}")
+    print(f"np.argmin(first_mean_EC) {np.argmin(first_mean_EC)}")
+    print(f"first_mean_EC[0] {first_mean_EC[0]}")
+    print(f"first_mean_EC[0] {np.argmin(first_mean_EC[-1])}")
+
+    print(f"np.mean(last_mean_EC) {np.mean(last_mean_EC)}")
+    print(f"np.max(last_mean_EC) {np.max(last_mean_EC)}")
+    print(f"np.min(last_mean_EC) {np.min(last_mean_EC)}")
+    print(f"np.argmax(last_mean_EC) {np.argmax(last_mean_EC)}")
+    print(f"np.argmin(last_mean_EC) {np.argmin(last_mean_EC)}")
+    print(f"last_mean_EC[0] {last_mean_EC[0]}")
+    print(f"last_mean_EC[0] {np.argmin(last_mean_EC[-1])}")
+
     fig, axs = plt.subplots(3, 3, figsize=(12, 12))
 
     axs[0, 0].plot(range(len(first_mean_SST)), first_mean_SST, color='blue', label='SST Mean Cell Q1', markersize=1)
@@ -795,6 +859,12 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
     axs[0, 0].fill_between(range(len(last_mean_SST)), last_mean_SST + last_sem_SST, last_mean_SST - last_sem_SST, color='cyan', alpha=0.2)
     axs[0, 0].set_xlabel("Position Bin")
     axs[0, 0].set_ylabel("z-score DF/F")
+    x_coords = [20, 22, 24, 26, 28, 30]
+    x2_coords = [32, 34, 36, 38, 40, 42]
+    for x in x_coords:
+        axs[0, 0].axvline(x, color='red', linestyle='--', alpha=0.7)
+    for x2 in x2_coords:
+        axs[0, 0].axvline(x2, color='blue', linestyle='--', alpha=0.7)
     if residual:
         axs[0, 0].set_title("SST Velocity-Subtracted Residuals(All Cells)", fontsize=12)
     else:
@@ -833,6 +903,10 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
     axs[1, 0].fill_between(range(len(last_mean_NDNF)), last_mean_NDNF + last_sem_NDNF, last_mean_NDNF - last_sem_NDNF, color='red', alpha=0.2)
     axs[1, 0].set_xlabel("Position Bin")
     axs[1, 0].set_ylabel("z-score DF/F")
+    for x in x_coords:
+        axs[1, 0].axvline(x, color='red', linestyle='--', alpha=0.7)
+    for x2 in x2_coords:
+        axs[1, 0].axvline(x2, color='blue', linestyle='--', alpha=0.7)
     if residual:
         axs[1, 0].set_title("NDNF Velocity-Subtracted Residuals(All Cells)", fontsize=12)
     else:
@@ -870,6 +944,10 @@ def plot_first_and_last_quintile(activity_dict_SST, predicted_activity_dict_SST,
     axs[2, 0].fill_between(range(len(last_mean_EC)), last_mean_EC + last_sem_EC, last_mean_EC - last_sem_EC, color='limegreen', alpha=0.1)
     axs[2, 0].set_xlabel("Position Bin")
     axs[2, 0].set_ylabel("z-score DF/F")
+    for x in x_coords:
+        axs[2, 0].axvline(x, color='red', linestyle='--', alpha=0.7)
+    for x2 in x2_coords:
+        axs[2, 0].axvline(x2, color='blue', linestyle='--', alpha=0.7)
     if residual:
         axs[2, 0].set_title("EC Velocity-Subtracted Residuals(All Cells)", fontsize=12)
     else:
@@ -1597,6 +1675,7 @@ def plot_r2_above_below_per_animal_with_learning(activity_dict_SST, predicted_ac
         activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST,
         activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF,
         activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True)
+
 
     labels = ["SST", "NDNF", "EC"]
     colors_q1 = ["blue", "orange", "green"]
@@ -2850,7 +2929,7 @@ def plot_synthetic_data_seperate_quintiles(MSE_gaussian, MSE_residual, MSE_divid
     mean_divided_q1_norm = np.mean(divided_array[:,:quintile_size], axis=1)
     mean_divided_q5_norm = np.mean(divided_array[:, -quintile_size:], axis=1)
 
-    
+
     axs[4, 1].plot(mean_truth_q1, color='r', linestyle='dashed', label="Q1 Ground Truth", alpha=0.8)
     axs[4, 1].plot(mean_truth_q5, color='b', linestyle='dashed', label="Q5 Ground Truth", alpha=0.8)
     axs[4, 1].plot(mean_divided_array_q1, color='r', label="Q1 Activity / Velocity", alpha=0.8)
