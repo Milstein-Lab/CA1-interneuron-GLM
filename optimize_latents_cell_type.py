@@ -6,14 +6,7 @@ import pickle
 import os
 import utils as ut
 
-# Ensure task ID is provided
-if len(sys.argv) < 2:
-    print("Usage: python optimize_latents_cell_type.py <animal_index>")
-    sys.exit(1)
 
-# Get animal index from command-line argument
-i = int(sys.argv[1])  # Animal index
-print(f"Running optimization for animal index {i}")
 
 # Load data
 filename = "SSTindivsomata_GLM"
@@ -30,34 +23,35 @@ for animal in residual_activity_dict:
     neural_data_tensor = torch.tensor(neural_data / neural_data.std())
     tensor_list_by_animal_all_SST.append(neural_data_tensor)
 
-# Ensure valid index
-if i >= len(tensor_list_by_animal_all_SST):
-    print(f"Error: Animal index {i} is out of range. Maximum index allowed: {len(tensor_list_by_animal_all_SST) - 1}")
-    sys.exit(1)
+animal_id = 0
+min_ranks = 2
+max_ranks = 3
 
-# Run SlicerTCA grid search for this specific animal
-loss_grid, seed_grid = slicetca.grid_search(
-    tensor_list_by_animal_all_SST[i],
-    min_ranks=[2, 0, 0],  # Modify if needed
-    max_ranks=[3, 0, 0],  # Modify if needed
-    seed=0,
-    min_std=10 ** -5,
-    learning_rate=2 * 10 ** -3,
-    max_iter=15_000,
-    positive=True
-)
-
-# Save results
-save_dir = r"/scratch/msf157/data/CA1-inter"
-os.makedirs(save_dir, exist_ok=True)
-
-save_path = os.path.join(save_dir, f"loss_dict_SST_latent_2_32_{i}.pkl")
-with open(save_path, "wb") as f:
-    pickle.dump(loss_grid, f)
-
-print(f"Saved loss_dict for animal {i} to {save_path}")
+if __name__ == "__main__":
+    loss_grid, seed_grid = slicetca.grid_search(
+        tensor_list_by_animal_all_SST[animal_id],
+        min_ranks=[min_ranks, 0, 0],  # Modify if needed
+        max_ranks=[max_ranks, 0, 0],  # Modify if needed
+        seed=0,
+        min_std=10 ** -5,
+        learning_rate=2 * 10 ** -3,
+        max_iter=15_000,
+        positive=True
+    )
 
 
+#
+# # Save results
+# save_dir = r"/scratch/msf157/data/CA1-inter"
+# os.makedirs(save_dir, exist_ok=True)
+#
+# save_path = os.path.join(save_dir, f"loss_dict_SST_latent_2_32_{i}.pkl")
+# with open(save_path, "wb") as f:
+#     pickle.dump(loss_grid, f)
+#
+# print(f"Saved loss_dict for animal {i} to {save_path}")
+#
+#
 
 
 
