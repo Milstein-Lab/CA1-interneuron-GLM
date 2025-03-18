@@ -42,8 +42,8 @@ if __name__ == "__main__":
 
     # Parse command-line arguments
     i = int(sys.argv[1])  # Animal index
-    min_rank_value = int(sys.argv[2])  # First value in min_ranks
-    max_rank_value = int(sys.argv[3])  # First value in max_ranks
+    # min_rank_value = int(sys.argv[2])  # First value in min_ranks
+    # max_rank_value = int(sys.argv[3])  # First value in max_ranks
 
     # Ensure the index is within bounds
     if i >= len(tensor_list_by_animal_all_SST):
@@ -53,8 +53,8 @@ if __name__ == "__main__":
     # Run grid search with user-specified ranks
     loss_grid, seed_grid = slicetca.grid_search(
         tensor_list_by_animal_all_SST[i],
-        min_ranks=[min_rank_value, 0, 0],  # Controlled manually
-        max_ranks=[max_rank_value, 0, 0],  # Controlled manually
+        min_ranks=[2, 0, 0],  # Controlled manually
+        max_ranks=[3, 0, 0],  # Controlled manually
         seed=0,
         min_std=10 ** -5,
         learning_rate=2 * 10 ** -3,
