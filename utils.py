@@ -179,67 +179,67 @@ def BTSP_field(num_trials):
     return trial_weights
 
 
-
-def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_field_scale=1, place_field_shift=0, velocity_weight_type='flat', velocity_weight=1, velocity_power=1, noise_scale=1):
-    # 1. Make "ground truth" place field
-    def get_average_cell_profile(activity_dict):
-        all_cells_average = []
-        for animal in activity_dict:
-            for neuron in activity_dict[animal]:
-                cell_trial_average = activity_dict[animal][neuron].mean(axis=1)
-                all_cells_average.append(cell_trial_average)
-        all_cells_average = np.stack(all_cells_average, axis=0).mean(axis=0)
-        return all_cells_average
-
-    place_field_profile = get_average_cell_profile(activity_dict)
-    num_trials = velocity.shape[1]
-    place_field = np.tile(place_field_profile, (num_trials,1)).T
-    def staircase_vector(start, stop, num_steps, length):
-        steps = np.linspace(start, stop, num_steps)  # Generate step levels
-        step_counts = np.full(num_steps, length // num_steps)  # Base count per step
-        step_counts[:length % num_steps] += 1  # Distribute remainder among first steps
-        return np.repeat(steps, step_counts)  # Repeat steps with adjusted counts
-    match place_field_type:
-        case "flat":
-            place_field_scale = np.ones(num_trials)
-            place_field *= place_field_scale
-        case "positive_ramp":
-            place_field_scale = np.linspace(0, place_field_scale, num_trials)
-            place_field *= place_field_scale
-        case "negative_ramp":
-            place_field_scale = np.linspace(place_field_scale, 0, num_trials)
-            place_field *= place_field_scale
-        case "step":
-            place_field_scale = staircase_vector(0, place_field_scale, num_steps=2, length=num_trials)
-            place_field *= place_field_scale
-        case "BTSP":
-            place_field_scale = BTSP_field(num_trials)
-            place_field *= place_field_scale
-        case "EC":
-            place_field = example_EC_cell(velocity)
-            place_field = place_field.T
-
-    place_field = np.roll(place_field, shift=place_field_shift, axis=0)
-
-
-    # 2. Combine the synthetic place field with velocity
-    match velocity_weight_type:
-        case "flat":
-            velocity_weight = velocity_weight * np.ones(num_trials)
-        case "positive_ramp":
-            velocity_weight = np.linspace(0, velocity_weight, num_trials)
-        case "negative_ramp":
-            velocity_weight = np.linspace(velocity_weight, 0, num_trials)
-        case "step":
-            velocity_weight = staircase_vector(0, velocity_weight, num_steps=5, length=num_trials)
-
-    velocity_component = velocity_weight * (velocity**velocity_power)
-
-    noise = np.random.normal(0, noise_scale, size=(len(place_field_profile), num_trials))
-    combined_activity = place_field + velocity_component + noise
-
-    return combined_activity, place_field, velocity_component, noise
-
+#
+# def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_field_scale=1, place_field_shift=0, velocity_weight_type='flat', velocity_weight=1, velocity_power=1, noise_scale=1):
+#     # 1. Make "ground truth" place field
+#     def get_average_cell_profile(activity_dict):
+#         all_cells_average = []
+#         for animal in activity_dict:
+#             for neuron in activity_dict[animal]:
+#                 cell_trial_average = activity_dict[animal][neuron].mean(axis=1)
+#                 all_cells_average.append(cell_trial_average)
+#         all_cells_average = np.stack(all_cells_average, axis=0).mean(axis=0)
+#         return all_cells_average
+#
+#     place_field_profile = get_average_cell_profile(activity_dict)
+#     num_trials = velocity.shape[1]
+#     place_field = np.tile(place_field_profile, (num_trials,1)).T
+#     def staircase_vector(start, stop, num_steps, length):
+#         steps = np.linspace(start, stop, num_steps)  # Generate step levels
+#         step_counts = np.full(num_steps, length // num_steps)  # Base count per step
+#         step_counts[:length % num_steps] += 1  # Distribute remainder among first steps
+#         return np.repeat(steps, step_counts)  # Repeat steps with adjusted counts
+#     match place_field_type:
+#         case "flat":
+#             place_field_scale = np.ones(num_trials)
+#             place_field *= place_field_scale
+#         case "positive_ramp":
+#             place_field_scale = np.linspace(0, place_field_scale, num_trials)
+#             place_field *= place_field_scale
+#         case "negative_ramp":
+#             place_field_scale = np.linspace(place_field_scale, 0, num_trials)
+#             place_field *= place_field_scale
+#         case "step":
+#             place_field_scale = staircase_vector(0, place_field_scale, num_steps=2, length=num_trials)
+#             place_field *= place_field_scale
+#         case "BTSP":
+#             place_field_scale = BTSP_field(num_trials)
+#             place_field *= place_field_scale
+#         case "EC":
+#             place_field = example_EC_cell(velocity)
+#             place_field = place_field.T
+#
+#     place_field = np.roll(place_field, shift=place_field_shift, axis=0)
+#
+#
+#     # 2. Combine the synthetic place field with velocity
+#     match velocity_weight_type:
+#         case "flat":
+#             velocity_weight = velocity_weight * np.ones(num_trials)
+#         case "positive_ramp":
+#             velocity_weight = np.linspace(0, velocity_weight, num_trials)
+#         case "negative_ramp":
+#             velocity_weight = np.linspace(velocity_weight, 0, num_trials)
+#         case "step":
+#             velocity_weight = staircase_vector(0, velocity_weight, num_steps=5, length=num_trials)
+#
+#     velocity_component = velocity_weight * (velocity**velocity_power)
+#
+#     noise = np.random.normal(0, noise_scale, size=(len(place_field_profile), num_trials))
+#     combined_activity = place_field + velocity_component + noise
+# 
+#     return combined_activity, place_field, velocity_component, noise
+#
 
 ###############################################################################################
 # Model fitting
