@@ -237,7 +237,7 @@ def BTSP_field(num_trials):
 #
 #     noise = np.random.normal(0, noise_scale, size=(len(place_field_profile), num_trials))
 #     combined_activity = place_field + velocity_component + noise
-# 
+#
 #     return combined_activity, place_field, velocity_component, noise
 #
 
