@@ -1,4 +1,5 @@
 
+
 import sys
 import torch
 import slicetca
@@ -8,8 +9,15 @@ import utils as ut
 
 
 
+
 # Load data
-filename = "SSTindivsomata_GLM"
+#filename = "SSTindivsomata_GLM"
+filename = "NDNFindivsomata_GLM"
+#filename = "EC_GLM"
+
+min_ranks = 2
+max_ranks = 2
+
 filepath = os.path.join("datasets", filename + ".mat")
 activity_dict, factors_dict = ut.preprocess_data(filepath)
 filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
@@ -23,36 +31,108 @@ for animal in residual_activity_dict:
     neural_data_tensor = torch.tensor(neural_data / neural_data.std())
     tensor_list_by_animal_all_SST.append(neural_data_tensor)
 
-animal_id = 0
-min_ranks = 2
-max_ranks = 3
 
 if __name__ == "__main__":
-    loss_grid, seed_grid = slicetca.grid_search(
-        tensor_list_by_animal_all_SST[animal_id],
-        min_ranks=[min_ranks, 0, 0],  # Modify if needed
-        max_ranks=[max_ranks, 0, 0],  # Modify if needed
-        seed=0,
-        min_std=10 ** -5,
-        learning_rate=2 * 10 ** -3,
-        max_iter=15_000,
-        positive=True
-    )
+
+    animal_id = 3
+
+    tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
+
+    print(f"tensor_for_animal.shape {tensor_for_animal.shape}")
+
+    components, model = slicetca.decompose(tensor_for_animal,
+                                           number_components=(0, 0, ranks),  # (trials, neurons, time bins)
+                                           positive=True,
+                                           learning_rate=1 * 10 ** -3,
+                                           min_std=10 ** -5,
+                                           max_iter=15_000,
+                                           seed=0)
+
+    save_dir = r"/scratch/msf157/data/CA1-inter/EC_model_single_animal_timebins"
+    os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
+
+    save_path = os.path.join(save_dir, f"model_EC_animal_{ranks}_animal{animal_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(model, f)
+
+    print(f"Saved model for animal {animal_id} saved to {save_path}")
+
+
+
+
+
+
+
+
+    save_dir = r"/scratch/msf157/data/CA1-inter/EC_per_cell_data"
+
+
+
+
+
+
+
+
+    os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
+
+    save_path = os.path.join(save_dir, f"model_EC_cell_latent_{ranks}_animal{animal_id}_cell{cell_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(model, f)
+
+    print(f"Saved model for animal {animal_id} cell {cell_id} to {save_path}")
+
+
+
+    print(f"len(model_per_animal_list) {len(model_per_animal_list)}")
 
 
 #
-# # Save results
-# save_dir = r"/scratch/msf157/data/CA1-inter"
-# os.makedirs(save_dir, exist_ok=True)
 #
-# save_path = os.path.join(save_dir, f"loss_dict_SST_latent_2_32_{i}.pkl")
-# with open(save_path, "wb") as f:
-#     pickle.dump(loss_grid, f)
+# # Load data
+# filename = "SSTindivsomata_GLM"
+# filepath = os.path.join("datasets", filename + ".mat")
+# activity_dict, factors_dict = ut.preprocess_data(filepath)
+# filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
+# GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
+# residual_activity_dict = ut.get_residual_activity_dict(activity_dict, predicted_activity_dict)
 #
-# print(f"Saved loss_dict for animal {i} to {save_path}")
+# # Convert neural activity to tensors
+# tensor_list_by_animal_all_SST = []
+# for animal in residual_activity_dict:
+#     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
+#     neural_data_tensor = torch.tensor(neural_data / neural_data.std())
+#     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+#
+# animal_id = 0
+# min_ranks = 2
+# max_ranks = 3
+#
+# if __name__ == "__main__":
+#     loss_grid, seed_grid = slicetca.grid_search(
+#         tensor_list_by_animal_all_SST[animal_id],
+#         min_ranks=[min_ranks, 0, 0],  # Modify if needed
+#         max_ranks=[max_ranks, 0, 0],  # Modify if needed
+#         seed=0,
+#         min_std=10 ** -5,
+#         learning_rate=2 * 10 ** -3,
+#         max_iter=15_000,
+#         positive=True
+#     )
 #
 #
-
+#
+#     # Save results
+#     save_dir = r"/scratch/msf157/data/CA1-inter"
+#     os.makedirs(save_dir, exist_ok=True)
+#
+#     save_path = os.path.join(save_dir, f"loss_dict_SST_latent_2_32_{i}.pkl")
+#     with open(save_path, "wb") as f:
+#         pickle.dump(loss_grid, f)
+#
+#     print(f"Saved loss_dict for animal {i} to {save_path}")
+#
+#
+#
 
 
 # import numpy as np

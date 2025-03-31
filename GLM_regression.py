@@ -2130,6 +2130,21 @@ def get_synthetic_data(activity_dict, factors_dict, velocity_weight_type="rampin
 
 
 
+def get_mean_sem_loss2(sst_animals_list_42_64):
+    values_list_animal = []
+
+    for i in sst_animals_list_42_64:
+        values_list_sst_animal = [data.flatten() for data in i]  # flatten each array in the loss dict
+        values_animal = np.array(values_list_sst_animal)         # shape: (num_latents, 1)
+        values_list_animal.append(values_animal)                 # <-- FIXED this line
+
+    values_array_animal = np.stack(values_list_animal).squeeze()  # shape: (n_animals, n_latents)
+
+    sem_array = sem(values_array_animal, axis=0)
+    mean_array = np.mean(values_array_animal, axis=0)
+
+    return mean_array, sem_array 
+
 
 def get_synthetic_data_seperate_quintiles(activity_dict, factors_dict, velocity_weight_type="ramping_weight", noise_scale=0.1, place_field_type="flat", use_GAM=False, velocity_power=1, velocity_weight=1, place_field_shift=0, place_field_scale=0, z_score=False):
     velocity = factors_dict["animal_1"]['Velocity']
