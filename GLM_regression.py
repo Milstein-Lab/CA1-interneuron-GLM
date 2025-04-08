@@ -22,6 +22,8 @@ from pygam import LinearGAM
 import matplotlib.cm as cm
 from scipy.stats import linregress, pearsonr
 from utils import get_synthetic_data as utils_get_synthetic_data
+import pickle
+import glob
 
 
 plt.rcParams.update({'font.size': 10,
@@ -559,6 +561,27 @@ def get_activity_by_animal_quintile_split(activity_SST_above):
         per_animal_activity_SST_above.append(np.mean(animal_mean_array, axis=0))
 
     return per_animal_activity_SST_above
+
+
+def get_mean_sem_MSE_per_cell(Recon_by_cluster_av_dict_cell):
+    cluster_average_mse = []
+    cluster_average_sem = []
+
+    for cluster in Recon_by_cluster_av_dict_cell:
+        animal_average_mses = []
+
+        for animal in Recon_by_cluster_av_dict_cell[cluster]:
+            per_animal_mse_list = []
+            for neuron in Recon_by_cluster_av_dict_cell[cluster][animal]:
+                per_animal_mse_list.append(Recon_by_cluster_av_dict_cell[cluster][animal][neuron])
+
+            animal_average_mses.append(np.mean(per_animal_mse_list))
+
+        cluster_average_mse.append(np.mean(animal_average_mses))
+        cluster_average_sem.append(sem(animal_average_mses))
+
+    return cluster_average_mse, cluster_average_sem
+
 
 
 def get_animal_vel_correlations_activity(activity_dict_SST, predicted_activity_dict_SST, filtered_factors_dict_SST, activity_dict_NDNF, predicted_activity_dict_NDNF, filtered_factors_dict_NDNF, activity_dict_EC, predicted_activity_dict_EC, filtered_factors_dict_EC, residual=True):
@@ -2128,7 +2151,49 @@ def get_synthetic_data(activity_dict, factors_dict, velocity_weight_type="rampin
 
     return MSE_activity, MSE_residual, MSE_divided, velocity_weight, place_field, velocity, residual, combined_activity, divided_array, neuron_predicted_activity, place_field_type, z_score
 
+def get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=None):
+    SST_list_2_22 = []
 
+    if animal_list is None:
+        animal_list = range(num_animals)
+
+    for i in animal_list:
+        file_name = file_name_template.format(i=i)
+        file_path = os.path.join(base_dir, file_name)
+
+        with open(file_path, "rb") as f:
+            animal = pickle.load(f)
+
+        SST_list_2_22.append(animal)
+
+    SST_mean_2_22, SST_sem_2_22 = get_mean_sem_loss2(SST_list_2_22)
+    return SST_mean_2_22, SST_sem_2_22
+
+
+def cell_type_get_mean_sem(base_dir, start_num=None, end_num=None, cell_type=None):
+    latent_numbers = []
+
+    for i in range(start_num, end_num):
+        pattern = os.path.join(base_dir, f"loss_dict_EC_latent_{i}_{i}_animal*.pkl")
+        file_paths = sorted(glob.glob(pattern))
+
+        loss_floats = []
+
+        for path in file_paths:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+                data = float(data)
+                loss_floats.append(data)
+        latent_numbers.append(loss_floats)
+
+    EC_latent_means_42_62 = []
+    EC_latent_sems_42_62 = []
+
+    for i in latent_numbers:
+        EC_latent_means_42_62.append(np.mean(i))
+        EC_latent_sems_42_62.append(sem(i))
+
+    return EC_latent_means_42_62, EC_latent_sems_42_62
 
 def get_mean_sem_loss2(sst_animals_list_42_64):
     values_list_animal = []
@@ -2143,7 +2208,7 @@ def get_mean_sem_loss2(sst_animals_list_42_64):
     sem_array = sem(values_array_animal, axis=0)
     mean_array = np.mean(values_array_animal, axis=0)
 
-    return mean_array, sem_array 
+    return mean_array, sem_array
 
 
 def get_synthetic_data_seperate_quintiles(activity_dict, factors_dict, velocity_weight_type="ramping_weight", noise_scale=0.1, place_field_type="flat", use_GAM=False, velocity_power=1, velocity_weight=1, place_field_shift=0, place_field_scale=0, z_score=False):
