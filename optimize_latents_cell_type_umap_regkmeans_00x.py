@@ -31,7 +31,7 @@ def get_real_animal_tensor(residual_activity_dict_SST, animal_num=1):
     return animal_tensor
 
 
-def get_per_cell_sliceTCA_reconstruction_UMAP_regkmean_00x(model, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=True):
+def get_per_cell_sliceTCA_reconstruction_UMAP_regkmean_00x(model, tensor_for_animal, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=True):
     animal_id = animal_id+1
 
     MSE_list = []
@@ -61,8 +61,8 @@ def get_per_cell_sliceTCA_reconstruction_UMAP_regkmean_00x(model, residual_activ
         X_umap_list.append(X_umap)
         labels_list.append(labels)
 
-        animal_tensor = get_real_animal_tensor(residual_activity_dict_SST, animal_id)
-        neuron_activity = animal_tensor[:, cell_id, :]
+        # animal_tensor = get_real_animal_tensor(residual_activity_dict_SST, animal_id)
+        neuron_activity = tensor_for_animal[:, cell_id, :].detach().numpy()
 
         valid_cluster_mean_trials_list = []
         valid_cluster_indices = []
@@ -127,18 +127,32 @@ filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to
 GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
 residual_activity_dict = ut.get_residual_activity_dict(activity_dict, predicted_activity_dict)
 
-# Convert neural activity to tensors
+# # Convert neural activity to tensors
+# tensor_list_by_animal_all_SST = []
+# for animal in residual_activity_dict:
+#     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
+#     neural_data_tensor = torch.tensor(neural_data / neural_data.std())
+#     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
 tensor_list_by_animal_all_SST = []
 for animal in residual_activity_dict:
     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
-    neural_data_tensor = torch.tensor(neural_data / neural_data.std())
+    neural_data_tensor = torch.tensor(neural_data)
+    # Normalize per cell
+    for i in range(neural_data_tensor.shape[1]):
+        cell = neural_data_tensor[:, i, :]
+        min_val = cell.min()
+        max_val = cell.max()
+        neural_data_tensor[:, i, :] = (cell - min_val) / (max_val - min_val + 1e-8)
     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
 
 if __name__ == "__main__":
 
     tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
 
     cell_of_interest = tensor_for_animal[:,cell_id,:].unsqueeze(1)
+    cell_of_interest.requires_grad_()
     components, model = slicetca.decompose(cell_of_interest,
                                        number_components=(0, 0, ranks),  # (trials, neurons, time bins)
                                        positive=True,
@@ -147,14 +161,14 @@ if __name__ == "__main__":
                                        max_iter=15_000,
                                            seed=0)
 
-    internals_dict = get_per_cell_sliceTCA_reconstruction_UMAP_regkmean_00x(model, residual_activity_dict, max_clusters=12, animal_id=animal_id, cell_id=cell_id, display=False)
+    internals_dict = get_per_cell_sliceTCA_reconstruction_UMAP_regkmean_00x(model, tensor_for_animal, residual_activity_dict, max_clusters=12, animal_id=animal_id, cell_id=cell_id, display=False)
 
-    save_dir = r"/scratch/msf157/data/CA1-inter/00x_UMAP_regkmeans_EC_reconstruct_MSE_data"
+    save_dir = fr"/scratch/msf157/data/ca1_data2/EC_model_ranks{ranks}_umap_regkmean_00x"
     os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
 
     save_path = os.path.join(save_dir, f"MSE_EC_cell_latent_{ranks}_animal{animal_id}_cell_id{cell_id}.pkl")
     with open(save_path, "wb") as f:
-        pickle.dump(internals_dict, f)
+        pickle.dump([model, internals_dict], f)
 
     print(f"Saved model for animal {animal_id} cell {cell_id} to {save_path}")
 

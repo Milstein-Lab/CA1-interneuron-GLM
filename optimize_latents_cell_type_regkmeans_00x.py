@@ -11,110 +11,167 @@ from sklearn.cluster import KMeans
 import umap
 from sklearn.decomposition import PCA
 import ruptures as rpt
+from scipy.spatial.distance import cdist
 
 
-################## UMAP then contiguous KMEAMS ##############
+def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False):
+    #     import warnings
+    #     warnings.filterwarnings("ignore", category=UserWarning)
+    #     warnings.filterwarnings("ignore", category=FutureWarning)
 
+    per_cell_internals_dict = {}
+    reconstructed_cell = cell_model.construct().numpy(force=True)[:, 0, :]
+    real_cell_activity = tensor_for_cell.detach().numpy()
 
-def get_real_animal_tensor(residual_activity_dict_SST, animal_num=1):
-    real_animal_activity = residual_activity_dict_SST[f'animal_{animal_num}']
-    real_animal_data_list = []
-    for neuron in real_animal_activity:
-        cell_activity = real_animal_activity[neuron]
-        real_animal_data_list.append(cell_activity)
-    animal_tensor = np.array(real_animal_data_list)
-    animal_tensor = animal_tensor.transpose(2, 0, 1)
+    print(f"reconstructed_cell.shape {reconstructed_cell.shape}")
+    print(f"tensor_for_cell.shape {tensor_for_cell.shape}")
 
-    return animal_tensor
+    if x00:
+        w1 = cell_model.vectors[0][0].detach().numpy()
+        X = np.abs(w1.T)
+        if use_umap:
+            import umap
+            umap_model = umap.UMAP(n_components=3, random_state=0)
+            X_umap = umap_model.fit_transform(X)
+    else:
+        f = cell_model.vectors[2][1].detach()
+        f1 = f.permute(1, 0, 2).reshape(f.shape[1], -1)
+        f1 = torch.abs(f1).cpu().numpy()
+        print(f"f1.shape {f1.shape}")
+        if use_umap:
+            import umap
+            umap_model = umap.UMAP(n_components=3, random_state=0)
+            X_umap = umap_model.fit_transform(f1)
 
+    cluster_labels_dict = {}
+    cluster_pca_dict = {}
+    cluster_centroids_dict = {}
 
-def get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=True):
-    animal_id = animal_id + 1
-    MSE_list = []
-    # X_umap_list = []
-    labels_list = []
-    indices_for_cluster_number_list = []
-    TCA_reconstructions_list = []
-    Recon_by_cluster_av_list = []
-    cluster_trial_mean_list = []
+    MSE_dict = {}
+    x_pca_dict = {}
+    labels_dict = {}
+    indices_for_cluster_number = {}
+    TCA_reconstructions_dict = {}
+    Recon_by_cluster_av_dict = {}
+    cluster_trial_mean_dict = {}
 
-    for clusters_chosen in range(2, max_clusters):
+    for clusters_chosen in range(1, max_clusters):
+        if use_breakpoints:
+            print(f"Using breakpoint clustering (clusters = {clusters_chosen})")
+            model_input = X_umap if use_umap else (X if x00 else f1)
+            n_bkps = clusters_chosen - 1
+            algo = rpt.Binseg(model="l2", min_size=3).fit(model_input)
+            try:
+                bkps = algo.predict(n_bkps=n_bkps)
+            except rpt.exceptions.BadSegmentationParameters:
+                print("  Skipping due to bad breakpoint config")
+                continue
 
-        reconstruction_cell = model.construct().numpy(force=True)
-        TCA_reconstructions_list.append(reconstruction_cell)
+            labels = np.zeros(model_input.shape[0], dtype=int)
+            start = 0
+            for cluster_id, end in enumerate(bkps):
+                labels[start:end] = cluster_id
+                start = end
 
-        f = model.vectors[2][1].detach()
-        f1 = f.permute(2, 0, 1)  # [5, 40, 212]
+            centroids = np.array([
+                model_input[labels == i].mean(axis=0)
+                for i in range(clusters_chosen)
+            ])
+            X_pca = PCA(n_components=3).fit_transform(model_input)
 
-        f1 = f1.reshape(-1, f1.shape[-1]).T  # [200, 212]
+        else:
+            kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
+            if x00:
+                labels = kmeans.fit_predict(X)
+                model_input = X
+            else:
+                labels = kmeans.fit_predict(f1)
+                model_input = f1
+            centroids = kmeans.cluster_centers_
+            if use_umap:
+                X_pca = PCA(n_components=3).fit_transform(X_umap)
+            else:
+                X_pca = PCA(n_components=3).fit_transform(model_input)
 
-        kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
-        labels = kmeans.fit_predict(f1)
+        cluster_labels_dict[clusters_chosen] = labels
+        cluster_centroids_dict[clusters_chosen] = centroids
+        cluster_pca_dict[clusters_chosen] = X_pca
 
-        # umap_model = umap.UMAP(n_components=3, random_state=0)
-        # X_umap = umap_model.fit_transform(f1)  # (trials,3)
+        print(f"\nclusters_chosen = {clusters_chosen}")
+        print("Before reassignment:")
+        for cluster_id in range(clusters_chosen):
+            count = np.sum(labels == cluster_id)
+            print(f"  Cluster {cluster_id}: {count} trials")
 
-        #         kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
-        #         labels = kmeans.fit_predict(X_umap)
+        if reassign_small_clusters:
+            if use_umap:
+                model_input = X_umap
+                centroid_space = np.array([
+                    model_input[labels == i].mean(axis=0)
+                    for i in range(clusters_chosen)])
+            else:
+                model_input = X if x00 else f1
+                centroid_space = centroids
+            for cluster_id in range(clusters_chosen):
+                trial_indices = np.where(labels == cluster_id)[0]
+                if len(trial_indices) < 2:
+                    print(f"  Reassigning cluster {cluster_id} (size={len(trial_indices)})...")
+                    for idx in trial_indices:
+                        trial = model_input[idx]
+                        dists = cdist([trial], centroid_space)[0]
+                        dists[cluster_id] = np.inf
+                        new_cluster = np.argmin(dists)
+                        labels[idx] = new_cluster
 
-        # algo = rpt.Binseg(model="l2", min_size=2).fit(f1)
-        # bkps = algo.predict(n_bkps=clusters_chosen)
-        #
-        # labels = np.zeros(f1.shape[0], dtype=int)
-        # start = 0
-        # for cluster_id, end in enumerate(bkps):
-        #     labels[start:end] = cluster_id
-        #     start = end
+        print("After reassignment:")
+        for cluster_id in range(clusters_chosen):
+            count = np.sum(labels == cluster_id)
+            print(f"  Cluster {cluster_id}: {count} trials")
 
-        # X_umap_list.append(X_umap)
-        labels_list.append(labels)
-
-        animal_tensor = get_real_animal_tensor(residual_activity_dict_SST, animal_id)
-        neuron_activity = animal_tensor[:, cell_id, :]
+        x_pca_dict[f"clusters_chosen_{clusters_chosen}"] = X_pca
+        labels_dict[f"clusters_chosen_{clusters_chosen}"] = labels
 
         valid_cluster_mean_trials_list = []
         valid_cluster_indices = []
+        cluster_trial_indices = {}
+
         for n in range(clusters_chosen):
             trial_indices = np.where(labels == n)[0]
+            cluster_trial_indices[n] = trial_indices
+            if len(trial_indices) == 0:
+                continue
+            cluster_trials = real_cell_activity[trial_indices, :]
+            mean_cluster = cluster_trials.mean(axis=0)
+            valid_cluster_mean_trials_list.append(mean_cluster)
+            valid_cluster_indices.append((n, trial_indices))
 
-            if len(trial_indices) > 2:
-
-                cluster_trials = reconstruction_cell[trial_indices, 0, :]  # shape (num_trials, time)
-
-                mean_cluster = cluster_trials.mean(axis=0)
-                valid_cluster_mean_trials_list.append(mean_cluster)
-
-                valid_cluster_indices.append((n, trial_indices))
-
-            else:
-                print(f"Skipping cluster {n} (only {len(trial_indices)} trials)")
-        cluster_trial_mean_list.append(valid_cluster_mean_trials_list)
-        cluster_trial_indices = {n: np.where(labels == n)[0] for n in range(clusters_chosen)}
-        indices_for_cluster_number_list.append(cluster_trial_indices)
-
-        empty_cell = np.zeros(neuron_activity.shape)
-
+        empty_cell = np.zeros_like(reconstructed_cell)
         for i, (n, trials) in enumerate(valid_cluster_indices):
             empty_cell[trials, :] = valid_cluster_mean_trials_list[i]
-        Recon_by_cluster_av_list.append(empty_cell)
 
-        neuron_MSE = np.mean(np.square(neuron_activity - empty_cell))
-        MSE_list.append(neuron_MSE)
+        key = f"clusters_chosen_{clusters_chosen}"
+        MSE_dict[key] = np.mean((real_cell_activity - empty_cell) ** 2)
+        Recon_by_cluster_av_dict[key] = empty_cell
+        TCA_reconstructions_dict[key] = reconstructed_cell
+        cluster_trial_mean_dict[key] = valid_cluster_mean_trials_list
+        indices_for_cluster_number[key] = cluster_trial_indices
 
-    internals_dict = {
-        "MSE_list": MSE_list,
-        # "X_umap_list": X_umap_list,
-        "labels_list": labels_list,
-        "indices_for_cluster_number_list": indices_for_cluster_number_list,
-        "TCA_reconstructions_list": TCA_reconstructions_list,
-        "Recon_by_cluster_av_list": Recon_by_cluster_av_list,
-        "cluster_trial_mean_list": cluster_trial_mean_list,
-
+    per_cell_internals_dict[f"cell_{cell_num}"] = {
+        "MSE_dict": MSE_dict,
+        "x_pca_dict": x_pca_dict,
+        "labels_dict": labels_dict,
+        "indices_for_cluster_number": indices_for_cluster_number,
+        "TCA_reconstructions_dict": TCA_reconstructions_dict,
+        "Recon_by_cluster_av_dict": Recon_by_cluster_av_dict,
+        "cluster_trial_mean_dict": cluster_trial_mean_dict,
     }
 
-    return internals_dict
+    return per_cell_internals_dict
 
-    # return MSE_list, x_pca_list, labels_list, indices_for_cluster_number, Recon_by_cluster_av_list, TCA_reconstructions_list, cluster_trial_mean_list
+
+
+
+
 
 
 # MSE_list, x_pca_list, labels_list, indices_for_cluster_number, Recon_by_cluster_av_list, TCA_reconstructions_list, cluster_trial_mean_list = get_per_cell_sliceTCA_reconstruction_MSE(SST_every_cell_model_list, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=False)
@@ -128,43 +185,62 @@ animal_id = int(sys.argv[2])       # Provided via command-line argument
 ranks = int(sys.argv[3])
 
 # cell_id = 3
-# animal_id = 2
+# animal_id = 0
 # ranks = 40
 
 filepath = os.path.join("datasets", filename + ".mat")
 activity_dict, factors_dict = ut.preprocess_data(filepath)
+
 filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
 GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
 residual_activity_dict = ut.get_residual_activity_dict(activity_dict, predicted_activity_dict)
 
-# Convert neural activity to tensors
+
+
 tensor_list_by_animal_all_SST = []
 for animal in residual_activity_dict:
     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
-    neural_data_tensor = torch.tensor(neural_data / neural_data.std())
+    neural_data_tensor = torch.tensor(neural_data)
+    # Normalize per cell
+    for i in range(neural_data_tensor.shape[1]):
+        cell = neural_data_tensor[:, i, :]
+        min_val = cell.min()
+        max_val = cell.max()
+        neural_data_tensor[:, i, :] = (cell - min_val) / (max_val - min_val + 1e-8)
     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
 
 if __name__ == "__main__":
 
     tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
-
+    tensor_for_cell = tensor_for_animal[:,cell_id,:]
     cell_of_interest = tensor_for_animal[:,cell_id,:].unsqueeze(1)
+    cell_of_interest.requires_grad_()
     components, model = slicetca.decompose(cell_of_interest,
-                                       number_components=(0, 0, ranks),  # (trials, neurons, time bins)
+                                       number_components=(ranks, 0, 0),  # (trials, neurons, time bins)
                                        positive=True,
                                        learning_rate=1 * 10 ** -3,
                                        min_std=10 ** -5, #max_iter=150,
                                        max_iter=15_000,
                                            seed=0)
 
-    internals_dict = get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dict, max_clusters=12, animal_id=animal_id, cell_id=cell_id, display=False)
+    internals_dict = get_cell_reconstruction_dict_mod(model, tensor_for_cell, cell_num=cell_id, max_clusters=8, display=False, reassign_small_clusters=False, x00=True, use_umap=False, use_breakpoints=False)
 
-    save_dir = r"/scratch/msf157/data/CA1-inter/00x_regularkmeans_EC_reconstruct_MSE_data"
+    # plt.figure()
+    # plt.imshow(cell_of_interest[:,0,:].detach().numpy(), aspect='auto')
+    # plt.colorbar()
+    # plt.show()
+    #
+    # plt.imshow(reconstruction_TCA[:,0,:], aspect='auto')
+    # plt.colorbar()
+    # plt.show()
+
+    save_dir = fr"/scratch/msf157/data/ca1_data2/cell_EC_model_ranks{ranks}_kmeans_x00"
     os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
 
     save_path = os.path.join(save_dir, f"MSE_EC_cell_latent_{ranks}_animal{animal_id}_cell_id{cell_id}.pkl")
     with open(save_path, "wb") as f:
-        pickle.dump(internals_dict, f)
+        pickle.dump([model, internals_dict], f)
 
     print(f"Saved model for animal {animal_id} cell {cell_id} to {save_path}")
 

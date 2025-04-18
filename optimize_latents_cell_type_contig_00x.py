@@ -28,7 +28,7 @@ def get_real_animal_tensor(residual_activity_dict_SST, animal_num=1):
     return animal_tensor
 
 
-def get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=True):
+def get_per_cell_sliceTCA_reconstruction_contig_00x(model, tensor_for_animal, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=True):
     MSE_list = []
     #     X_umap_list = []
     labels_list = []
@@ -43,20 +43,16 @@ def get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dic
         TCA_reconstructions_list.append(reconstruction_cell)
 
         f = model.vectors[2][1].detach()
+        print(f"f.shape {f.shape}")
         f1 = f.permute(2, 0, 1)  # [5, 40, 212]
 
         f1 = f1.reshape(-1, f1.shape[-1]).T  # [200, 212]
+        print(f"f1.shape {f1.shape}")
 
-        #         umap_model = umap.UMAP(n_components=3, random_state=0)
-        #         X_umap = umap_model.fit_transform(f1)  #(trials,3)
+        f1 = torch.abs(f1)
 
-        #         kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
-        #         labels = kmeans.fit_predict(X_umap)
-
-        algo = rpt.Binseg(model="l2", min_size=2).fit(f1)
+        algo = rpt.Binseg(model="l2", min_size=3).fit(f1)
         bkps = algo.predict(n_bkps=clusters_chosen)
-
-        #         labels = np.zeros(X_umap.shape[0], dtype=int)
 
         labels = np.zeros(f1.shape[0], dtype=int)
 
@@ -65,11 +61,11 @@ def get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dic
             labels[start:end] = cluster_id
             start = end
 
-        #         X_umap_list.append(X_umap)
         labels_list.append(labels)
 
-        animal_tensor = get_real_animal_tensor(residual_activity_dict_SST, animal_id)
-        neuron_activity = animal_tensor[:, cell_id, :]
+        # animal_tensor = get_real_animal_tensor(residual_activity_dict_SST, animal_id)
+        neuron_activity = tensor_for_animal[:, cell_id, :].detach().numpy()
+
 
         valid_cluster_mean_trials_list = []
         valid_cluster_indices = []
@@ -121,13 +117,13 @@ def get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dic
 #filename = "NDNFindivsomata_GLM"
 filename = "EC_GLM"
 
-cell_id = int(sys.argv[1])         # SLURM_ARRAY_TASK_ID
-animal_id = int(sys.argv[2])       # Provided via command-line argument
-ranks = int(sys.argv[3])
+# cell_id = int(sys.argv[1])         # SLURM_ARRAY_TASK_ID
+# animal_id = int(sys.argv[2])       # Provided via command-line argument
+# ranks = int(sys.argv[3])
 
-# cell_id = 3
-# animal_id = 2
-# ranks = 40
+cell_id = 3
+animal_id = 0
+ranks = 40
 
 filepath = os.path.join("datasets", filename + ".mat")
 activity_dict, factors_dict = ut.preprocess_data(filepath)
@@ -135,34 +131,66 @@ filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to
 GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
 residual_activity_dict = ut.get_residual_activity_dict(activity_dict, predicted_activity_dict)
 
-# Convert neural activity to tensors
+# # Convert neural activity to tensors
+# tensor_list_by_animal_all_SST = []
+# for animal in residual_activity_dict:
+#     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
+#     neural_data_tensor = torch.tensor(neural_data / neural_data.std())
+#     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
+
 tensor_list_by_animal_all_SST = []
 for animal in residual_activity_dict:
     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
-    neural_data_tensor = torch.tensor(neural_data / neural_data.std())
+    neural_data_tensor = torch.tensor(neural_data)
+    # Normalize per cell
+    for i in range(neural_data_tensor.shape[1]):
+        cell = neural_data_tensor[:, i, :]
+        min_val = cell.min()
+        max_val = cell.max()
+        neural_data_tensor[:, i, :] = (cell - min_val) / (max_val - min_val + 1e-8)
     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
 
 if __name__ == "__main__":
 
     tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
 
     cell_of_interest = tensor_for_animal[:,cell_id,:].unsqueeze(1)
+    cell_of_interest.requires_grad_()
     components, model = slicetca.decompose(cell_of_interest,
                                        number_components=(0, 0, ranks),  # (trials, neurons, time bins)
                                        positive=True,
                                        learning_rate=1 * 10 ** -3,
                                        min_std=10 ** -5, #max_iter=150,
-                                       max_iter=15_000,
+                                       max_iter=15_0,
                                            seed=0)
 
-    internals_dict = get_per_cell_sliceTCA_reconstruction_contig_00x(model, residual_activity_dict, max_clusters=10, animal_id=animal_id, cell_id=cell_id, display=False)
+    # reco = model.construct().detach().numpy(force=True)
+    #
+    # plt.imshow(tensor_for_animal[:,cell_id,:], aspect='auto')
+    # plt.colorbar()
+    # plt.title("raw tensor")
+    # plt.show()
+    #
+    # plt.imshow(cell_of_interest[:, 0, :].detach().numpy(), aspect='auto')
+    # plt.colorbar()
+    # plt.title("into tca raw")
+    # plt.show()
+    #
+    # plt.imshow(reco[:,0, :], aspect='auto')
+    # plt.title("reco")
+    # plt.colorbar()
+    # plt.show()
 
-    save_dir = r"/scratch/msf157/data/CA1-inter/00x_contigkmean_EC_reconstruct_MSE_data"
+    internals_dict = get_per_cell_sliceTCA_reconstruction_contig_00x(model, tensor_for_animal, residual_activity_dict, max_clusters=5, animal_id=animal_id, cell_id=cell_id, display=False)
+
+    save_dir = fr"/scratch/msf157/data/ca1_data2/EC_model_ranks{ranks}_contigkmeans_00x"
     os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
 
     save_path = os.path.join(save_dir, f"MSE_EC_cell_latent_{ranks}_animal{animal_id}_cell_id{cell_id}.pkl")
     with open(save_path, "wb") as f:
-        pickle.dump(internals_dict, f)
+        pickle.dump([model, internals_dict], f)
 
     print(f"Saved model for animal {animal_id} cell {cell_id} to {save_path}")
 
