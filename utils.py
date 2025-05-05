@@ -14,59 +14,104 @@ import random
 # Data Processing
 ###############################################################################################
 
-def preprocess_data(filepath, normalize=True):
-    data_dict = mat73.loadmat(filepath)
+def preprocess_data(filepath, normalize=True, new_NDNF=False):
 
-    # Define new position variables to use as input for the GLM
-    num_spatial_bins = 10
-    position_matrix = np.zeros((50, num_spatial_bins))
-    bin_size = 50 // num_spatial_bins
-    for i in range(num_spatial_bins):
-        position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
+    if new_NDNF:
+        with h5py.File(filepath, 'r') as f:
 
-    factors_dict = {}
-    activity_dict = {}
-    for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],data_dict['animal']['ShiftV'])):
-        num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
-        lick_rate = lick_rate[:, :num_trials]
-        reward_loc = reward_loc[:, :num_trials]
-        velocity = velocity[:, :num_trials]
-        delta_f = delta_f[:, :num_trials, :]
+            animal_group = f['animal']  # access 'animal'
+            shiftR_refs = animal_group['ShiftR'][:]
+            shiftRunning_refs = animal_group['ShiftRunning'][:]
+            shiftL_refs = animal_group['ShiftL'][:]
+            shiftV_refs = animal_group['ShiftV'][:]
 
-        # Exclude trials with NaNs
-        nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
-        nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
-        nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
-        nan_trials_activity = np.any(np.isnan(delta_f), axis=(0, 2))
-        nan_trials = nan_trials_licks | nan_trials_reward | nan_trials_velocity | nan_trials_activity
+            factors_dict = {}
+            activity_dict = {}
 
-        animal_key = f'animal_{animal_idx + 1}'
-        factors_dict[animal_key] = {"Licks": lick_rate[:, ~nan_trials],
-                                    "Reward_loc": reward_loc[:, ~nan_trials],
-                                    "Velocity": velocity[:, ~nan_trials]}
+            for animal_idx in range(len(animal_group['ShiftR'])):  # 18 experiments
+                delta_f = np.array(f[shiftR_refs[animal_idx][0]])
+                velocity = np.array(f[shiftRunning_refs[animal_idx][0]])
+                lick_rate = np.array(f[shiftL_refs[animal_idx][0]])
+                reward_loc = np.array(f[shiftV_refs[animal_idx][0]])
 
-        # Add a factor for each position variable (from 1 to num_spatial_bins)
-        num_trials = factors_dict[animal_key]["Velocity"].shape[1]
-        for bin_idx in range(num_spatial_bins):
-            bin_key = f"Position_{bin_idx + 1}"
-            factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials) # Copy the position variable for each trial
+                delta_f = delta_f.transpose(0, 2, 1)
+                if delta_f.shape[2] > 1:
+                    delta_f = delta_f[:, :, 1:]
 
-        if normalize: # Normalize behavioral factors to [0,1]
-            for var_name in factors_dict[animal_key]:
-                factors_dict[animal_key][var_name] = (factors_dict[animal_key][var_name] - np.min(factors_dict[animal_key][var_name])) / (np.max(factors_dict[animal_key][var_name]) - np.min(factors_dict[animal_key][var_name]))
+                # Make sure the number of trials matches
+                num_trials = min(delta_f.shape[1], velocity.shape[0], lick_rate.shape[0], reward_loc.shape[0])
+                delta_f = delta_f[:, :num_trials, :]
+                velocity = velocity[:, :num_trials]
+                lick_rate = lick_rate[:, :num_trials]
+                reward_loc = reward_loc[:, :num_trials]
 
-        activity_dict[animal_key] = {}
-        for neuron_idx in range(delta_f.shape[2]):
-            neuron_activity = delta_f[:, :, neuron_idx]
-            if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0): # Don't save empty/silent neurons
-                continue
-            cleaned_activity = neuron_activity[:, ~nan_trials]
+                nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
+                nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
+                nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
+                nan_trials_activity = np.any(np.isnan(delta_f), axis=(0, 2))
+                #         print(nan_trials_activity)
+                nan_trials = nan_trials_licks | nan_trials_reward | nan_trials_velocity | nan_trials_activity
 
-            if normalize:  # Z-score the neuron activity (df/f)
-                cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+                animal_key = f'animal_{animal_idx + 1}'
+                factors_dict[animal_key] = {"Licks": lick_rate[:, ~nan_trials],
+                                            "Reward_loc": reward_loc[:, ~nan_trials],
+                                            "Velocity": velocity[:, ~nan_trials]}
 
-            neuron_key = f'cell_{neuron_idx + 1}'
-            activity_dict[animal_key][neuron_key] = cleaned_activity
+
+
+    else:
+        data_dict = mat73.loadmat(filepath)
+
+        # Define new position variables to use as input for the GLM
+        num_spatial_bins = 10
+        position_matrix = np.zeros((50, num_spatial_bins))
+        bin_size = 50 // num_spatial_bins
+        for i in range(num_spatial_bins):
+            position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
+
+        factors_dict = {}
+        activity_dict = {}
+        for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'],data_dict['animal']['ShiftV'])):
+            num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
+            lick_rate = lick_rate[:, :num_trials]
+            reward_loc = reward_loc[:, :num_trials]
+            velocity = velocity[:, :num_trials]
+            delta_f = delta_f[:, :num_trials, :]
+
+            # Exclude trials with NaNs
+            nan_trials_licks = np.any(np.isnan(lick_rate), axis=0)
+            nan_trials_reward = np.any(np.isnan(reward_loc), axis=0)
+            nan_trials_velocity = np.any(np.isnan(velocity), axis=0)
+            nan_trials_activity = np.any(np.isnan(delta_f), axis=(0, 2))
+            nan_trials = nan_trials_licks | nan_trials_reward | nan_trials_velocity | nan_trials_activity
+
+            animal_key = f'animal_{animal_idx + 1}'
+            factors_dict[animal_key] = {"Licks": lick_rate[:, ~nan_trials],
+                                        "Reward_loc": reward_loc[:, ~nan_trials],
+                                        "Velocity": velocity[:, ~nan_trials]}
+
+            # Add a factor for each position variable (from 1 to num_spatial_bins)
+            num_trials = factors_dict[animal_key]["Velocity"].shape[1]
+            for bin_idx in range(num_spatial_bins):
+                bin_key = f"Position_{bin_idx + 1}"
+                factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials) # Copy the position variable for each trial
+
+            if normalize: # Normalize behavioral factors to [0,1]
+                for var_name in factors_dict[animal_key]:
+                    factors_dict[animal_key][var_name] = (factors_dict[animal_key][var_name] - np.min(factors_dict[animal_key][var_name])) / (np.max(factors_dict[animal_key][var_name]) - np.min(factors_dict[animal_key][var_name]))
+
+            activity_dict[animal_key] = {}
+            for neuron_idx in range(delta_f.shape[2]):
+                neuron_activity = delta_f[:, :, neuron_idx]
+                if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0): # Don't save empty/silent neurons
+                    continue
+                cleaned_activity = neuron_activity[:, ~nan_trials]
+
+                if normalize:  # Z-score the neuron activity (df/f)
+                    cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+
+                neuron_key = f'cell_{neuron_idx + 1}'
+                activity_dict[animal_key][neuron_key] = cleaned_activity
 
     return activity_dict, factors_dict
 

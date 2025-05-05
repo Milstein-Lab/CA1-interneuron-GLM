@@ -12,13 +12,10 @@ import umap
 from sklearn.decomposition import PCA
 import ruptures as rpt
 from scipy.spatial.distance import cdist
+from sklearn.cluster import DBSCAN
 
 
-def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False):
-    #     import warnings
-    #     warnings.filterwarnings("ignore", category=UserWarning)
-    #     warnings.filterwarnings("ignore", category=FutureWarning)
-
+def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False, use_dbscan=False):
     per_cell_internals_dict = {}
     reconstructed_cell = cell_model.construct().numpy(force=True)[:, 0, :]
     real_cell_activity = tensor_for_cell.detach().numpy()
@@ -33,6 +30,7 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
             import umap
             umap_model = umap.UMAP(n_components=3, random_state=0)
             X_umap = umap_model.fit_transform(X)
+
     else:
         f = cell_model.vectors[2][1].detach()
         f1 = f.permute(1, 0, 2).reshape(f.shape[1], -1)
@@ -55,7 +53,14 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
     Recon_by_cluster_av_dict = {}
     cluster_trial_mean_dict = {}
 
-    for clusters_chosen in range(1, max_clusters):
+    if use_dbscan:
+        cluster_range = [None]  # DBSCAN doesn't care about cluster count
+    else:
+        cluster_range = range(1, max_clusters)
+
+    for clusters_chosen in cluster_range:
+
+        #     for clusters_chosen in range(1, max_clusters):
         if use_breakpoints:
             print(f"Using breakpoint clustering (clusters = {clusters_chosen})")
             model_input = X_umap if use_umap else (X if x00 else f1)
@@ -80,18 +85,47 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
             X_pca = PCA(n_components=3).fit_transform(model_input)
 
         else:
-            kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
-            if x00:
-                labels = kmeans.fit_predict(X)
-                model_input = X
+            model_input = X_umap if use_umap else (X if x00 else f1)
+
+            if use_dbscan:
+                dbscan = DBSCAN(eps=0.5, min_samples=2)
+                labels = dbscan.fit_predict(model_input)
+
+                # Skip if DBSCAN failed (e.g., all -1)
+                unique_labels = np.unique(labels)
+                if len(unique_labels[unique_labels != -1]) < 2:
+                    print(f"⚠️ DBSCAN found too few clusters: {unique_labels}")
+                    continue
+
+                # Re-assign labels so they’re 0-indexed (skip noise points)
+                cluster_ids = [i for i in unique_labels if i != -1]
+                labels_mapped = np.zeros_like(labels)
+                for new_id, old_id in enumerate(cluster_ids):
+                    labels_mapped[labels == old_id] = new_id
+                labels = labels_mapped
+
+                clusters_chosen = len(np.unique(labels))
+                centroids = np.array([model_input[labels == i].mean(axis=0) for i in range(clusters_chosen)])
+
             else:
-                labels = kmeans.fit_predict(f1)
-                model_input = f1
-            centroids = kmeans.cluster_centers_
-            if use_umap:
-                X_pca = PCA(n_components=3).fit_transform(X_umap)
-            else:
-                X_pca = PCA(n_components=3).fit_transform(model_input)
+                kmeans = KMeans(n_clusters=clusters_chosen, random_state=0, n_init=10)
+                labels = kmeans.fit_predict(model_input)
+                centroids = kmeans.cluster_centers_
+
+            X_pca = PCA(n_components=3).fit_transform(model_input)
+
+        #             kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
+        #             if x00:
+        #                 labels = kmeans.fit_predict(X)
+        #                 model_input = X
+        #             else:
+        #                 labels = kmeans.fit_predict(f1)
+        #                 model_input = f1
+        #             centroids = kmeans.cluster_centers_
+        #             if use_umap:
+        #                 X_pca = PCA(n_components=3).fit_transform(X_umap)
+        #             else:
+        #                 X_pca = PCA(n_components=3).fit_transform(model_input)
 
         cluster_labels_dict[clusters_chosen] = labels
         cluster_centroids_dict[clusters_chosen] = centroids
@@ -149,6 +183,9 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
         for i, (n, trials) in enumerate(valid_cluster_indices):
             empty_cell[trials, :] = valid_cluster_mean_trials_list[i]
 
+        # plt.imshow(empty_cell, aspect='auto')
+        # plt.show()
+
         key = f"clusters_chosen_{clusters_chosen}"
         MSE_dict[key] = np.mean((real_cell_activity - empty_cell) ** 2)
         Recon_by_cluster_av_dict[key] = empty_cell
@@ -167,11 +204,6 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
     }
 
     return per_cell_internals_dict
-
-
-
-
-
 
 
 # MSE_list, x_pca_list, labels_list, indices_for_cluster_number, Recon_by_cluster_av_list, TCA_reconstructions_list, cluster_trial_mean_list = get_per_cell_sliceTCA_reconstruction_MSE(SST_every_cell_model_list, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=False)
@@ -224,18 +256,9 @@ if __name__ == "__main__":
                                        max_iter=15_000,
                                            seed=0)
 
-    internals_dict = get_cell_reconstruction_dict_mod(model, tensor_for_cell, cell_num=cell_id, max_clusters=8, display=False, reassign_small_clusters=False, x00=True, use_umap=False, use_breakpoints=False)
+    internals_dict = get_cell_reconstruction_dict_mod(model, tensor_for_cell, cell_num=cell_id, max_clusters=8, display=False, reassign_small_clusters=True, x00=True, use_umap=True, use_breakpoints=False, use_dbscan=False)
 
-    # plt.figure()
-    # plt.imshow(cell_of_interest[:,0,:].detach().numpy(), aspect='auto')
-    # plt.colorbar()
-    # plt.show()
-    #
-    # plt.imshow(reconstruction_TCA[:,0,:], aspect='auto')
-    # plt.colorbar()
-    # plt.show()
-
-    save_dir = fr"/scratch/msf157/data/ca1_data2/cell_EC_model_ranks{ranks}_kmeans_x00"
+    save_dir = fr"/scratch/msf157/data/ca1_data2/cell_EC_model_ranks{ranks}_reassign_umap_regkmean_x00_cell"
     os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
 
     save_path = os.path.join(save_dir, f"MSE_EC_cell_latent_{ranks}_animal{animal_id}_cell_id{cell_id}.pkl")

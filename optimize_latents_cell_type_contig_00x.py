@@ -166,22 +166,7 @@ if __name__ == "__main__":
                                        max_iter=15_0,
                                            seed=0)
 
-    # reco = model.construct().detach().numpy(force=True)
-    #
-    # plt.imshow(tensor_for_animal[:,cell_id,:], aspect='auto')
-    # plt.colorbar()
-    # plt.title("raw tensor")
-    # plt.show()
-    #
-    # plt.imshow(cell_of_interest[:, 0, :].detach().numpy(), aspect='auto')
-    # plt.colorbar()
-    # plt.title("into tca raw")
-    # plt.show()
-    #
-    # plt.imshow(reco[:,0, :], aspect='auto')
-    # plt.title("reco")
-    # plt.colorbar()
-    # plt.show()
+
 
     internals_dict = get_per_cell_sliceTCA_reconstruction_contig_00x(model, tensor_for_animal, residual_activity_dict, max_clusters=5, animal_id=animal_id, cell_id=cell_id, display=False)
 
