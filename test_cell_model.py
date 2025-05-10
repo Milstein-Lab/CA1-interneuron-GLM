@@ -148,7 +148,7 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
                 centroid_space = centroids
             for cluster_id in range(clusters_chosen):
                 trial_indices = np.where(labels == cluster_id)[0]
-                if len(trial_indices) < 2:
+                if len(trial_indices) < 3:
                     print(f"  Reassigning cluster {cluster_id} (size={len(trial_indices)})...")
                     for idx in trial_indices:
                         trial = model_input[idx]
@@ -210,18 +210,19 @@ def get_cell_reconstruction_dict_mod(cell_model, tensor_for_cell, cell_num=None,
 # Load data
 #filename = "SSTindivsomata_GLM"
 #filename = "NDNFindivsomata_GLM"
-filename = "EC_GLM"
+# filename = "EC_GLM"
+filename = "NDNFanalC"
 
 cell_id = int(sys.argv[1])         # SLURM_ARRAY_TASK_ID
 animal_id = int(sys.argv[2])       # Provided via command-line argument
 ranks = int(sys.argv[3])
 
-# cell_id = 3
-# animal_id = 0
+# cell_id = 0
+# animal_id = 10
 # ranks = 40
 
 filepath = os.path.join("datasets", filename + ".mat")
-activity_dict, factors_dict = ut.preprocess_data(filepath)
+activity_dict, factors_dict = ut.preprocess_data2(filepath, normalize=True, new_NDNF=True)
 
 filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
 GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
@@ -245,6 +246,7 @@ for animal in residual_activity_dict:
 if __name__ == "__main__":
 
     tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
+    print(tensor_for_animal.shape)
     tensor_for_cell = tensor_for_animal[:,cell_id,:]
     cell_of_interest = tensor_for_animal[:,cell_id,:].unsqueeze(1)
     cell_of_interest.requires_grad_()
@@ -256,9 +258,9 @@ if __name__ == "__main__":
                                        max_iter=15_000,
                                            seed=0)
 
-    internals_dict = get_cell_reconstruction_dict_mod(model, tensor_for_cell, cell_num=cell_id, max_clusters=8, display=False, reassign_small_clusters=True, x00=True, use_umap=True, use_breakpoints=False, use_dbscan=False)
+    internals_dict = get_cell_reconstruction_dict_mod(model, tensor_for_cell, cell_num=cell_id, max_clusters=8, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False, use_dbscan=False)
 
-    save_dir = fr"/scratch/msf157/data/ca1_data2/cell_EC_model_ranks{ranks}_reassign_umap_regkmean_x00_cell"
+    save_dir = fr"/scratch/msf157/data/ca1_data2/testing_cell_super_new_NDNF_model_ranks{ranks}_reassign_regkmean_x00_cell"
     os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
 
     save_path = os.path.join(save_dir, f"MSE_EC_cell_latent_{ranks}_animal{animal_id}_cell_id{cell_id}.pkl")

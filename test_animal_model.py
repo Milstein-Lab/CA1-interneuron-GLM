@@ -174,9 +174,9 @@ def get_animal_model_reconstruction_dict_dynamic_k(animal_model, tensor_for_anim
 # Load data
 #filename = "SSTindivsomata_GLM"
 #filename = "NDNFindivsomata_GLM"
-filename = "EC_GLM"
+# filename = "EC_GLM"
+filename = "NDNFanalC"
 
-# cell_id = int(sys.argv[1])         # SLURM_ARRAY_TASK_ID
 # animal_id = int(sys.argv[1])       # Provided via command-line argument
 # ranks = int(sys.argv[2])
 
@@ -184,7 +184,7 @@ animal_id = 0
 ranks = 40
 
 filepath = os.path.join("datasets", filename + ".mat")
-activity_dict, factors_dict = ut.preprocess_data(filepath)
+activity_dict, factors_dict = ut.preprocess_data2(filepath, normalize=True, new_NDNF=True)
 
 filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
 GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
@@ -218,7 +218,7 @@ if __name__ == "__main__":
                                        max_iter=15_0,
                                            seed=0)
 
-    get_animal_model_reconstruction_dict_dynamic_k(model, tensor_for_animal, max_clusters=8, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False, carryforward=True)
+    internals_dict = get_animal_model_reconstruction_dict_dynamic_k(model, tensor_for_animal, max_clusters=8, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=True, carryforward=True)
 
     save_dir = fr"/scratch/msf157/data/ca1_data2/cell_EC_model_ranks{ranks}_kmean_reassign_x00_carryforward"
     os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists

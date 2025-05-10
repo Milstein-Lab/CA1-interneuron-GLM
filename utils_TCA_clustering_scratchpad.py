@@ -14,8 +14,57 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 import ruptures as rpt
 from scipy.stats import sem
+import h5py
+import mat73
+import utils as ut
+from scipy.stats import pearsonr
+import matplotlib.pyplot as plt
+import glob
+from collections import OrderedDict
+from sklearn.cluster import KMeans
+import umap
+from sklearn.metrics import silhouette_score
 
 
+
+def load_data_regular(name="NDNFanalC", new_NDNF=True):
+    file_path = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM"
+    filename = name
+    filepath = os.path.join(file_path, "datasets", filename + ".mat")
+
+    activity_dict, factors_dict = preprocess_data2(filepath, normalize=True, new_NDNF=new_NDNF)
+
+    filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
+
+    GLM_params, double_predicted_activity_dict_NDNF_new = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
+    double_residual_activity_dict_NDNF_new = ut.get_residual_activity_dict(activity_dict, double_predicted_activity_dict_NDNF_new)
+
+    return activity_dict, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
+
+
+def load_data_double(name="NDNFanalC", double_track=False):
+    file_path = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM"
+    filename = name
+    filepath = os.path.join(file_path, "datasets", filename + ".mat")
+
+    activity_dict, factors_dict = preprocess_data2(filepath, normalize=True, new_NDNF=True)
+
+    filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
+
+    if double_track:
+
+        double_new_NDNF_velocity_dict = get_double_track_length(filtered_factors_dict, activity=False, dual_track_length=True)
+        double_new_NDNF_activity_dict = get_double_track_length(activity_dict, activity=True, dual_track_length=True)
+
+    else:
+
+        double_new_NDNF_velocity_dict = get_double_track_length(filtered_factors_dict, activity=False, dual_track_length=False)
+        double_new_NDNF_activity_dict = get_double_track_length(activity_dict, activity=True, dual_track_length=False)
+
+    GLM_params, double_predicted_activity_dict_NDNF_new = ut.fit_GLM_population(double_new_NDNF_velocity_dict, double_new_NDNF_activity_dict, quintile=None, regression='linear')
+    double_residual_activity_dict_NDNF_new = ut.get_residual_activity_dict(double_new_NDNF_activity_dict, double_predicted_activity_dict_NDNF_new)
+
+    return activity_dict, filtered_factors_dict, double_new_NDNF_activity_dict, double_new_NDNF_velocity_dict, double_residual_activity_dict_NDNF_new
 
 
 def get_cell_mean_sem_plotting_cellTCA(cell_model_dict):
@@ -309,15 +358,47 @@ def get_model_data_per_animal(mse_dir, cell_type="EC"):
     return rank_mse_dict
 
 
+# def get_model_data_per_animal2(mse_dir, cell_type="EC"):
+#     import re
+#     import os
+#     import pickle
+#
+#     # Pattern to extract rank and animal_id
+#     pattern = re.compile(fr"MSE_{cell_type}_animal_latent_(\d+)_animal(\d+)\.pkl")
+#
+#     # Structure: {rank: {animal_id: model_list}}
+#     rank_mse_dict = {}
+#
+#     for fname in os.listdir(mse_dir):
+#         if fname.endswith(".pkl"):
+#             match = pattern.match(fname)
+#             if match:
+#                 rank = int(match.group(1))
+#                 animal_id = int(match.group(2))
+#
+#                 path = os.path.join(mse_dir, fname)
+#                 with open(path, "rb") as f:
+#                     model_list = pickle.load(f)
+#
+#                 # Proper way to assign value
+#                 rank_mse_dict.setdefault(rank, {})[animal_id] = model_list
+#             else:
+#                 print(f"[Skipping] Unexpected filename format: {fname}")
+#
+#     # Summary printout
+#     print(f"Loaded MSEs for {len(rank_mse_dict)} rank(s).")
+#     for rank, animal_dict in rank_mse_dict.items():
+#         print(f"  Rank {rank}: {len(animal_dict)} animals loaded.")
+#
+#     return rank_mse_dict
+
 def get_model_data_per_animal2(mse_dir, cell_type="EC"):
     import re
     import os
     import pickle
+    from collections import OrderedDict
 
-    # Pattern to extract rank and animal_id
     pattern = re.compile(fr"MSE_{cell_type}_animal_latent_(\d+)_animal(\d+)\.pkl")
-
-    # Structure: {rank: {animal_id: model_list}}
     rank_mse_dict = {}
 
     for fname in os.listdir(mse_dir):
@@ -331,17 +412,22 @@ def get_model_data_per_animal2(mse_dir, cell_type="EC"):
                 with open(path, "rb") as f:
                     model_list = pickle.load(f)
 
-                # Proper way to assign value
                 rank_mse_dict.setdefault(rank, {})[animal_id] = model_list
             else:
                 print(f"[Skipping] Unexpected filename format: {fname}")
 
+    # Sort the animal IDs in each rank
+    for rank in rank_mse_dict:
+        sorted_animals = dict(sorted(rank_mse_dict[rank].items()))
+        rank_mse_dict[rank] = sorted_animals
+
     # Summary printout
     print(f"Loaded MSEs for {len(rank_mse_dict)} rank(s).")
     for rank, animal_dict in rank_mse_dict.items():
-        print(f"  Rank {rank}: {len(animal_dict)} animals loaded.")
+        print(f"  Rank {rank}: {len(animal_dict)} animals loaded. IDs: {list(animal_dict.keys())}")
 
     return rank_mse_dict
+
 
 
 def preprocess_animal(animal_EC_model_ranks20_contig_x00, residual_activity_dict, num_clusters=8, reassign_clusters=False, x00=True, umap=True, contiguous=True, ranks=20):
@@ -529,11 +615,10 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
 
 
 def get_model_data_per_cell(mse_dir):
-    # More flexible pattern: ignore the cell type
     pattern = re.compile(r"MSE_.*?_cell_latent_(\d+)_animal(\d+)_cell_id(\d+)\.pkl")
 
-    # Structure: {rank: {animal_id: {cell_id: mse_value}}}
-    rank_mse_dict = {}
+    # Temporarily use unordered nested structure
+    raw_rank_mse_dict = {}
 
     for fname in os.listdir(mse_dir):
         if fname.endswith(".pkl"):
@@ -547,10 +632,18 @@ def get_model_data_per_cell(mse_dir):
                 with open(path, "rb") as f:
                     model_list = pickle.load(f)
 
-                # Initialize nested dicts
-                rank_mse_dict.setdefault(rank, {}).setdefault(animal_id, {})[cell_id] = model_list
+                raw_rank_mse_dict.setdefault(rank, {}).setdefault(animal_id, {})[cell_id] = model_list
             else:
                 print(f"[Skipping] Unexpected filename format: {fname}")
+
+    # Sort everything into OrderedDicts
+    rank_mse_dict = OrderedDict()
+    for rank in sorted(raw_rank_mse_dict.keys()):
+        rank_mse_dict[rank] = OrderedDict()
+        for animal_id in sorted(raw_rank_mse_dict[rank].keys()):
+            cells = raw_rank_mse_dict[rank][animal_id]
+            sorted_cells = OrderedDict(sorted(cells.items()))
+            rank_mse_dict[rank][animal_id] = sorted_cells
 
     # Summary printout
     print(f"Loaded MSEs for {len(rank_mse_dict)} rank(s).")
@@ -620,3 +713,1580 @@ def plot_per_cell_clustering_internals_single_cluster(cell_NDNF_model_ranks20_km
     plt.tight_layout()
     plt.show()
 
+
+def preprocess_data2(filepath, normalize=True, new_NDNF=False):
+    factors_dict = {}
+    activity_dict = {}
+
+    if new_NDNF:
+        with h5py.File(filepath, 'r') as f:
+            animal_group = f['animal']
+            shiftR_refs = animal_group['ShiftR'][:]
+            shiftRunning_refs = animal_group['ShiftRunning'][:]
+            shiftL_refs = animal_group['ShiftL'][:]
+            shiftV_refs = animal_group['ShiftV'][:]
+
+            for animal_idx in range(len(shiftR_refs)):
+                delta_f = np.array(f[shiftR_refs[animal_idx][0]])
+                delta_f = delta_f.swapaxes(0, 2)
+                velocity = np.array(f[shiftRunning_refs[animal_idx][0]]).T
+                lick_rate = np.array(f[shiftL_refs[animal_idx][0]]).T
+                reward_loc = np.array(f[shiftV_refs[animal_idx][0]]).T
+
+                if delta_f.shape[1] > 1:
+                    delta_f = delta_f[:, 1:, :]  # remove duplicate neuron
+
+                num_trials = min(delta_f.shape[1], velocity.shape[1], lick_rate.shape[1], reward_loc.shape[1])
+
+                delta_f = delta_f[:, :num_trials, :]
+                velocity = velocity[:, :num_trials]
+                lick_rate = lick_rate[:, :num_trials]
+                reward_loc = reward_loc[:, :num_trials]
+
+                nan_trials = (
+                        np.any(np.isnan(lick_rate), axis=0) |
+                        np.any(np.isnan(reward_loc), axis=0) |
+                        np.any(np.isnan(velocity), axis=0) |
+                        np.any(np.isnan(delta_f), axis=(0, 2))
+                )
+
+                animal_key = f'animal_{animal_idx + 1}'
+                factors_dict[animal_key] = {
+                    "Licks": lick_rate[:, ~nan_trials],
+                    "Reward_loc": reward_loc[:, ~nan_trials],
+                    "Velocity": velocity[:, ~nan_trials]
+                }
+
+                if normalize:
+                    for var in factors_dict[animal_key]:
+                        factors_dict[animal_key][var] = ((factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+                                                         (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+
+                activity_dict[animal_key] = {}
+                for neuron_idx in range(delta_f.shape[2]):  # loop over neurons
+                    neuron_activity = delta_f[:, :, neuron_idx]  # (trial, bin)
+                    if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
+                        continue
+
+                    cleaned_activity = neuron_activity[:, ~nan_trials]
+                    if normalize:
+                        cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+                    neuron_key = f'cell_{neuron_idx + 1}'
+                    activity_dict[animal_key][neuron_key] = cleaned_activity
+
+
+    else:
+        data_dict = mat73.loadmat(filepath)
+
+        # Setup position variables
+        num_spatial_bins = 10
+        position_matrix = np.zeros((50, num_spatial_bins))
+        bin_size = 50 // num_spatial_bins
+        for i in range(num_spatial_bins):
+            position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
+
+        for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
+                zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
+
+            num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
+            delta_f = delta_f[:, :num_trials, :]
+            velocity = velocity[:, :num_trials]
+            lick_rate = lick_rate[:, :num_trials]
+            reward_loc = reward_loc[:, :num_trials]
+
+            nan_trials = (
+                    np.any(np.isnan(lick_rate), axis=0) |
+                    np.any(np.isnan(reward_loc), axis=0) |
+                    np.any(np.isnan(velocity), axis=0) |
+                    np.any(np.isnan(delta_f), axis=(0, 2)))
+
+            animal_key = f'animal_{animal_idx + 1}'
+            factors_dict[animal_key] = {
+                "Licks": lick_rate[:, ~nan_trials],
+                "Reward_loc": reward_loc[:, ~nan_trials],
+                "Velocity": velocity[:, ~nan_trials]}
+
+            # Add position info
+            num_trials = factors_dict[animal_key]["Velocity"].shape[1]
+            for bin_idx in range(num_spatial_bins):
+                bin_key = f"Position_{bin_idx + 1}"
+                factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials)
+
+            if normalize:
+                for var in factors_dict[animal_key]:
+                    factors_dict[animal_key][var] = (
+                            (factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+                            (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+
+            activity_dict[animal_key] = {}
+            for neuron_idx in range(delta_f.shape[2]):
+                neuron_activity = delta_f[:, :, neuron_idx]
+                if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
+                    continue
+                cleaned_activity = neuron_activity[:, ~nan_trials]
+                if normalize:
+                    cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+                neuron_key = f'cell_{neuron_idx + 1}'
+                activity_dict[animal_key][neuron_key] = cleaned_activity
+
+    return activity_dict, factors_dict
+
+
+def get_sorted_activity(activity_dict, title="New NDNF Raw"):
+    data_per_animal_new_NDNF = []
+    sorted_data_new_NDNF = []
+
+    for animal in activity_dict:
+        cells_data_list = []
+        for cell in activity_dict[animal]:
+            cell_activity = activity_dict[animal][cell]
+            trial_av = np.mean(cell_activity, axis=1)
+            cells_data_list.append(trial_av)
+        cells_data_array = np.array(cells_data_list)
+        sorted_cells_data_array = np.argsort(np.argmax(cells_data_array, axis=1))
+        data_per_animal_new_NDNF.append(cells_data_array)
+        sorted_data_new_NDNF.append(sorted_cells_data_array)
+
+    n_animals = len(data_per_animal_new_NDNF)
+    first_column_cutoff = 9
+    n_rows = max(first_column_cutoff, n_animals - first_column_cutoff)
+
+    fig, axs = plt.subplots(n_rows, 2, figsize=(10, 2.5 * n_rows))
+    axs = np.atleast_2d(axs)
+
+    max_value = 0
+    min_value = 0
+    for data in data_per_animal_new_NDNF:
+        maximum = np.max(data)
+        minimum = np.min(data)
+        if maximum > max_value:
+            max_value = maximum
+
+        if minimum < min_value:
+            min_value = minimum
+
+    for idx, cells_data_array in enumerate(data_per_animal_new_NDNF):
+        sorted_indices = sorted_data_new_NDNF[idx]
+        sorted_activity = cells_data_array[sorted_indices, :]
+
+        if idx < first_column_cutoff:
+            row = idx
+            col = 0
+        else:
+            row = idx - first_column_cutoff
+            col = 1
+
+        ax = axs[row, col]
+        im = ax.imshow(sorted_activity, aspect='auto', cmap='viridis')
+        ax.set_title(f"{title} Animal{idx + 1}")
+        ax.set_ylabel("Cells (sorted)")
+        ax.set_xlabel("Position Bin")
+        fig.colorbar(im, ax=ax, orientation='vertical')
+
+    # Hide any unused axes (in case total < n_rows * 2)
+    for row in range(n_rows):
+        for col in range(2):
+            idx_equiv = row if col == 0 else row + first_column_cutoff
+            if idx_equiv >= n_animals:
+                axs[row, col].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def get_and_plot_concatenated_data(activity_dict, double_residual_activity_dict_NDNF_new, double_new_NDNF_activity_dict_100, double_residual_activity_dict_NDNF_new_100):
+    seperated_activity_dict_A = {}
+    seperated_activity_dict_B = {}
+
+    for idx, animal in enumerate(activity_dict):
+        cell_seperated_activity_dict_A = {}
+        cell_seperated_activity_dict_B = {}
+
+        for cell in activity_dict[animal]:
+            if idx < 9:
+                cell_seperated_activity_dict_A[cell] = activity_dict[animal][cell]
+            else:
+                cell_seperated_activity_dict_B[cell] = activity_dict[animal][cell]
+
+        if idx < 9:
+            seperated_activity_dict_A[animal] = cell_seperated_activity_dict_A
+        else:
+            seperated_activity_dict_B[animal] = cell_seperated_activity_dict_B
+
+    seperated_animal_residual_dict_blank = {}
+    seperated_animal_residual_dict_fixed = {}
+
+    for animal in double_residual_activity_dict_NDNF_new:
+        seperated_cell_dict_blank = {}
+        seperated_cell_dict_fixed = {}
+
+        for cell in double_residual_activity_dict_NDNF_new[animal]:
+            blank_trials = activity_dict[animal][cell].shape[1]
+
+            blank_data = double_residual_activity_dict_NDNF_new[animal][cell][:, :blank_trials]
+            fixed_data = double_residual_activity_dict_NDNF_new[animal][cell][:, blank_trials:]
+
+            seperated_cell_dict_blank[cell] = blank_data
+            seperated_cell_dict_fixed[cell] = fixed_data
+
+        seperated_animal_residual_dict_blank[animal] = seperated_cell_dict_blank
+        seperated_animal_residual_dict_fixed[animal] = seperated_cell_dict_fixed
+
+    animal_belt_A = []
+    animal_belt_B = []
+    animal_belt_A_residuals = []
+    animal_belt_B_residuals = []
+    for ids, animal in enumerate(seperated_animal_residual_dict_blank):
+        cells_belt_A = []
+        cells_belt_B = []
+        cells_belt_A_residuals = []
+        cells_belt_B_residuals = []
+        for cell in seperated_animal_residual_dict_blank[animal]:
+            cells_belt_A.append(np.mean(seperated_activity_dict_A[f"animal_{ids + 1}"][cell], axis=1))
+            cells_belt_B.append(np.mean(seperated_activity_dict_B[f"animal_{ids + 10}"][cell], axis=1))
+            cells_belt_A_residuals.append(np.mean(seperated_animal_residual_dict_blank[animal][cell], axis=1))
+            cells_belt_B_residuals.append(np.mean(seperated_animal_residual_dict_fixed[animal][cell], axis=1))
+
+        cells_belt_A_array = np.array(cells_belt_A)
+        cells_belt_B_array = np.array(cells_belt_B)
+        cells_belt_A_residuals_array = np.array(cells_belt_A_residuals)
+        cells_belt_B_residuals_array = np.array(cells_belt_B_residuals)
+
+        animal_belt_A.append(np.mean(cells_belt_A_array, axis=0))
+        animal_belt_B.append(np.mean(cells_belt_B_array, axis=0))
+        animal_belt_A_residuals.append(np.mean(cells_belt_A_residuals_array, axis=0))
+        animal_belt_B_residuals.append(np.mean(cells_belt_B_residuals_array, axis=0))
+
+    animal_belt_A_residuals_array = np.array(animal_belt_A_residuals)
+    mean_animal_belt_A_residuals = np.mean(animal_belt_A_residuals, axis=0)
+    sem_animal_belt_A_residuals = sem(animal_belt_A_residuals, axis=0)
+
+    animal_belt_B_residuals_array = np.array(animal_belt_B_residuals)
+    mean_animal_belt_B_residuals = np.mean(animal_belt_B_residuals, axis=0)
+    sem_animal_belt_B_residuals = sem(animal_belt_B_residuals, axis=0)
+
+    animal_belt_A_array = np.array(animal_belt_A)
+    mean_animal_belt_A = np.mean(animal_belt_A, axis=0)
+    sem_animal_belt_A = sem(animal_belt_A, axis=0)
+
+    animal_belt_B_array = np.array(animal_belt_B)
+    mean_animal_belt_B = np.mean(animal_belt_B, axis=0)
+    sem_animal_belt_B = sem(animal_belt_B, axis=0)
+
+    fig, axs = plt.subplots(3, 3, figsize=(20, 12))
+    axs[0, 0].plot(mean_animal_belt_A, color='grey', label='Raw')
+    axs[0, 0].fill_between(range(len(mean_animal_belt_A)), mean_animal_belt_A + sem_animal_belt_A, mean_animal_belt_A - sem_animal_belt_A, alpha=0.3, color='grey')
+    axs[0, 0].set_ylim(-0.25, 0.65)
+    axs[0, 0].plot(mean_animal_belt_A_residuals, color='orange', label='Velocity-Subtracted Residual')
+    axs[0, 0].fill_between(range(len(mean_animal_belt_A_residuals)), mean_animal_belt_A_residuals + sem_animal_belt_A_residuals, mean_animal_belt_A_residuals - sem_animal_belt_A_residuals, alpha=0.3, color='orange')
+    axs[0, 0].set_title("Belt E (Random)")
+    axs[0, 0].set_ylabel("DF/F")
+    axs[0, 0].set_xlabel("Position Bin")
+    axs[0, 0].legend()
+
+    axs[0, 1].plot(mean_animal_belt_B, color='grey', label='Raw')
+    axs[0, 1].fill_between(range(len(mean_animal_belt_B)), mean_animal_belt_B + sem_animal_belt_B, mean_animal_belt_B - sem_animal_belt_B, alpha=0.3, color='grey')
+    axs[0, 1].plot(mean_animal_belt_B_residuals, color='r', label='Velocity-Subtracted Residual')
+    axs[0, 1].fill_between(range(len(mean_animal_belt_B_residuals)), mean_animal_belt_B_residuals + sem_animal_belt_B_residuals, mean_animal_belt_B_residuals - sem_animal_belt_B_residuals, alpha=0.3, color='r')
+    axs[0, 1].set_ylim(-0.25, 0.65)
+    axs[0, 1].set_title("Belt 1A (Cue+Fixed)")
+    axs[0, 1].set_ylabel("DF/F")
+    axs[0, 1].set_xlabel("Position Bin")
+    axs[0, 1].legend()
+
+    for i in range(len(animal_belt_A_array)):
+        axs[1, 0].plot(animal_belt_A_array[i])
+        axs[1, 0].set_title("Belt E (Random) Raw Animal Traces")
+        axs[1, 0].set_ylim(-0.5, 2.0)
+        axs[1, 1].plot(animal_belt_B_array[i])
+        axs[1, 1].set_title("Belt 1A (Cue+Fixed) Raw Animal Traces")
+        axs[1, 1].set_ylim(-0.5, 2.0)
+        axs[2, 0].plot(animal_belt_A_residuals_array[i])
+        axs[2, 0].set_title("Belt E (Random) Residual Animal Traces")
+        axs[2, 0].set_ylim(-0.5, 2.0)
+        axs[2, 1].plot(animal_belt_B_residuals_array[i])
+        axs[2, 1].set_title("Belt 1A (Cue+Fixed) Residual Animal Traces")
+        axs[2, 1].set_ylim(-0.5, 2.0)
+        axs[1, 0].set_ylabel("DF/F")
+        axs[1, 0].set_xlabel("Position Bin")
+        axs[1, 1].set_ylabel("DF/F")
+        axs[1, 1].set_xlabel("Position Bin")
+        axs[2, 0].set_ylabel("DF/F")
+        axs[2, 0].set_xlabel("Position Bin")
+        axs[2, 1].set_ylabel("DF/F")
+        axs[2, 1].set_xlabel("Position Bin")
+
+    animal_data_belt_old = []
+    residual_data_belt_old = []
+    belt_old_list = []
+    belt_old_residuals_list = []
+
+    correlation_dict_resid_raw = {}
+
+    for idx, animal in enumerate(double_new_NDNF_activity_dict_100):
+        cell_list = []
+        residual_list = []
+        correlation_per_cell_resid_raw = {}
+        cells_belt_old = {}
+        cells_belt_old_residuals = {}
+
+        for cell in double_new_NDNF_activity_dict_100[animal]:
+            cell_act = double_new_NDNF_activity_dict_100[animal][cell]
+            residual_act = double_residual_activity_dict_NDNF_new_100[animal][cell]
+            trial_av = np.mean(cell_act, axis=1)
+            trial_av_residuals = np.mean(residual_act, axis=1)
+            #         r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
+
+            cells_belt_old[cell] = cell_act
+            cells_belt_old_residuals[cell] = residual_act
+
+            #         correlation_per_cell_resid_raw[cell] = r_value_resid_raw
+            cell_list.append(trial_av)
+            residual_list.append(trial_av_residuals)
+        belt_old_list.append(cells_belt_old)
+        belt_old_residuals_list.append(cells_belt_old_residuals)
+
+        correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
+        cell_array = np.array(cell_list)
+        residual_array = np.array(residual_list)
+        cell_av = np.mean(cell_array, axis=0)
+        residual_av = np.mean(residual_array, axis=0)
+        animal_data_belt_old.append(cell_av)
+        residual_data_belt_old.append(residual_av)
+
+    array_animal_data_belt_old = np.array(animal_data_belt_old)
+    mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
+    sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
+
+    array_residuals_A = np.array(residual_data_belt_old)
+    mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
+    sem_residual_belt_old = sem(array_residuals_A, axis=0)
+
+    axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
+    axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
+    axs[0, 2].set_ylim(-0.25, 0.65)
+    axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
+    axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
+    axs[0, 2].set_ylim(-0.25, 0.65)
+    axs[0, 2].set_title("New NDNF Concatenated")
+    axs[0, 2].set_ylabel("DF/F")
+    axs[0, 2].set_xlabel("Position Bin")
+    axs[0, 2].legend()
+
+    for i in range(len(animal_data_belt_old)):
+        axs[1, 2].plot(animal_data_belt_old[i])
+        axs[1, 2].set_title("New NDNF Animal Traces Concatenated")
+        axs[1, 2].set_ylim(-0.5, 2.0)
+        axs[1, 2].set_ylabel("DF/F")
+        axs[1, 2].set_xlabel("Position Bin")
+        axs[2, 2].plot(residual_data_belt_old[i])
+        axs[2, 2].set_title("New NDNF Animal Traces Concatenated")
+        axs[2, 2].set_ylim(-0.5, 2.0)
+        axs[2, 2].set_ylabel("DF/F")
+        axs[2, 2].set_xlabel("Position Bin")
+
+    plt.tight_layout()
+    plt.plot()
+
+
+def get_plot_data(activity_dict, residual_activity_dict_NDNF_new, activity_dict_old_NDNF, residual_activity_dict_NDNF_old, animal_data=False):
+    animal_data_belt_A = []
+    animal_data_belt_B = []
+    residual_data_belt_A = []
+    residual_data_belt_B = []
+    belt_A_list = []
+    belt_B_list = []
+    belt_A_residuals_list = []
+    belt_B_residuals_list = []
+
+    cells_belt_A_overall = []
+    cells_belt_B_overall = []
+    cells_belt_A_residuals_overall = []
+    cells_belt_B_residuals_overall = []
+
+    correlation_dict_resid_raw = {}
+
+    for idx, animal in enumerate(activity_dict):
+        cell_list = []
+        residual_list = []
+        correlation_per_cell_resid_raw = {}
+        cells_belt_A = {}
+        cells_belt_B = {}
+        cells_belt_A_residuals = {}
+        cells_belt_B_residuals = {}
+        for cell in activity_dict[animal]:
+            cell_act = activity_dict[animal][cell]
+            residual_act = residual_activity_dict_NDNF_new[animal][cell]
+            trial_av = np.mean(cell_act, axis=1)
+            trial_av_residuals = np.mean(residual_act, axis=1)
+            r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
+            if animal_data:
+                if idx < 9:
+                    cells_belt_A[cell] = cell_act
+                    cells_belt_A_residuals[cell] = residual_act
+                else:
+                    cells_belt_B[cell] = cell_act
+                    cells_belt_B_residuals[cell] = residual_act
+            else:
+                if idx < 9:
+                    cells_belt_A_overall.append(np.mean(cell_act, axis=1))
+                    cells_belt_A_residuals_overall.append(np.mean(residual_act, axis=1))
+                else:
+                    cells_belt_B_overall.append(np.mean(cell_act, axis=1))
+                    cells_belt_B_residuals_overall.append(np.mean(residual_act, axis=1))
+
+            correlation_per_cell_resid_raw[cell] = r_value_resid_raw
+            cell_list.append(trial_av)
+            residual_list.append(trial_av_residuals)
+
+        if idx < 9:
+            belt_A_list.append(cells_belt_A)
+            belt_A_residuals_list.append(cells_belt_A_residuals)
+        else:
+            belt_B_list.append(cells_belt_B)
+            belt_B_residuals_list.append(cells_belt_B_residuals)
+
+        correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
+        cell_array = np.array(cell_list)
+        residual_array = np.array(residual_list)
+        cell_av = np.mean(cell_array, axis=0)
+        residual_av = np.mean(residual_array, axis=0)
+        if idx < 9:
+            animal_data_belt_A.append(cell_av)
+            residual_data_belt_A.append(residual_av)
+        else:
+            animal_data_belt_B.append(cell_av)
+            residual_data_belt_B.append(residual_av)
+
+
+    if animal_data:
+        array_animal_data_belt_A = np.array(animal_data_belt_A)
+        mean_animal_belt_A = np.mean(array_animal_data_belt_A, axis=0)
+        sem_animal_belt_A = sem(array_animal_data_belt_A, axis=0)
+
+        array_animal_data_belt_B = np.array(animal_data_belt_B)
+        mean_animal_belt_B = np.mean(array_animal_data_belt_B, axis=0)
+        sem_animal_belt_B = sem(array_animal_data_belt_B, axis=0)
+
+        array_residuals_A = np.array(residual_data_belt_A)
+        mean_residual_belt_A = np.mean(array_residuals_A, axis=0)
+        sem_residual_belt_A = sem(array_residuals_A, axis=0)
+
+        array_residuals_B = np.array(residual_data_belt_B)
+        mean_residual_belt_B = np.mean(array_residuals_B, axis=0)
+        sem_residual_belt_B = sem(array_residuals_B, axis=0)
+
+    else:
+        array_animal_data_belt_A = np.array(cells_belt_A_overall)
+        mean_animal_belt_A = np.mean(array_animal_data_belt_A, axis=0)
+        sem_animal_belt_A = sem(array_animal_data_belt_A, axis=0)
+
+        array_animal_data_belt_B = np.array(cells_belt_B_overall)
+        mean_animal_belt_B = np.mean(array_animal_data_belt_B, axis=0)
+        sem_animal_belt_B = sem(array_animal_data_belt_B, axis=0)
+
+        array_residuals_A = np.array(cells_belt_A_residuals_overall)
+        mean_residual_belt_A = np.mean(array_residuals_A, axis=0)
+        sem_residual_belt_A = sem(array_residuals_A, axis=0)
+
+        array_residuals_B = np.array(cells_belt_B_residuals_overall)
+        mean_residual_belt_B = np.mean(array_residuals_B, axis=0)
+        sem_residual_belt_B = sem(array_residuals_B, axis=0)
+
+    fig, axs = plt.subplots(3, 3, figsize=(20, 12))
+    axs[0, 0].plot(mean_animal_belt_A, color='grey', label='Raw')
+    axs[0, 0].fill_between(range(len(mean_animal_belt_A)), mean_animal_belt_A + sem_animal_belt_A, mean_animal_belt_A - sem_animal_belt_A, alpha=0.3, color='grey')
+    axs[0, 0].set_ylim(-0.25, 0.65)
+    axs[0, 0].plot(mean_residual_belt_A, color='orange', label='Velocity-Subtracted Residual')
+    axs[0, 0].fill_between(range(len(mean_residual_belt_A)), mean_residual_belt_A + sem_residual_belt_A, mean_residual_belt_A - sem_residual_belt_A, alpha=0.3, color='orange')
+    axs[0, 0].set_title("Belt E (Random)")
+    axs[0, 0].set_ylabel("DF/F")
+    axs[0, 0].set_xlabel("Position Bin")
+    axs[0, 0].legend()
+
+    axs[0, 1].plot(mean_animal_belt_B, color='grey', label='Raw')
+    axs[0, 1].fill_between(range(len(mean_animal_belt_B)), mean_animal_belt_B + sem_animal_belt_B, mean_animal_belt_B - sem_animal_belt_B, alpha=0.3, color='grey')
+    axs[0, 1].plot(mean_residual_belt_B, color='r', label='Velocity-Subtracted Residual')
+    axs[0, 1].fill_between(range(len(mean_residual_belt_B)), mean_residual_belt_B + sem_residual_belt_B, mean_residual_belt_B - sem_residual_belt_B, alpha=0.3, color='r')
+    axs[0, 1].set_ylim(-0.25, 0.65)
+    axs[0, 1].set_title("Belt 1A (Cue+Fixed)")
+    axs[0, 1].set_ylabel("DF/F")
+    axs[0, 1].set_xlabel("Position Bin")
+    axs[0, 1].legend()
+
+    animal_data_belt_old = []
+    residual_data_belt_old = []
+    belt_old_list = []
+    belt_old_residuals_list = []
+
+    cell_data_belt_old = []
+    cell_residual_data_belt_old = []
+
+    correlation_dict_resid_raw = {}
+
+    for idx, animal in enumerate(activity_dict_old_NDNF):
+        cell_list = []
+        residual_list = []
+        correlation_per_cell_resid_raw = {}
+        cells_belt_old = {}
+        cells_belt_old_residuals = {}
+
+        for cell in activity_dict_old_NDNF[animal]:
+            cell_act = activity_dict_old_NDNF[animal][cell]
+            residual_act = residual_activity_dict_NDNF_old[animal][cell]
+            trial_av = np.mean(cell_act, axis=1)
+            trial_av_residuals = np.mean(residual_act, axis=1)
+            r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
+
+            cells_belt_old[cell] = cell_act
+            cells_belt_old_residuals[cell] = residual_act
+
+            cell_data_belt_old.append(np.mean(cell_act, axis=1))
+            cell_residual_data_belt_old.append(np.mean(residual_act, axis=1))
+
+            correlation_per_cell_resid_raw[cell] = r_value_resid_raw
+            cell_list.append(trial_av)
+            residual_list.append(trial_av_residuals)
+        belt_old_list.append(cells_belt_old)
+        belt_old_residuals_list.append(cells_belt_old_residuals)
+
+        correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
+        cell_array = np.array(cell_list)
+        residual_array = np.array(residual_list)
+        cell_av = np.mean(cell_array, axis=0)
+        residual_av = np.mean(residual_array, axis=0)
+        animal_data_belt_old.append(cell_av)
+        residual_data_belt_old.append(residual_av)
+
+    if animal_data:
+        array_animal_data_belt_old = np.array(animal_data_belt_old)
+        mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
+        sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
+
+        array_residuals_A = np.array(residual_data_belt_old)
+        mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
+        sem_residual_belt_old = sem(array_residuals_A, axis=0)
+
+        axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
+        axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
+        axs[0, 2].set_ylim(-0.25, 0.65)
+        axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
+        axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
+        axs[0, 2].set_ylim(-0.25, 0.65)
+        axs[0, 2].set_title("Original NDNF 4 Animals")
+        axs[0, 2].set_ylabel("DF/F")
+        axs[0, 2].set_xlabel("Position Bin")
+        axs[0, 2].legend()
+
+
+    else:
+        array_animal_data_belt_old = np.array(cell_data_belt_old)
+        mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
+        sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
+
+        array_residuals_A = np.array(cell_residual_data_belt_old)
+        mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
+        sem_residual_belt_old = sem(array_residuals_A, axis=0)
+
+        axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
+        axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
+        axs[0, 2].set_ylim(-0.25, 0.65)
+        axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
+        axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
+        axs[0, 2].set_ylim(-0.25, 0.65)
+        axs[0, 2].set_title("Original NDNF 4 Animals")
+        axs[0, 2].set_ylabel("DF/F")
+        axs[0, 2].set_xlabel("Position Bin")
+        axs[0, 2].legend()
+
+    if animal_data:
+        raw_data_A = animal_data_belt_A
+        raw_data_B = animal_data_belt_B
+        resid_data_A = residual_data_belt_A
+        resid_data_B = residual_data_belt_B
+        raw_data_old = animal_data_belt_old
+        resid_data_old = residual_data_belt_old
+    else:
+        raw_data_A = cells_belt_A_overall
+        raw_data_B = cells_belt_B_overall
+        resid_data_A = cells_belt_A_residuals_overall
+        resid_data_B = cells_belt_B_residuals_overall
+        raw_data_old = cell_data_belt_old
+        resid_data_old = cell_residual_data_belt_old
+
+    for i in range(len(raw_data_A)):
+        axs[1, 0].plot(raw_data_A[i])
+        axs[1, 0].set_ylabel("DF/F")
+        axs[1, 0].set_xlabel("Position Bin")
+        if animal_data:
+            axs[1, 0].set_title("Belt E (Random) Animal Traces Raw")
+            axs[1, 0].set_ylim(-0.5, 2.0)
+        else:
+            axs[1, 0].set_title("Belt E (Random) Cell Traces Raw")
+            axs[1, 0].set_ylim(-1, 3.0)
+
+        axs[2, 0].plot(resid_data_A[i])
+        axs[2, 0].set_ylabel("DF/F")
+        axs[2, 0].set_xlabel("Position Bin")
+        if animal_data:
+            axs[2, 0].set_title("Belt E (Random) Animal Traces Vel-Sub")
+            axs[2, 0].set_ylim(-0.5, 2.0)
+        else:
+            axs[2, 0].set_title("Belt E (Random) Cell Traces Vel-Sub")
+            axs[2, 0].set_ylim(-1, 3.0)
+
+        axs[1, 1].plot(raw_data_B[i])
+        axs[1, 1].set_ylabel("DF/F")
+        axs[1, 1].set_xlabel("Position Bin")
+        if animal_data:
+            axs[1, 1].set_title("Belt 1A (Cue+Fixed) Animal Traces Raw")
+            axs[1, 1].set_ylim(-0.5, 2.0)
+        else:
+            axs[1, 1].set_title("Belt 1A (Cue+Fixed) Cell Traces Raw")
+            axs[1, 1].set_ylim(-1.0, 3.0)
+
+        axs[2, 1].plot(resid_data_B[i])
+        axs[2, 1].set_ylabel("DF/F")
+        axs[2, 1].set_xlabel("Position Bin")
+        if animal_data:
+            axs[2, 1].set_title("Belt 1A (Cue+Fixed) Animal Traces Vel-Sub")
+            axs[2, 1].set_ylim(-0.5, 2.0)
+        else:
+            axs[2, 1].set_title("Belt 1A (Cue+Fixed) Cell Traces Vel-Sub")
+            axs[2, 1].set_ylim(-1.0, 3.0)
+
+    for i in range(len(raw_data_old)):
+        axs[1, 2].plot(raw_data_old[i])
+        axs[1, 2].set_ylabel("DF/F")
+        axs[1, 2].set_xlabel("Position Bin")
+        if animal_data:
+            axs[1, 2].set_title("Original Animal Traces Raw")
+            axs[1, 2].set_ylim(-0.5, 2.0)
+        else:
+            axs[1, 2].set_title("Original Cell Traces Raw")
+            axs[1, 2].set_ylim(-1.0, 3.0)
+
+        axs[2, 2].plot(resid_data_old[i])
+        axs[2, 2].set_ylabel("DF/F")
+        axs[2, 2].set_xlabel("Position Bin")
+        if animal_data:
+            axs[2, 2].set_ylim(-0.5, 2.0)
+        else:
+            axs[2, 2].set_ylim(-1.0, 3.0)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_changepoint_distribution(fraction_animal_first_changepoints_list_new_NDNF, fraction_animal_second_changepoints_list_new_NDNF, cell_type="EC"):
+
+    first = fraction_animal_first_changepoints_list_new_NDNF
+    second = fraction_animal_second_changepoints_list_new_NDNF
+
+    x_first = np.random.normal(1, 0.05, size=len(first))  # center at 1
+    x_second = np.random.normal(2, 0.05, size=len(second))  # center at 2
+
+    plt.figure(figsize=(6, 6))
+
+    boxprops = dict(facecolor="lightgrey", color='black', alpha=0.1)
+    plt.boxplot([first, second], positions=[1, 2], widths=0.3, showfliers=False, patch_artist=True,
+                boxprops=boxprops,
+                whiskerprops=dict(color='black'),
+                capprops=dict(color='black'),
+                medianprops=dict(color='black'))
+
+    plt.scatter(x_first, first, color='blue', alpha=0.7, label='First')
+    plt.scatter(x_second, second, color='red', alpha=0.7, label='Second')
+
+    plt.xlim(0.5, 2.5)
+    plt.ylim(0, 1)
+    plt.xticks([1, 2], ['First Changepoint', 'Second Changepoint'])
+    plt.ylabel('Fraction of Total Trials')
+    plt.title(f'Changepoint Distribution {cell_type}')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="EC", title="NDNF New Cell SliceTCA x00"):
+    if cell_type=="EC":
+        colors = ["gold", 'mediumseagreen', 'darkgreen']
+    elif cell_type=="SST":
+        colors = ['cyan', 'dodgerblue', 'purple']
+    else:
+        colors = ['darkorange', 'orangered', 'red']
+
+    for i in range(3):
+        plt.plot(mean_list_NDNF_new_cell_x00[i], label=["Early", "Middle", "Late"][i], color=colors[i])
+        plt.fill_between(range(len(mean_list_NDNF_new_cell_x00[i])),
+                            mean_list_NDNF_new_cell_x00[i] + sem_list_NDNF_new_cell_x00[i],
+                            mean_list_NDNF_new_cell_x00[i] - sem_list_NDNF_new_cell_x00[i],
+                            color=colors[i], alpha=0.1)
+    plt.title(title)
+    plt.xlabel("Position Bins")
+    plt.ylabel("DF/F")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def get_contig_cluster_av(cell_new_NDNF_model_ranks20_contiguous_x00_cell, animal_TCA=False):
+    if animal_TCA:
+
+        animal_clust_1_list = []
+        animal_clust_2_list = []
+        animal_clust_3_list = []
+
+        for animal in cell_new_NDNF_model_ranks20_contiguous_x00_cell:
+            clust_1_list = []
+            clust_2_list = []
+            clust_3_list = []
+
+            for cell in cell_new_NDNF_model_ranks20_contiguous_x00_cell[animal]:
+                mean_list = cell_new_NDNF_model_ranks20_contiguous_x00_cell[animal][cell]["cluster_trial_mean_dict"]["clusters_chosen_3"]
+
+                clust_1_list.append(mean_list[0])
+                clust_2_list.append(mean_list[1])
+                clust_3_list.append(mean_list[2])
+
+            clust_1_array = np.array(clust_1_list)
+            clust_2_array = np.array(clust_2_list)
+            clust_3_array = np.array(clust_3_list)
+
+            clust_1_mean = np.mean(clust_1_array, axis=0)
+            clust_2_mean = np.mean(clust_2_array, axis=0)
+            clust_3_mean = np.mean(clust_3_array, axis=0)
+
+            animal_clust_1_list.append(clust_1_mean)
+            animal_clust_2_list.append(clust_2_mean)
+            animal_clust_3_list.append(clust_3_mean)
+
+        animal_clust_1_array = np.array(animal_clust_1_list)
+        animal_clust_2_array = np.array(animal_clust_2_list)
+        animal_clust_3_array = np.array(animal_clust_3_list)
+
+        mean_animal_clust_1 = np.mean(animal_clust_1_array, axis=0)
+        mean_animal_clust_2 = np.mean(animal_clust_2_array, axis=0)
+        mean_animal_clust_3 = np.mean(animal_clust_3_array, axis=0)
+
+        sem_animal_clust_1 = sem(animal_clust_1_array, axis=0)
+        sem_animal_clust_2 = sem(animal_clust_2_array, axis=0)
+        sem_animal_clust_3 = sem(animal_clust_3_array, axis=0)
+
+        mean_list = [mean_animal_clust_1, mean_animal_clust_2, mean_animal_clust_3]
+        sem_list = [sem_animal_clust_1, sem_animal_clust_2, sem_animal_clust_3]
+
+
+    else:
+
+        animal_clust_1_list = []
+        animal_clust_2_list = []
+        animal_clust_3_list = []
+
+        for animal in cell_new_NDNF_model_ranks20_contiguous_x00_cell[20]:
+            clust_1_list = []
+            clust_2_list = []
+            clust_3_list = []
+
+            for cell in cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal]:
+                mean_list = cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal][cell][1][f"cell_{cell}"]["cluster_trial_mean_dict"]["clusters_chosen_3"]
+
+                clust_1_list.append(mean_list[0])
+                clust_2_list.append(mean_list[1])
+                clust_3_list.append(mean_list[2])
+
+            clust_1_array = np.array(clust_1_list)
+            clust_2_array = np.array(clust_2_list)
+            clust_3_array = np.array(clust_3_list)
+
+            clust_1_mean = np.mean(clust_1_array, axis=0)
+            clust_2_mean = np.mean(clust_2_array, axis=0)
+            clust_3_mean = np.mean(clust_3_array, axis=0)
+
+            animal_clust_1_list.append(clust_1_mean)
+            animal_clust_2_list.append(clust_2_mean)
+            animal_clust_3_list.append(clust_3_mean)
+
+        animal_clust_1_array = np.array(animal_clust_1_list)
+        animal_clust_2_array = np.array(animal_clust_2_list)
+        animal_clust_3_array = np.array(animal_clust_3_list)
+
+        mean_animal_clust_1 = np.mean(animal_clust_1_array, axis=0)
+        mean_animal_clust_2 = np.mean(animal_clust_2_array, axis=0)
+        mean_animal_clust_3 = np.mean(animal_clust_3_array, axis=0)
+
+        sem_animal_clust_1 = sem(animal_clust_1_array, axis=0)
+        sem_animal_clust_2 = sem(animal_clust_2_array, axis=0)
+        sem_animal_clust_3 = sem(animal_clust_3_array, axis=0)
+
+        mean_list = [mean_animal_clust_1, mean_animal_clust_2, mean_animal_clust_3]
+        sem_list = [sem_animal_clust_1, sem_animal_clust_2, sem_animal_clust_3]
+
+    return mean_list, sem_list
+
+
+def get_double_track_length(activity_dict, activity=True, dual_track_length=False):
+    if activity:
+
+        if dual_track_length:
+            trial_nums_list_A = []
+            trial_nums_list_B = []
+
+            for ids, animal in enumerate(activity_dict):
+                trail_num = activity_dict[animal]["cell_2"].shape[1]
+                if ids < 9:
+                    trial_nums_list_A.append(trail_num)
+                else:
+                    trial_nums_list_B.append(trail_num)
+
+            real_trial_length = []
+            for i in range(9):
+                t_num_A = trial_nums_list_A[i]
+                t_num_B = trial_nums_list_B[i]
+                nums = [t_num_A, t_num_B]
+
+                min_num = np.min(nums)
+                real_trial_length.append(min_num)
+
+            real_trial_length = np.array(real_trial_length)
+
+            double_real_trial_length = np.concatenate([real_trial_length, real_trial_length])
+
+        animal_dict_A = {}
+        animal_dict_B = {}
+
+        for idx, animal in enumerate(activity_dict):
+            cell_dict_A = {}
+            cell_dict_B = {}
+            for cell in activity_dict[animal]:
+
+                neuron_activity = activity_dict[animal][cell]
+
+                if dual_track_length:
+                    trialss = double_real_trial_length[idx]
+                    neuron_activity_truncated = neuron_activity[:, :trialss]
+
+                if idx < 9:
+                    if dual_track_length:
+                        cell_dict_A[cell] = neuron_activity_truncated
+                    else:
+                        cell_dict_A[cell] = neuron_activity
+                else:
+                    if dual_track_length:
+                        cell_dict_B[cell] = neuron_activity_truncated
+                    else:
+                        cell_dict_B[cell] = neuron_activity
+
+            if idx < 9:
+                animal_dict_A[animal] = cell_dict_A
+            else:
+                animal_dict_B[animal] = cell_dict_B
+
+        double_track_activity_dict_new_NDNF = {}
+
+        for ids in range(9):
+            combined_cell_activity_dict = {}
+
+            animal_A = animal_dict_A[f"animal_{ids + 1}"]
+            animal_B = animal_dict_B[f"animal_{ids + 10}"]
+            for cell in animal_A:
+                if dual_track_length:
+                    double_track_activity = np.concatenate([animal_A[cell], animal_B[cell]], axis=0)
+                else:
+                    double_track_activity = np.concatenate([animal_A[cell], animal_B[cell]], axis=1)
+                combined_cell_activity_dict[cell] = double_track_activity
+
+            double_track_activity_dict_new_NDNF[f"animal_{ids + 1}"] = combined_cell_activity_dict
+
+        return double_track_activity_dict_new_NDNF
+
+    else:
+
+        if dual_track_length:
+
+            trial_nums_list_A = []
+            trial_nums_list_B = []
+
+            for ids, animal in enumerate(activity_dict):
+                trail_num = activity_dict[animal]["Velocity"].shape[1]
+                if ids < 9:
+                    trial_nums_list_A.append(trail_num)
+                else:
+                    trial_nums_list_B.append(trail_num)
+
+            real_trial_length = []
+            for i in range(9):
+                t_num_A = trial_nums_list_A[i]
+                t_num_B = trial_nums_list_B[i]
+                nums = [t_num_A, t_num_B]
+
+                min_num = np.min(nums)
+                real_trial_length.append(min_num)
+
+            real_trial_length = np.array(real_trial_length)
+
+            double_real_trial_length = np.concatenate([real_trial_length, real_trial_length])
+
+        animal_dict_A = {}
+        animal_dict_B = {}
+
+        for idx, animal in enumerate(activity_dict):
+            velocity_array = activity_dict[animal]["Velocity"]
+
+            if dual_track_length:
+                trialss = double_real_trial_length[idx]
+                velocity_array_truncated = velocity_array[:, :trialss]
+
+            if idx < 9:
+                if dual_track_length:
+                    animal_dict_A[animal] = velocity_array_truncated
+                else:
+                    animal_dict_A[animal] = velocity_array
+            else:
+                if dual_track_length:
+                    animal_dict_B[animal] = velocity_array_truncated
+                else:
+                    animal_dict_B[animal] = velocity_array
+
+        double_track_velocity_dict_new_NDNF = {}
+
+        for ids in range(9):
+            velocity_A = animal_dict_A[f"animal_{ids + 1}"]
+            velocity_B = animal_dict_B[f"animal_{ids + 10}"]
+
+            if dual_track_length:
+                combined_velocity = np.concatenate([velocity_A, velocity_B], axis=0)
+            else:
+                combined_velocity = np.concatenate([velocity_A, velocity_B], axis=1)
+
+            double_track_velocity_dict_new_NDNF[f"animal_{ids + 1}"] = {"Velocity": combined_velocity}
+
+        return double_track_velocity_dict_new_NDNF
+
+
+def plot_window(activity_dict, factors_dict):
+
+    window_length = 30
+    half_window = window_length // 2
+
+    animal_reward_locked_data = []
+
+    residual_animal_reward_locked_data = []
+
+    for idx, animal in enumerate(activity_dict):
+
+        if idx < 9:
+
+            cell_data_list = []
+            residual_cell_data_list = []
+
+            for cell in activity_dict[animal]:
+
+                reward_data_flat = factors_dict[animal]["Reward_loc"].flatten()
+
+
+                cell_activity = activity_dict[animal][cell]
+                cell_activity_flat = cell_activity.flatten()
+
+                residual_activity_flat = residual_activity_dict_NDNF_new[animal][cell].flatten()
+
+                reward_indices = []
+
+                reward_data = []
+                residual_reward_data = []
+
+                for bin_idx, i in enumerate(reward_data_flat):
+                    if i > 0:
+                        start_index = bin_idx - half_window
+                        end_index = bin_idx + half_window
+                        if start_index < 0 or end_index > len(cell_activity_flat):
+                            continue
+                        indices_of_interest = np.arange(start_index, end_index)
+
+
+                        if reward_indices:
+                            previous_indices = reward_indices[-1]
+                            overlap = np.intersect1d(indices_of_interest, previous_indices)
+                            if overlap.size > 0:
+                                continue
+
+                        reward_data.append(cell_activity_flat[indices_of_interest])
+                        residual_reward_data.append(residual_activity_flat[indices_of_interest])
+                        reward_indices.append(indices_of_interest)
+
+                reward_data_array = np.array(reward_data)
+                residual_reward_data_array = np.array(residual_reward_data)
+
+                mean_reward_data_array = np.mean(reward_data_array, axis=0)
+                mean_residual_reward_data_array = np.mean(residual_reward_data_array, axis=0)
+
+                cell_data_list.append(mean_reward_data_array)
+                residual_cell_data_list.append(mean_residual_reward_data_array)
+
+            cell_data_array = np.array(cell_data_list)
+            residual_cell_data_array = np.array(residual_cell_data_list)
+
+            animal_reward_locked_data.append(np.mean(cell_data_array, axis=0))
+            residual_animal_reward_locked_data.append(np.mean(residual_cell_data_array, axis=0))
+
+    animal_reward_locked_array = np.array(animal_reward_locked_data)
+    mean_animal_reward_locked_array = np.mean(animal_reward_locked_array, axis=0)
+    sem_animal_reward_locked_array = sem(animal_reward_locked_array, axis=0)
+
+    residual_animal_reward_locked_array = np.array(residual_animal_reward_locked_data)
+    residual_mean_animal_reward_locked_array = np.mean(residual_animal_reward_locked_array, axis=0)
+    residual_sem_animal_reward_locked_array = sem(residual_animal_reward_locked_array, axis=0)
+
+
+    plt.plot(mean_animal_reward_locked_array, color='grey', label='Raw')
+    plt.fill_between(range(len(mean_animal_reward_locked_array)), mean_animal_reward_locked_array+sem_animal_reward_locked_array, mean_animal_reward_locked_array-sem_animal_reward_locked_array, color='grey', alpha=0.3)
+    plt.plot(residual_mean_animal_reward_locked_array, color='orange', label='Vel-Sub Residual')
+    plt.fill_between(range(len(residual_mean_animal_reward_locked_array)), residual_mean_animal_reward_locked_array+residual_sem_animal_reward_locked_array, residual_mean_animal_reward_locked_array-residual_sem_animal_reward_locked_array, color='orange', alpha=0.3)
+    plt.legend()
+    plt.title(f"{window_length} Bins Surrounding Reward NDNF")
+    plt.ylabel("DF/F")
+    plt.xlabel("Postion Bins")
+
+
+def plot_roll(activity_dict, factors_dict):
+
+    animal_rolled_data = []
+    animal_rolled_resid_data = []
+
+    for idx, animal in enumerate(activity_dict):
+
+        if idx < 9:
+
+            cell_list = []
+            cell_resid_list = []
+
+            for cell in activity_dict[animal]:
+
+                cell_activity = activity_dict[animal][cell]
+                reward_data = factors_dict[animal]["Reward_loc"]
+
+                residual_activity = residual_activity_dict_NDNF_new[animal][cell]
+
+                rolled_trials = []
+                rolled_trials_resid_list = []
+
+                for trial_idx in range(reward_data.shape[1]):
+                    trial = reward_data[:, trial_idx]
+                    trial_activity = cell_activity[:, trial_idx]
+                    trial_residuals = residual_activity[:, trial_idx]
+
+                    if np.sum(trial > 0) != 1:
+                        continue
+
+                    reward_idx = np.argmax(trial)
+                    shift = 25 - reward_idx
+
+                    rolled_trial = np.roll(trial_activity, shift)
+
+                    plt.plot()
+
+
+                    rolled_trial_residuals = np.roll(trial_residuals, shift)
+                    rolled_trials.append(rolled_trial)
+                    rolled_trials_resid_list.append(rolled_trial_residuals)
+
+                rolled_trials_array = np.array(rolled_trials)
+                rolled_trials_resid_array = np.array(rolled_trials_resid_list)
+
+                rolled_trials_av = np.mean(rolled_trials_array, axis=0)
+                cell_list.append(rolled_trials_av)
+                rolled_resid_trials_av = np.mean(rolled_trials_resid_array, axis=0)
+                cell_resid_list.append(rolled_resid_trials_av)
+
+            cell_array = np.array(cell_list)
+            animal_rolled_data.append(np.mean(cell_array, axis=0))
+
+            cell_resid_array = np.array(cell_resid_list)
+            animal_rolled_resid_data.append(np.mean(cell_resid_array, axis=0))
+
+
+    animal_array = np.array(animal_rolled_data)
+    mean_animal = np.mean(animal_array, axis=0)
+    sem_animal = sem(animal_array, axis=0)
+
+    animal_resid_array = np.array(animal_rolled_resid_data)
+    mean_resid_animal = np.mean(animal_resid_array, axis=0)
+    sem_resid_animal = sem(animal_resid_array, axis=0)
+
+
+
+    plt.plot(mean_animal, color='grey', label='Raw')
+    plt.fill_between(range(len(mean_animal)), mean_animal-sem_animal, mean_animal+sem_animal, color='grey', alpha=0.3)
+    plt.plot(mean_resid_animal, color='orange', label="Vel.-Sub. Residual")
+    plt.fill_between(range(len(mean_resid_animal)), mean_resid_animal-sem_resid_animal, mean_resid_animal+sem_resid_animal, color='orange', alpha=0.3)
+    plt.title("Reward-Sorted NDNF Random Reward Belt")
+    plt.ylabel("DF/F")
+    plt.xlabel("Position Bin")
+    plt.legend(loc="lower center")
+    plt.tight_layout()
+    plt.show()
+
+
+def get_changepoints(cell_new_NDNF_model_ranks20_contiguous_x00_cell, activity_dict, animal_TCA=False):
+    animal_length = []
+
+    for animal in activity_dict:
+        for cell in activity_dict[animal]:
+            animal_length.append(activity_dict[animal][cell].shape[1])
+
+    animal_first_changepoints_list = []
+    animal_second_changepoints_list = []
+
+    fraction_first_changepoints_list = []
+    fraction_second_changepoints_list = []
+
+    counts = 0
+
+    if animal_TCA:
+        for animal in cell_new_NDNF_model_ranks20_contiguous_x00_cell:
+
+            first_changepoints_list = []
+            second_changepoints_list = []
+
+            for cell in cell_new_NDNF_model_ranks20_contiguous_x00_cell[animal]:
+
+                trials_num = animal_length[counts]
+
+                labels = cell_new_NDNF_model_ranks20_contiguous_x00_cell[animal][cell]["labels_dict"]["clusters_chosen_3"]
+
+                change_indices = np.where(np.diff(labels) != 0)[0] + 1
+
+                first_changepoints = change_indices[0]
+                first_changepoints_list.append(first_changepoints)
+                fraction_first_changepoints_list.append(first_changepoints / trials_num)
+                second_changepoints = change_indices[1]
+
+                if np.any(second_changepoints > trials_num):
+                    print(f"counts {counts} we got problem {second_changepoints} {trials_num}")
+                second_changepoints_list.append(second_changepoints)
+                fraction_second_changepoints_list.append(second_changepoints / trials_num)
+                counts += 1
+
+            animal_first_changepoints_list.append(first_changepoints_list)
+            animal_second_changepoints_list.append(second_changepoints_list)
+
+
+    else:
+        for animal in cell_new_NDNF_model_ranks20_contiguous_x00_cell[20]:
+
+            first_changepoints_list = []
+            second_changepoints_list = []
+
+            for cell in cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal]:
+
+                trials_num = animal_length[counts]
+
+                labels = cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal][cell][1][f"cell_{cell}"]["labels_dict"]["clusters_chosen_3"]
+
+                change_indices = np.where(np.diff(labels) != 0)[0] + 1
+
+                first_changepoints = change_indices[0]
+                first_changepoints_list.append(first_changepoints)
+                fraction_first_changepoints_list.append(first_changepoints / trials_num)
+                second_changepoints = change_indices[1]
+
+                if np.any(second_changepoints > trials_num):
+                    print(f"counts {counts} we got problem {second_changepoints} {trials_num}")
+                second_changepoints_list.append(second_changepoints)
+                fraction_second_changepoints_list.append(second_changepoints / trials_num)
+                counts += 1
+
+            animal_first_changepoints_list.append(first_changepoints_list)
+            animal_second_changepoints_list.append(second_changepoints_list)
+
+    return animal_first_changepoints_list, fraction_first_changepoints_list, animal_second_changepoints_list, fraction_second_changepoints_list
+
+
+def get_plot_umap(new_cell_SST_model_ranks20_kmeans_reassign_x00, k=5, use_3d_umap=False, umap_seed=42, animal=0, cell=0):
+    model = new_cell_SST_model_ranks20_kmeans_reassign_x00[20][animal][cell][0]
+    w1 = model.vectors[0][0].detach().numpy()
+    X = np.abs(w1.T)
+
+    ### 1. KMeans → UMAP (clustering on original high-dim data)
+    kmeans1 = KMeans(n_clusters=k, random_state=0, n_init=10)
+    labels_kmeans1 = kmeans1.fit_predict(X)
+
+    umap_vis1 = umap.UMAP(n_components=3 if use_3d_umap else 2, random_state=umap_seed).fit_transform(X)
+
+    ### 2. UMAP → KMeans (dimensionality reduction before clustering)
+    umap_lowdim = umap.UMAP(n_components=3 if use_3d_umap else 2, random_state=umap_seed).fit_transform(X)
+    kmeans2 = KMeans(n_clusters=k, random_state=0, n_init=10)
+    labels_kmeans2 = kmeans2.fit_predict(umap_lowdim)
+
+    ### Plotting
+    if use_3d_umap:
+        fig, axs = plt.subplots(1, 3, figsize=(13, 4))
+        axs = axs.flatten()
+
+        # Row 1: KMeans → UMAP
+        axs[0].scatter(umap_vis1[:, 0], umap_vis1[:, 1], c=labels_kmeans1, cmap='tab10', s=50)
+        axs[0].set_title(f"KMeans → UMAP: u0 vs u1")
+        axs[1].scatter(umap_vis1[:, 0], umap_vis1[:, 2], c=labels_kmeans1, cmap='tab10', s=50)
+        axs[1].set_title(f"KMeans → UMAP: u0 vs u2")
+        axs[2].scatter(umap_vis1[:, 1], umap_vis1[:, 2], c=labels_kmeans1, cmap='tab10', s=50)
+        axs[2].set_title(f"KMeans → UMAP: u1 vs u2")
+
+#         # Row 2: UMAP → KMeans
+#         axs[3].scatter(umap_lowdim[:, 0], umap_lowdim[:, 1], c=labels_kmeans2, cmap='tab10', s=50)
+#         axs[3].set_title(f"UMAP → KMeans: u0 vs u1")
+#         axs[4].scatter(umap_lowdim[:, 0], umap_lowdim[:, 2], c=labels_kmeans2, cmap='tab10', s=50)
+#         axs[4].set_title(f"UMAP → KMeans: u0 vs u2")
+#         axs[5].scatter(umap_lowdim[:, 1], umap_lowdim[:, 2], c=labels_kmeans2, cmap='tab10', s=50)
+#         axs[5].set_title(f"UMAP → KMeans: u1 vs u2")
+
+        for ax in axs:
+            ax.set_xlabel("UMAP")
+            ax.set_ylabel("UMAP")
+
+        plt.tight_layout()
+        plt.show()
+
+    else:
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+        axs[0].scatter(umap_vis1[:, 0], umap_vis1[:, 1], c=labels_kmeans1, cmap='tab10', s=50)
+        axs[0].set_title(f"KMeans → UMAP (K={k})")
+        axs[0].set_xlabel("UMAP 1")
+        axs[0].set_ylabel("UMAP 2")
+        axs[0].grid(True)
+
+        axs[1].scatter(umap_lowdim[:, 0], umap_lowdim[:, 1], c=labels_kmeans2, cmap='tab10', s=50)
+        axs[1].set_title(f"UMAP → KMeans (K={k})")
+        axs[1].set_xlabel("UMAP 1")
+        axs[1].set_ylabel("UMAP 2")
+        axs[1].grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+
+def find_elbow_point(y_vals, min_index=2):
+    from scipy.spatial.distance import cdist
+    import numpy as np
+
+    x = np.arange(len(y_vals))
+    y = y_vals
+
+    # First and last points
+    p1 = np.array([x[0], y[0]])
+    p2 = np.array([x[-1], y[-1]])
+
+    # Compute distances to the line
+    line_vec = p2 - p1
+    line_vec_norm = line_vec / np.linalg.norm(line_vec)
+
+    vec_from_p1 = np.vstack((x - p1[0], y - p1[1])).T
+    scalar_proj = np.dot(vec_from_p1, line_vec_norm)
+    proj = np.outer(scalar_proj, line_vec_norm)
+    dist_to_line = np.linalg.norm(vec_from_p1 - proj, axis=1)
+
+    # Force elbow to be at least min_index (default = 2)
+    elbow_idx = np.argmax(dist_to_line[min_index:]) + min_index
+    return int(elbow_idx)
+
+
+def compare_umap_kmeans(new_cell_SST_model_ranks20_kmeans_reassign_x00, animal=0, cell=0):
+    # use_3d_umap=False, umap_seed=42,
+
+    MSE_dict = new_cell_SST_model_ranks20_kmeans_reassign_x00[20][animal][cell][1][f"cell_{cell}"]['MSE_dict']
+
+    model = new_cell_SST_model_ranks20_kmeans_reassign_x00[20][animal][cell][0]
+
+    w1 = model.vectors[0][0].detach().numpy()
+    X = np.abs(w1.T)
+
+    silhouette_scores = []
+    cluster_range = range(2, 9)  # silhouette score needs at least 2 clusters
+
+    for k in cluster_range:
+        kmeans = KMeans(n_clusters=k, random_state=0, n_init=10)
+        labels = kmeans.fit_predict(X)
+
+        if len(np.unique(labels)) > 1:  # at least 2 clusters
+            score = silhouette_score(X, labels)
+            silhouette_scores.append(score)
+        else:
+            silhouette_scores.append(np.nan)  # if somehow all same cluster
+
+    max_silhouette_reg = np.argmax(silhouette_scores) + 2
+
+    MSE_list = []
+    for clusters_chosen in MSE_dict:
+        MSE_list.append(MSE_dict[clusters_chosen])
+    MSE_array = np.array(MSE_list)
+
+    difference_MSE_list = []
+    for idx in range(len(MSE_array)):
+        if idx < (len(MSE_array) - 1):
+            difference = np.abs(MSE_array[idx] - MSE_array[idx + 1])
+            difference_MSE_list.append(difference)
+
+    #     MSE_dict_umap = new_cell_SST_model_ranks20_kmeans_reassign_UMAP_x00[20][animal][cell][1][f"cell_{cell}"]['MSE_dict']
+    #     model_umap = new_cell_SST_model_ranks20_kmeans_reassign_UMAP_x00[20][animal][cell][0]
+
+    #     w1_umap = model_umap.vectors[0][0].detach().numpy()
+    #     X_umap = np.abs(w1_umap.T)
+
+    #     silhouette_scores_umap = []
+    #     cluster_range = range(2, 9)  # silhouette score needs at least 2 clusters
+
+    #     for k in cluster_range:
+    #         reducer = umap.UMAP(random_state=42)
+    #         X_umap = reducer.fit_transform(X)
+    #         kmeans_umap = KMeans(n_clusters=k, random_state=0, n_init=10)
+    #         labels_umap = kmeans_umap.fit_predict(X_umap)
+
+    #         if len(np.unique(labels_umap)) > 1:  # at least 2 clusters
+    #             score_umap = silhouette_score(X_umap, labels_umap)
+    #             silhouette_scores_umap.append(score_umap)
+    #         else:
+    #             silhouette_scores_umap.append(np.nan)  # if somehow all same cluster
+
+    #     max_silhouette_umap = np.argmax(silhouette_scores_umap[1:-1])+3
+
+    #     MSE_list_umap = []
+    #     for clusters_chosen in MSE_dict_umap:
+    #         MSE_list_umap.append(MSE_dict_umap[clusters_chosen])
+    #     MSE_array_umap = np.array(MSE_list_umap)
+
+    #     difference_MSE_list_umap = []
+    #     for idx in range(len(MSE_array_umap)):
+    #         if idx < (len(MSE_array_umap)-1):
+    #             difference_umap = np.abs(MSE_array_umap[idx] - MSE_array_umap[idx+1])
+    #             difference_MSE_list_umap.append(difference_umap)
+
+    MSE_array_min_max = (MSE_array - np.min(MSE_array)) / (np.max(MSE_array) - np.min(MSE_array))
+    #     MSE_array_min_max_umap = (MSE_array_umap - np.min(MSE_array_umap)) / (np.max(MSE_array_umap) - np.min(MSE_array_umap))
+
+    difference_MSE_array = np.array(difference_MSE_list)
+    #     difference_MSE_array_umap = np.array(difference_MSE_list_umap)
+
+    difference_MSE_array_min_max = (difference_MSE_array - np.min(difference_MSE_array)) / (np.max(difference_MSE_array) - np.min(difference_MSE_array))
+    #     difference_MSE_array_umap_min_max = (difference_MSE_array_umap - np.min(difference_MSE_array_umap)) / (np.max(difference_MSE_array_umap) - np.min(difference_MSE_array_umap))
+
+    elbow_kmeans = find_elbow_point(MSE_array_min_max)
+    #     elbow_umap = find_elbow_point(MSE_array_min_max_umap)
+
+    # return difference_MSE_array_umap_min_max, elbow_umap, silhouette_scores_umap, max_silhouette_umap
+
+    return MSE_array_min_max, difference_MSE_array_min_max, elbow_kmeans, cluster_range, silhouette_scores, max_silhouette_reg
+
+
+def plot_kmeans_clusters_silhouette(MSE_array_min_max, difference_MSE_array_min_max, elbow_kmeans, cluster_range, silhouette_scores, max_silhouette_reg):
+    fig, axs = plt.subplots(1, 3, figsize=(15, 6))
+
+    axs[0].plot(MSE_array_min_max, color='b', label="K-Means")
+    #     axs[0].plot(MSE_array_min_max_umap, color='r', label="UMAP then K-Means")
+    axs[0].axvline(x=elbow_kmeans, color='b', linestyle='--', label=f"KMeans Elbow = {elbow_kmeans + 1}")
+    #     axs[0].axvline(x=elbow_umap, color='r', linestyle='--', label=f"UMAP Elbow = {elbow_umap+1}")
+    axs[0].set_xticks(np.arange(7), np.arange(1, 8))
+    axs[0].set_ylabel("Reconstruction MSE")
+    axs[0].set_xlabel("Number K-Means Clusters")
+    axs[0].legend()
+
+    axs[1].plot(difference_MSE_array_min_max, color='b', label="K-Means")
+    #     axs[1].plot(difference_MSE_array_umap_min_max, color='r', label="UMAP then K-Means")
+    axs[1].set_xticks(np.arange(7), np.arange(1, 8))
+    axs[1].set_ylabel("delta MSE")
+    axs[1].legend()
+    axs[1].set_xlabel("Number K-Means Clusters")
+
+    axs[2].plot(cluster_range, silhouette_scores, marker='o', color='b', label="K=Means")
+    #     axs[2].plot(cluster_range, silhouette_scores_umap, marker='o', color='r', label="UMAP then K=Means")
+    axs[2].set_xlabel("Number of Clusters")
+    axs[2].set_ylabel("Silhouette Score")
+    axs[2].set_title(f"Silhouette Max={max_silhouette_reg}")
+    axs[2].set_xticks(cluster_range)
+    axs[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_comparison(data, title='Dominance Across Cell Types', ylabel='Dominance Score'):
+    from statsmodels.stats.multicomp import pairwise_tukeyhsd
+    groups = ['SST', 'EC', 'NDNF']
+
+    means = [np.mean(d) for d in data]
+    sems = [np.std(d) / np.sqrt(len(d)) for d in data]
+
+    x_pos = np.arange(len(groups))
+
+    plt.figure(figsize=(8, 6))
+
+    # Bar plot of the means
+    plt.bar(x_pos, means, yerr=sems, capsize=5, alpha=0.6, color=['blue', 'green', 'orange'])
+
+    # Scatter individual points
+    for i, d in enumerate(data):
+        x_jitter = np.random.normal(loc=0, scale=0.05, size=len(d))  # add little horizontal jitter
+        plt.scatter(np.full_like(d, x_pos[i]) + x_jitter, d, color='black', s=30, alpha=0.7)
+
+    plt.xticks(x_pos, groups)
+    plt.ylabel(ylabel)
+    plt.title(title)
+
+    from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+    # Run Tukey HSD
+    tukey = pairwise_tukeyhsd(endog=data[0] + data[1] + data[2],
+                              groups=['SST'] * len(data[0]) + ['EC'] * len(data[1]) + ['NDNF'] * len(data[2]),
+                              alpha=0.05)
+
+    print(tukey.summary())
+
+    comparisons = {}
+
+    for result in tukey._results_table.data[1:]:
+        group1, group2, meandiff, p_adj, lower, upper, reject = result
+        comparisons[(group1, group2)] = {'reject': reject, 'p_adj': p_adj}  # Only one direction
+
+    y_max = max([max(d) for d in data])
+
+    def plot_star(start_idx, end_idx, y, height_ratio=0.02, significance='*'):
+        x1, x2 = x_pos[start_idx], x_pos[end_idx]
+        height = height_ratio * y_max
+        plt.plot([x1, x1, x2, x2], [y, y + height, y + height, y], lw=1.5, color='black')
+        plt.text((x1 + x2) / 2, y + height + 0.01 * y_max, significance, ha='center', va='bottom', color='black', fontsize=12)
+
+    start_height = y_max * 1.05
+    height_increment = y_max * 0.08
+    current_height = start_height
+
+    # Helper function to decide significance label
+    def get_significance_label(p_val):
+        if p_val < 0.01:
+            return '**'
+        elif p_val < 0.05:
+            return '*'
+        elif p_val < 0.1:
+            return f'p={p_val:.2f}'
+        else:
+            return None
+
+    def get_comparison_result(comparisons, group1, group2):
+        """ Helper to get comparison result regardless of order """
+        if (group1, group2) in comparisons:
+            return comparisons[(group1, group2)]
+        elif (group2, group1) in comparisons:
+            return comparisons[(group2, group1)]
+        else:
+            return {'reject': None, 'p_adj': None}
+
+    for (group1, group2) in [('SST', 'EC'), ('SST', 'NDNF'), ('EC', 'NDNF')]:  # only the 3 you care about
+        result = get_comparison_result(comparisons, group1, group2)
+        if result['p_adj'] is not None:
+            significance = get_significance_label(result['p_adj'])
+            if significance:
+                idx1 = groups.index(group1)
+                idx2 = groups.index(group2)
+                plot_star(idx1, idx2, current_height, significance=significance)
+                current_height += height_increment
+
+    plt.tight_layout()
+    plt.show()
+
+
+def get_MSE_contig_eml(per_animal_diff_score_SST, use_animal=False):
+    animal_ealy_mid_list = []
+    animal_ealy_late_list = []
+    animal_late_mid_list = []
+    animal_overall_list = []
+
+    for animal in per_animal_diff_score_SST:
+
+        ealy_mid_list = []
+        ealy_late_list = []
+        late_mid_list = []
+        overall_list = []
+
+        for cell in per_animal_diff_score_SST[animal]:
+            ealy_mid = per_animal_diff_score_SST[animal][cell]['MSE_E_M']
+            if use_animal:
+                ealy_mid_list.append(ealy_mid)
+            else:
+                animal_ealy_mid_list.append(ealy_mid)
+            ealy_late = per_animal_diff_score_SST[animal][cell]['MSE_E_L']
+            if use_animal:
+                ealy_late_list.append(ealy_late)
+            else:
+                animal_ealy_late_list.append(ealy_late)
+            late_mid = per_animal_diff_score_SST[animal][cell]['MSE_L_M']
+            if use_animal:
+                late_mid_list.append(late_mid)
+            else:
+                animal_late_mid_list.append(late_mid)
+            overall = ealy_mid + ealy_late + late_mid
+            if use_animal:
+                overall_list.append(overall)
+            else:
+                animal_overall_list.append(overall)
+        if use_animal:
+            ealy_mid_list_av = np.mean(ealy_mid_list)
+            animal_ealy_mid_list.append(ealy_mid_list_av)
+            ealy_late_list_av = np.mean(ealy_late_list)
+            animal_ealy_late_list.append(ealy_late_list_av)
+            late_mid_list_av = np.mean(late_mid_list)
+            animal_late_mid_list.append(late_mid_list_av)
+            overall_av = np.mean(overall)
+            animal_overall_list.append(overall_av)
+
+    return animal_ealy_mid_list, animal_ealy_late_list, animal_late_mid_list, animal_overall_list
+
+
+def get_diff_score(internals_per_animal_dict_EC_animal_x00_contig, animal=False):
+    per_animal_diff_score = {}
+    if animal:
+        for animal in internals_per_animal_dict_EC_animal_x00_contig:
+
+            diff_dict = {}
+
+            for cell in internals_per_animal_dict_EC_animal_x00_contig[animal]:
+                mean_list = internals_per_animal_dict_EC_animal_x00_contig[animal][cell]["cluster_trial_mean_dict"]["clusters_chosen_3"]
+
+                early = mean_list[0]
+                middle = mean_list[1]
+                late = mean_list[2]
+
+                diff_dict[cell] = {}
+
+                MSE_E_M = np.mean(np.square(early - middle))
+                MSE_E_L = np.mean(np.square(early - late))
+                MSE_L_M = np.mean(np.square(late - middle))
+
+                diff_dict[cell]["MSE_E_M"] = MSE_E_M
+                diff_dict[cell]["MSE_E_L"] = MSE_E_L
+                diff_dict[cell]["MSE_L_M"] = MSE_L_M
+
+            per_animal_diff_score[animal] = diff_dict
+    else:
+        for animal in internals_per_animal_dict_EC_animal_x00_contig[20]:
+            diff_dict = {}
+
+            for cell in internals_per_animal_dict_EC_animal_x00_contig[20][animal]:
+                mean_list = internals_per_animal_dict_EC_animal_x00_contig[20][animal][cell][1][f"cell_{cell}"]["cluster_trial_mean_dict"]["clusters_chosen_3"]
+
+                early = mean_list[0]
+                middle = mean_list[1]
+                late = mean_list[2]
+
+                diff_dict[cell] = {}
+
+                MSE_E_M = np.mean(np.square(early - middle))
+                MSE_E_L = np.mean(np.square(early - late))
+                MSE_L_M = np.mean(np.square(late - middle))
+
+                diff_dict[cell]["MSE_E_M"] = MSE_E_M
+                diff_dict[cell]["MSE_E_L"] = MSE_E_L
+                diff_dict[cell]["MSE_L_M"] = MSE_L_M
+
+            per_animal_diff_score[animal] = diff_dict
+
+    return per_animal_diff_score
