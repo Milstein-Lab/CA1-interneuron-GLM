@@ -2136,7 +2136,7 @@ def compute_velocity_subtracted_residuals(reorganized_data, variable_list, quint
 #         return MSE
 
 
-def get_synthetic_data(activity_dict, factors_dict, velocity_weight_type="ramping_weight", noise_scale=0.1, place_field_type="flat", use_GAM=False, velocity_power=1, velocity_weight=1, place_field_shift=0, place_field_scale=0, z_score=False):
+def get_synthetic_data2(activity_dict, factors_dict, velocity_weight_type="ramping_weight", noise_scale=0.1, place_field_type="flat", use_GAM=False, velocity_power=1, velocity_weight=1, place_field_shift=0, place_field_scale=0, z_score=False):
     velocity = factors_dict["animal_1"]['Velocity']
 
     combined_activity, place_field, velocity, noise = utils_get_synthetic_data(activity_dict, velocity, place_field_type=place_field_type, place_field_scale=place_field_scale, place_field_shift=place_field_shift, velocity_weight_type=velocity_weight_type, velocity_weight=velocity_weight, velocity_power=velocity_power, noise_scale=noise_scale)

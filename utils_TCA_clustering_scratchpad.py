@@ -24,7 +24,8 @@ from collections import OrderedDict
 from sklearn.cluster import KMeans
 import umap
 from sklearn.metrics import silhouette_score
-
+from GLM_regression import *
+import warnings
 
 
 def load_data_regular(name="NDNFanalC", new_NDNF=True):
@@ -39,7 +40,7 @@ def load_data_regular(name="NDNFanalC", new_NDNF=True):
     GLM_params, double_predicted_activity_dict_NDNF_new = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
     double_residual_activity_dict_NDNF_new = ut.get_residual_activity_dict(activity_dict, double_predicted_activity_dict_NDNF_new)
 
-    return activity_dict, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
+    return activity_dict, double_predicted_activity_dict_NDNF_new, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
 
 
 def load_data_double(name="NDNFanalC", double_track=False):
@@ -64,7 +65,7 @@ def load_data_double(name="NDNFanalC", double_track=False):
     GLM_params, double_predicted_activity_dict_NDNF_new = ut.fit_GLM_population(double_new_NDNF_velocity_dict, double_new_NDNF_activity_dict, quintile=None, regression='linear')
     double_residual_activity_dict_NDNF_new = ut.get_residual_activity_dict(double_new_NDNF_activity_dict, double_predicted_activity_dict_NDNF_new)
 
-    return activity_dict, filtered_factors_dict, double_new_NDNF_activity_dict, double_new_NDNF_velocity_dict, double_residual_activity_dict_NDNF_new
+    return activity_dict, double_predicted_activity_dict_NDNF_new, filtered_factors_dict, double_new_NDNF_activity_dict, double_new_NDNF_velocity_dict, double_residual_activity_dict_NDNF_new
 
 
 def get_cell_mean_sem_plotting_cellTCA(cell_model_dict):
@@ -655,7 +656,7 @@ def get_model_data_per_cell(mse_dir):
     return rank_mse_dict
 
 
-def plot_per_cell_clustering_internals_single_cluster(cell_NDNF_model_ranks20_kmeans_reassign_umap_x00, residual_activity_dict_NDNF, animal_id=1, cell_id=1, num_clusters=4):
+def plot_per_cell_clustering_internals_single_cluster(cell_NDNF_model_ranks20_kmeans_reassign_umap_x00, residual_activity_dict_NDNF, animal_id=1, cell_id=1, num_clusters=4, plot=True):
     tensor_list_by_animal_all_NDNF = []
     for animal in residual_activity_dict_NDNF:
         neural_data = ut.get_animal_neural_tensor(residual_activity_dict_NDNF, animal=animal)
@@ -678,40 +679,48 @@ def plot_per_cell_clustering_internals_single_cluster(cell_NDNF_model_ranks20_km
 
     indices_dict = cell_NDNF_model_ranks20_kmeans_reassign_umap_x00[20][animal_id][cell_id][1][f"cell_{cell_id}"]["indices_for_cluster_number"][f"clusters_chosen_{num_clusters}"]
 
-    fig, axs = plt.subplots(1, 3, figsize=(20, 10))
-    im1 = (axs[0].imshow(real_activity, aspect='auto', vmin=0, vmax=1))
-    axs[0].set_title("Raw Data")
-    fig.colorbar(im1, ax=axs[0])
-    im2 = axs[1].imshow(TCA_reco, aspect='auto', vmin=0, vmax=1)
-    fig.colorbar(im2, ax=axs[1])
-    im3 = axs[2].imshow(animal_reco, aspect='auto', vmin=0, vmax=1)
-    fig.colorbar(im3, ax=axs[2])
-    axs[1].set_title("SliceTCA Reconstruction")
-    axs[2].set_title("Cluster Average Reconstruction")
-    plt.tight_layout()
-    plt.show()
+    if plot:
+        fig, axs = plt.subplots(1, 3, figsize=(20, 10))
+        im1 = (axs[0].imshow(real_activity, aspect='auto', vmin=0, vmax=1))
+        axs[0].set_title("Raw Data")
+        fig.colorbar(im1, ax=axs[0])
+        im2 = axs[1].imshow(TCA_reco, aspect='auto', vmin=0, vmax=1)
+        fig.colorbar(im2, ax=axs[1])
+        im3 = axs[2].imshow(animal_reco, aspect='auto', vmin=0, vmax=1)
+        fig.colorbar(im3, ax=axs[2])
+        axs[1].set_title("SliceTCA Reconstruction")
+        axs[2].set_title("Cluster Average Reconstruction")
+        plt.tight_layout()
+        plt.show()
 
     num_clusters = len(indices_dict)
-    fig, axs = plt.subplots(2, num_clusters, figsize=(num_clusters * 4, 6), squeeze=False)
+    clusters_list = []
+
+    if plot:
+        fig, axs = plt.subplots(2, num_clusters, figsize=(num_clusters * 4, 6), squeeze=False)
 
     for n in range(num_clusters):
         indices = indices_dict[n]
         cluster = real_activity[indices, :]  # trials x bins
+        clusters_list.append(cluster)
 
-        # Plot the cluster heatmap
-        axs[0, n].imshow(cluster, aspect='auto', vmin=0, vmax=1)
-        axs[0, n].set_title(f"Cluster {n}")
-        axs[0, n].set_xlabel("Position")
-        axs[0, n].set_ylabel("Trial")
 
-        # Plot the cluster mean
-        axs[1, n].plot(np.mean(cluster, axis=0))
-        axs[1, n].set_xlabel("Position")
-        axs[1, n].set_ylabel("Mean activity")
-        axs[1, n].set_ylim(0, 1)
+        if plot:
+            axs[0, n].imshow(cluster, aspect='auto', vmin=0, vmax=1)
+            axs[0, n].set_title(f"Cluster {n}")
+            axs[0, n].set_xlabel("Position")
+            axs[0, n].set_ylabel("Trial")
 
-    plt.tight_layout()
-    plt.show()
+            # Plot the cluster mean
+            axs[1, n].plot(np.mean(cluster, axis=0))
+            axs[1, n].set_xlabel("Position")
+            axs[1, n].set_ylabel("Mean activity")
+            axs[1, n].set_ylim(0, 1)
+    if plot:
+        plt.tight_layout()
+        plt.show()
+
+    return clusters_list
 
 
 def preprocess_data2(filepath, normalize=True, new_NDNF=False):
@@ -894,488 +903,406 @@ def get_sorted_activity(activity_dict, title="New NDNF Raw"):
     plt.show()
 
 
-def get_and_plot_concatenated_data(activity_dict, double_residual_activity_dict_NDNF_new, double_new_NDNF_activity_dict_100, double_residual_activity_dict_NDNF_new_100):
-    seperated_activity_dict_A = {}
-    seperated_activity_dict_B = {}
+# def get_and_plot_concatenated_data(activity_dict, double_residual_activity_dict_NDNF_new, double_new_NDNF_activity_dict_100, double_residual_activity_dict_NDNF_new_100):
+#     seperated_activity_dict_A = {}
+#     seperated_activity_dict_B = {}
+#
+#     for idx, animal in enumerate(activity_dict):
+#         cell_seperated_activity_dict_A = {}
+#         cell_seperated_activity_dict_B = {}
+#
+#         for cell in activity_dict[animal]:
+#             if idx < 9:
+#                 cell_seperated_activity_dict_A[cell] = activity_dict[animal][cell]
+#             else:
+#                 cell_seperated_activity_dict_B[cell] = activity_dict[animal][cell]
+#
+#         if idx < 9:
+#             seperated_activity_dict_A[animal] = cell_seperated_activity_dict_A
+#         else:
+#             seperated_activity_dict_B[animal] = cell_seperated_activity_dict_B
+#
+#     seperated_animal_residual_dict_blank = {}
+#     seperated_animal_residual_dict_fixed = {}
+#
+#     for animal in double_residual_activity_dict_NDNF_new:
+#         seperated_cell_dict_blank = {}
+#         seperated_cell_dict_fixed = {}
+#
+#         for cell in double_residual_activity_dict_NDNF_new[animal]:
+#             blank_trials = activity_dict[animal][cell].shape[1]
+#
+#             blank_data = double_residual_activity_dict_NDNF_new[animal][cell][:, :blank_trials]
+#             fixed_data = double_residual_activity_dict_NDNF_new[animal][cell][:, blank_trials:]
+#
+#             seperated_cell_dict_blank[cell] = blank_data
+#             seperated_cell_dict_fixed[cell] = fixed_data
+#
+#         seperated_animal_residual_dict_blank[animal] = seperated_cell_dict_blank
+#         seperated_animal_residual_dict_fixed[animal] = seperated_cell_dict_fixed
+#
+#     animal_belt_A = []
+#     animal_belt_B = []
+#     animal_belt_A_residuals = []
+#     animal_belt_B_residuals = []
+#     for ids, animal in enumerate(seperated_animal_residual_dict_blank):
+#         cells_belt_A = []
+#         cells_belt_B = []
+#         cells_belt_A_residuals = []
+#         cells_belt_B_residuals = []
+#         for cell in seperated_animal_residual_dict_blank[animal]:
+#             cells_belt_A.append(np.mean(seperated_activity_dict_A[f"animal_{ids + 1}"][cell], axis=1))
+#             cells_belt_B.append(np.mean(seperated_activity_dict_B[f"animal_{ids + 10}"][cell], axis=1))
+#             cells_belt_A_residuals.append(np.mean(seperated_animal_residual_dict_blank[animal][cell], axis=1))
+#             cells_belt_B_residuals.append(np.mean(seperated_animal_residual_dict_fixed[animal][cell], axis=1))
+#
+#         cells_belt_A_array = np.array(cells_belt_A)
+#         cells_belt_B_array = np.array(cells_belt_B)
+#         cells_belt_A_residuals_array = np.array(cells_belt_A_residuals)
+#         cells_belt_B_residuals_array = np.array(cells_belt_B_residuals)
+#
+#         animal_belt_A.append(np.mean(cells_belt_A_array, axis=0))
+#         animal_belt_B.append(np.mean(cells_belt_B_array, axis=0))
+#         animal_belt_A_residuals.append(np.mean(cells_belt_A_residuals_array, axis=0))
+#         animal_belt_B_residuals.append(np.mean(cells_belt_B_residuals_array, axis=0))
+#
+#     animal_belt_A_residuals_array = np.array(animal_belt_A_residuals)
+#     mean_animal_belt_A_residuals = np.mean(animal_belt_A_residuals, axis=0)
+#     sem_animal_belt_A_residuals = sem(animal_belt_A_residuals, axis=0)
+#
+#     animal_belt_B_residuals_array = np.array(animal_belt_B_residuals)
+#     mean_animal_belt_B_residuals = np.mean(animal_belt_B_residuals, axis=0)
+#     sem_animal_belt_B_residuals = sem(animal_belt_B_residuals, axis=0)
+#
+#     animal_belt_A_array = np.array(animal_belt_A)
+#     mean_animal_belt_A = np.mean(animal_belt_A, axis=0)
+#     sem_animal_belt_A = sem(animal_belt_A, axis=0)
+#
+#     animal_belt_B_array = np.array(animal_belt_B)
+#     mean_animal_belt_B = np.mean(animal_belt_B, axis=0)
+#     sem_animal_belt_B = sem(animal_belt_B, axis=0)
+#
+#     fig, axs = plt.subplots(3, 3, figsize=(20, 12))
+#     axs[0, 0].plot(mean_animal_belt_A, color='grey', label='Raw')
+#     axs[0, 0].fill_between(range(len(mean_animal_belt_A)), mean_animal_belt_A + sem_animal_belt_A, mean_animal_belt_A - sem_animal_belt_A, alpha=0.3, color='grey')
+#     axs[0, 0].set_ylim(-0.25, 0.65)
+#     axs[0, 0].plot(mean_animal_belt_A_residuals, color='orange', label='Velocity-Subtracted Residual')
+#     axs[0, 0].fill_between(range(len(mean_animal_belt_A_residuals)), mean_animal_belt_A_residuals + sem_animal_belt_A_residuals, mean_animal_belt_A_residuals - sem_animal_belt_A_residuals, alpha=0.3, color='orange')
+#     axs[0, 0].set_title("Belt E (Random)")
+#     axs[0, 0].set_ylabel("DF/F")
+#     axs[0, 0].set_xlabel("Position Bin")
+#     axs[0, 0].legend()
+#
+#     axs[0, 1].plot(mean_animal_belt_B, color='grey', label='Raw')
+#     axs[0, 1].fill_between(range(len(mean_animal_belt_B)), mean_animal_belt_B + sem_animal_belt_B, mean_animal_belt_B - sem_animal_belt_B, alpha=0.3, color='grey')
+#     axs[0, 1].plot(mean_animal_belt_B_residuals, color='r', label='Velocity-Subtracted Residual')
+#     axs[0, 1].fill_between(range(len(mean_animal_belt_B_residuals)), mean_animal_belt_B_residuals + sem_animal_belt_B_residuals, mean_animal_belt_B_residuals - sem_animal_belt_B_residuals, alpha=0.3, color='r')
+#     axs[0, 1].set_ylim(-0.25, 0.65)
+#     axs[0, 1].set_title("Belt 1A (Cue+Fixed)")
+#     axs[0, 1].set_ylabel("DF/F")
+#     axs[0, 1].set_xlabel("Position Bin")
+#     axs[0, 1].legend()
+#
+#     for i in range(len(animal_belt_A_array)):
+#         axs[1, 0].plot(animal_belt_A_array[i])
+#         axs[1, 0].set_title("Belt E (Random) Raw Animal Traces")
+#         axs[1, 0].set_ylim(-0.5, 2.0)
+#         axs[1, 1].plot(animal_belt_B_array[i])
+#         axs[1, 1].set_title("Belt 1A (Cue+Fixed) Raw Animal Traces")
+#         axs[1, 1].set_ylim(-0.5, 2.0)
+#         axs[2, 0].plot(animal_belt_A_residuals_array[i])
+#         axs[2, 0].set_title("Belt E (Random) Residual Animal Traces")
+#         axs[2, 0].set_ylim(-0.5, 2.0)
+#         axs[2, 1].plot(animal_belt_B_residuals_array[i])
+#         axs[2, 1].set_title("Belt 1A (Cue+Fixed) Residual Animal Traces")
+#         axs[2, 1].set_ylim(-0.5, 2.0)
+#         axs[1, 0].set_ylabel("DF/F")
+#         axs[1, 0].set_xlabel("Position Bin")
+#         axs[1, 1].set_ylabel("DF/F")
+#         axs[1, 1].set_xlabel("Position Bin")
+#         axs[2, 0].set_ylabel("DF/F")
+#         axs[2, 0].set_xlabel("Position Bin")
+#         axs[2, 1].set_ylabel("DF/F")
+#         axs[2, 1].set_xlabel("Position Bin")
+#
+#     animal_data_belt_old = []
+#     residual_data_belt_old = []
+#     belt_old_list = []
+#     belt_old_residuals_list = []
+#
+#     correlation_dict_resid_raw = {}
+#
+#     for idx, animal in enumerate(double_new_NDNF_activity_dict_100):
+#         cell_list = []
+#         residual_list = []
+#         correlation_per_cell_resid_raw = {}
+#         cells_belt_old = {}
+#         cells_belt_old_residuals = {}
+#
+#         for cell in double_new_NDNF_activity_dict_100[animal]:
+#             cell_act = double_new_NDNF_activity_dict_100[animal][cell]
+#             residual_act = double_residual_activity_dict_NDNF_new_100[animal][cell]
+#             trial_av = np.mean(cell_act, axis=1)
+#             trial_av_residuals = np.mean(residual_act, axis=1)
+#             #         r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
+#
+#             cells_belt_old[cell] = cell_act
+#             cells_belt_old_residuals[cell] = residual_act
+#
+#             #         correlation_per_cell_resid_raw[cell] = r_value_resid_raw
+#             cell_list.append(trial_av)
+#             residual_list.append(trial_av_residuals)
+#         belt_old_list.append(cells_belt_old)
+#         belt_old_residuals_list.append(cells_belt_old_residuals)
+#
+#         correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
+#         cell_array = np.array(cell_list)
+#         residual_array = np.array(residual_list)
+#         cell_av = np.mean(cell_array, axis=0)
+#         residual_av = np.mean(residual_array, axis=0)
+#         animal_data_belt_old.append(cell_av)
+#         residual_data_belt_old.append(residual_av)
+#
+#     array_animal_data_belt_old = np.array(animal_data_belt_old)
+#     mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
+#     sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
+#
+#     array_residuals_A = np.array(residual_data_belt_old)
+#     mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
+#     sem_residual_belt_old = sem(array_residuals_A, axis=0)
+#
+#     axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
+#     axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
+#     axs[0, 2].set_ylim(-0.25, 0.65)
+#     axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
+#     axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
+#     axs[0, 2].set_ylim(-0.25, 0.65)
+#     axs[0, 2].set_title("New NDNF Concatenated")
+#     axs[0, 2].set_ylabel("DF/F")
+#     axs[0, 2].set_xlabel("Position Bin")
+#     axs[0, 2].legend()
+#
+#     for i in range(len(animal_data_belt_old)):
+#         axs[1, 2].plot(animal_data_belt_old[i])
+#         axs[1, 2].set_title("New NDNF Animal Traces Concatenated")
+#         axs[1, 2].set_ylim(-0.5, 2.0)
+#         axs[1, 2].set_ylabel("DF/F")
+#         axs[1, 2].set_xlabel("Position Bin")
+#         axs[2, 2].plot(residual_data_belt_old[i])
+#         axs[2, 2].set_title("New NDNF Animal Traces Concatenated")
+#         axs[2, 2].set_ylim(-0.5, 2.0)
+#         axs[2, 2].set_ylabel("DF/F")
+#         axs[2, 2].set_xlabel("Position Bin")
+#
+#     plt.tight_layout()
+#     plt.plot()
+#
 
-    for idx, animal in enumerate(activity_dict):
-        cell_seperated_activity_dict_A = {}
-        cell_seperated_activity_dict_B = {}
+def split_new_NDNF_into_two(activity_dict, factor=False):
+    if factor:
+        random_reward_new_NDNF_activity_dict = {}
+        fixed_reward_new_NDNF_activity_dict = {}
 
-        for cell in activity_dict[animal]:
+        for idx, animal in enumerate(activity_dict):
+            random_reward_cell = {}
+            fixed_reward_cell = {}
+            for cell in activity_dict[animal]:
+                if idx < 9:
+                    random_reward_cell[cell] = activity_dict[animal]["Velocity"]
+                else:
+                    fixed_reward_cell[cell] = activity_dict[animal]["Velocity"]
             if idx < 9:
-                cell_seperated_activity_dict_A[cell] = activity_dict[animal][cell]
+                random_reward_new_NDNF_activity_dict[animal] = random_reward_cell
             else:
-                cell_seperated_activity_dict_B[cell] = activity_dict[animal][cell]
+                fixed_reward_new_NDNF_activity_dict[animal] = fixed_reward_cell
 
-        if idx < 9:
-            seperated_activity_dict_A[animal] = cell_seperated_activity_dict_A
-        else:
-            seperated_activity_dict_B[animal] = cell_seperated_activity_dict_B
+        return random_reward_new_NDNF_activity_dict, fixed_reward_new_NDNF_activity_dict
 
-    seperated_animal_residual_dict_blank = {}
-    seperated_animal_residual_dict_fixed = {}
+    else:
+        random_reward_new_NDNF_activity_dict = {}
+        fixed_reward_new_NDNF_activity_dict = {}
 
-    for animal in double_residual_activity_dict_NDNF_new:
-        seperated_cell_dict_blank = {}
-        seperated_cell_dict_fixed = {}
+        for idx, animal in enumerate(activity_dict):
+            random_reward_cell = {}
+            fixed_reward_cell = {}
+            for cell in activity_dict[animal]:
+                if idx < 9:
+                    random_reward_cell[cell] = activity_dict[animal][cell]
+                else:
+                    fixed_reward_cell[cell] = activity_dict[animal][cell]
+            if idx < 9:
+                random_reward_new_NDNF_activity_dict[animal] = random_reward_cell
+            else:
+                fixed_reward_new_NDNF_activity_dict[animal] = fixed_reward_cell
 
-        for cell in double_residual_activity_dict_NDNF_new[animal]:
-            blank_trials = activity_dict[animal][cell].shape[1]
+        return random_reward_new_NDNF_activity_dict, fixed_reward_new_NDNF_activity_dict
 
-            blank_data = double_residual_activity_dict_NDNF_new[animal][cell][:, :blank_trials]
-            fixed_data = double_residual_activity_dict_NDNF_new[animal][cell][:, blank_trials:]
 
-            seperated_cell_dict_blank[cell] = blank_data
-            seperated_cell_dict_fixed[cell] = fixed_data
+def get_plot_data(activity_dict, residual_activity_dict_NDNF_new, activity_dict_old_NDNF, residual_activity_dict_NDNF_old, animal_data=False, combine_new_old=True):
+    combined_dict = {}
 
-        seperated_animal_residual_dict_blank[animal] = seperated_cell_dict_blank
-        seperated_animal_residual_dict_fixed[animal] = seperated_cell_dict_fixed
+    for animal in activity_dict:
+        combined_dict_cells = {}
+        for cell in activity_dict[animal]:
+            combined_dict_cells[cell] = activity_dict[animal][cell]
+        combined_dict[f"new_{animal}"] = combined_dict_cells
 
-    animal_belt_A = []
-    animal_belt_B = []
-    animal_belt_A_residuals = []
-    animal_belt_B_residuals = []
-    for ids, animal in enumerate(seperated_animal_residual_dict_blank):
-        cells_belt_A = []
-        cells_belt_B = []
-        cells_belt_A_residuals = []
-        cells_belt_B_residuals = []
-        for cell in seperated_animal_residual_dict_blank[animal]:
-            cells_belt_A.append(np.mean(seperated_activity_dict_A[f"animal_{ids + 1}"][cell], axis=1))
-            cells_belt_B.append(np.mean(seperated_activity_dict_B[f"animal_{ids + 10}"][cell], axis=1))
-            cells_belt_A_residuals.append(np.mean(seperated_animal_residual_dict_blank[animal][cell], axis=1))
-            cells_belt_B_residuals.append(np.mean(seperated_animal_residual_dict_fixed[animal][cell], axis=1))
+    for animal in activity_dict_old_NDNF:
+        combined_dict_cell = {}
+        for cell in activity_dict_old_NDNF[animal]:
+            combined_dict_cell[cell] = activity_dict_old_NDNF[animal][cell]
+        combined_dict[f"old_{animal}"] = combined_dict_cell
 
-        cells_belt_A_array = np.array(cells_belt_A)
-        cells_belt_B_array = np.array(cells_belt_B)
-        cells_belt_A_residuals_array = np.array(cells_belt_A_residuals)
-        cells_belt_B_residuals_array = np.array(cells_belt_B_residuals)
 
-        animal_belt_A.append(np.mean(cells_belt_A_array, axis=0))
-        animal_belt_B.append(np.mean(cells_belt_B_array, axis=0))
-        animal_belt_A_residuals.append(np.mean(cells_belt_A_residuals_array, axis=0))
-        animal_belt_B_residuals.append(np.mean(cells_belt_B_residuals_array, axis=0))
+    combined_dict_residuals = {}
 
-    animal_belt_A_residuals_array = np.array(animal_belt_A_residuals)
-    mean_animal_belt_A_residuals = np.mean(animal_belt_A_residuals, axis=0)
-    sem_animal_belt_A_residuals = sem(animal_belt_A_residuals, axis=0)
+    for animal in residual_activity_dict_NDNF_new:
+        combined_dict_cells = {}
+        for cell in residual_activity_dict_NDNF_new[animal]:
+            combined_dict_cells[cell] = residual_activity_dict_NDNF_new[animal][cell]
+        combined_dict_residuals[f"new_{animal}"] = combined_dict_cells
 
-    animal_belt_B_residuals_array = np.array(animal_belt_B_residuals)
-    mean_animal_belt_B_residuals = np.mean(animal_belt_B_residuals, axis=0)
-    sem_animal_belt_B_residuals = sem(animal_belt_B_residuals, axis=0)
+    for animal in residual_activity_dict_NDNF_old:
+        combined_dict_cell = {}
+        for cell in residual_activity_dict_NDNF_old[animal]:
+            combined_dict_cell[cell] = residual_activity_dict_NDNF_old[animal][cell]
+        combined_dict_residuals[f"old_{animal}"] = combined_dict_cell
 
-    animal_belt_A_array = np.array(animal_belt_A)
-    mean_animal_belt_A = np.mean(animal_belt_A, axis=0)
-    sem_animal_belt_A = sem(animal_belt_A, axis=0)
+    animal_data_belt_B_combined = []
+    residual_data_belt_B_combined = []
 
-    animal_belt_B_array = np.array(animal_belt_B)
-    mean_animal_belt_B = np.mean(animal_belt_B, axis=0)
-    sem_animal_belt_B = sem(animal_belt_B, axis=0)
+    animal_data_belt_B_new = []
+    residual_data_belt_B_new = []
 
-    fig, axs = plt.subplots(3, 3, figsize=(20, 12))
-    axs[0, 0].plot(mean_animal_belt_A, color='grey', label='Raw')
-    axs[0, 0].fill_between(range(len(mean_animal_belt_A)), mean_animal_belt_A + sem_animal_belt_A, mean_animal_belt_A - sem_animal_belt_A, alpha=0.3, color='grey')
-    axs[0, 0].set_ylim(-0.25, 0.65)
-    axs[0, 0].plot(mean_animal_belt_A_residuals, color='orange', label='Velocity-Subtracted Residual')
-    axs[0, 0].fill_between(range(len(mean_animal_belt_A_residuals)), mean_animal_belt_A_residuals + sem_animal_belt_A_residuals, mean_animal_belt_A_residuals - sem_animal_belt_A_residuals, alpha=0.3, color='orange')
-    axs[0, 0].set_title("Belt E (Random)")
-    axs[0, 0].set_ylabel("DF/F")
-    axs[0, 0].set_xlabel("Position Bin")
-    axs[0, 0].legend()
+    animal_data_belt_B_old = []
+    residual_data_belt_B_old = []
 
-    axs[0, 1].plot(mean_animal_belt_B, color='grey', label='Raw')
-    axs[0, 1].fill_between(range(len(mean_animal_belt_B)), mean_animal_belt_B + sem_animal_belt_B, mean_animal_belt_B - sem_animal_belt_B, alpha=0.3, color='grey')
-    axs[0, 1].plot(mean_animal_belt_B_residuals, color='r', label='Velocity-Subtracted Residual')
-    axs[0, 1].fill_between(range(len(mean_animal_belt_B_residuals)), mean_animal_belt_B_residuals + sem_animal_belt_B_residuals, mean_animal_belt_B_residuals - sem_animal_belt_B_residuals, alpha=0.3, color='r')
-    axs[0, 1].set_ylim(-0.25, 0.65)
-    axs[0, 1].set_title("Belt 1A (Cue+Fixed)")
-    axs[0, 1].set_ylabel("DF/F")
-    axs[0, 1].set_xlabel("Position Bin")
-    axs[0, 1].legend()
-
-    for i in range(len(animal_belt_A_array)):
-        axs[1, 0].plot(animal_belt_A_array[i])
-        axs[1, 0].set_title("Belt E (Random) Raw Animal Traces")
-        axs[1, 0].set_ylim(-0.5, 2.0)
-        axs[1, 1].plot(animal_belt_B_array[i])
-        axs[1, 1].set_title("Belt 1A (Cue+Fixed) Raw Animal Traces")
-        axs[1, 1].set_ylim(-0.5, 2.0)
-        axs[2, 0].plot(animal_belt_A_residuals_array[i])
-        axs[2, 0].set_title("Belt E (Random) Residual Animal Traces")
-        axs[2, 0].set_ylim(-0.5, 2.0)
-        axs[2, 1].plot(animal_belt_B_residuals_array[i])
-        axs[2, 1].set_title("Belt 1A (Cue+Fixed) Residual Animal Traces")
-        axs[2, 1].set_ylim(-0.5, 2.0)
-        axs[1, 0].set_ylabel("DF/F")
-        axs[1, 0].set_xlabel("Position Bin")
-        axs[1, 1].set_ylabel("DF/F")
-        axs[1, 1].set_xlabel("Position Bin")
-        axs[2, 0].set_ylabel("DF/F")
-        axs[2, 0].set_xlabel("Position Bin")
-        axs[2, 1].set_ylabel("DF/F")
-        axs[2, 1].set_xlabel("Position Bin")
-
-    animal_data_belt_old = []
-    residual_data_belt_old = []
-    belt_old_list = []
-    belt_old_residuals_list = []
-
-    correlation_dict_resid_raw = {}
-
-    for idx, animal in enumerate(double_new_NDNF_activity_dict_100):
+    for idx, animal in enumerate(combined_dict):
         cell_list = []
         residual_list = []
-        correlation_per_cell_resid_raw = {}
-        cells_belt_old = {}
-        cells_belt_old_residuals = {}
 
-        for cell in double_new_NDNF_activity_dict_100[animal]:
-            cell_act = double_new_NDNF_activity_dict_100[animal][cell]
-            residual_act = double_residual_activity_dict_NDNF_new_100[animal][cell]
+        for cell in combined_dict[animal]:
+            cell_act = combined_dict[animal][cell]
+            residual_act = combined_dict_residuals[animal][cell]
             trial_av = np.mean(cell_act, axis=1)
             trial_av_residuals = np.mean(residual_act, axis=1)
-            #         r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
 
-            cells_belt_old[cell] = cell_act
-            cells_belt_old_residuals[cell] = residual_act
+            if idx > 8:
+                animal_data_belt_B_combined.append(np.mean(cell_act, axis=1))
+                residual_data_belt_B_combined.append(np.mean(residual_act, axis=1))
 
-            #         correlation_per_cell_resid_raw[cell] = r_value_resid_raw
-            cell_list.append(trial_av)
-            residual_list.append(trial_av_residuals)
-        belt_old_list.append(cells_belt_old)
-        belt_old_residuals_list.append(cells_belt_old_residuals)
+            if 9 <= idx < 18:
+                animal_data_belt_B_new.append(np.mean(cell_act, axis=1))
+                residual_data_belt_B_new.append(np.mean(residual_act, axis=1))
 
-        correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
-        cell_array = np.array(cell_list)
-        residual_array = np.array(residual_list)
-        cell_av = np.mean(cell_array, axis=0)
-        residual_av = np.mean(residual_array, axis=0)
-        animal_data_belt_old.append(cell_av)
-        residual_data_belt_old.append(residual_av)
+            if idx >= 18:
+                animal_data_belt_B_old.append(np.mean(cell_act, axis=1))
+                residual_data_belt_B_old.append(np.mean(residual_act, axis=1))
 
-    array_animal_data_belt_old = np.array(animal_data_belt_old)
-    mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
-    sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
+    array_animal_data_belt_B_combined = np.array(animal_data_belt_B_combined)
+    mean_animal_belt_B_combined = np.mean(array_animal_data_belt_B_combined, axis=0)
+    sem_animal_belt_B_combined = sem(array_animal_data_belt_B_combined, axis=0)
 
-    array_residuals_A = np.array(residual_data_belt_old)
-    mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
-    sem_residual_belt_old = sem(array_residuals_A, axis=0)
+    array_animal_data_belt_B_combined_residuals = np.array(residual_data_belt_B_combined)
+    mean_animal_data_belt_B_combined_residuals = np.mean(array_animal_data_belt_B_combined_residuals, axis=0)
+    sem_animal_data_belt_B_combined_residuals = sem(array_animal_data_belt_B_combined_residuals, axis=0)
 
-    axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
-    axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
-    axs[0, 2].set_ylim(-0.25, 0.65)
-    axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
-    axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
-    axs[0, 2].set_ylim(-0.25, 0.65)
-    axs[0, 2].set_title("New NDNF Concatenated")
+    array_animal_data_belt_B_new = np.array(animal_data_belt_B_new)
+    mean_animal_belt_B_new = np.mean(array_animal_data_belt_B_new, axis=0)
+    sem_animal_belt_B_new = sem(array_animal_data_belt_B_new, axis=0)
+
+    array_animal_data_belt_B_new_residuals = np.array(residual_data_belt_B_new)
+    mean_animal_data_belt_B_new_residuals = np.mean(array_animal_data_belt_B_new_residuals, axis=0)
+    sem_animal_data_belt_B_new_residuals = sem(array_animal_data_belt_B_new_residuals, axis=0)
+
+    array_animal_data_belt_B_old = np.array(animal_data_belt_B_old)
+    mean_animal_belt_B_old = np.mean(array_animal_data_belt_B_old, axis=0)
+    sem_animal_belt_B_old = sem(array_animal_data_belt_B_old, axis=0)
+
+    array_animal_data_belt_B_old_residuals = np.array(residual_data_belt_B_old)
+    mean_animal_data_belt_B_old_residuals = np.mean(array_animal_data_belt_B_old_residuals, axis=0)
+    sem_animal_data_belt_B_old_residuals = sem(array_animal_data_belt_B_old_residuals, axis=0)
+
+    all_heatmap_data = np.concatenate([
+        array_animal_data_belt_B_combined.flatten(),
+        array_animal_data_belt_B_combined_residuals.flatten(),
+        array_animal_data_belt_B_new.flatten(),
+        array_animal_data_belt_B_new_residuals.flatten(),
+        array_animal_data_belt_B_old.flatten(),
+        array_animal_data_belt_B_old_residuals.flatten()
+    ])
+
+    vmin = np.min(all_heatmap_data)
+    vmax = np.max(all_heatmap_data)
+
+    fig, axs = plt.subplots(3, 3, figsize=(20, 12))
+    axs[0, 2].plot(mean_animal_belt_B_combined, color='grey', label='Raw')
+    axs[0, 2].fill_between(range(len(mean_animal_belt_B_combined)), mean_animal_belt_B_combined + sem_animal_belt_B_combined, mean_animal_belt_B_combined - sem_animal_belt_B_combined, alpha=0.3, color='grey')
+    axs[0, 2].plot(mean_animal_data_belt_B_combined_residuals, color='orange', label='Velocity-Subtracted Residual')
+    axs[0, 2].fill_between(range(len(mean_animal_data_belt_B_combined_residuals)), mean_animal_data_belt_B_combined_residuals + sem_animal_data_belt_B_combined_residuals, mean_animal_data_belt_B_combined_residuals - sem_animal_data_belt_B_combined_residuals, alpha=0.3, color='orange')
+    axs[0, 2].set_title("Velocity Subtraction Per Random Belt Combined New+Original")
     axs[0, 2].set_ylabel("DF/F")
     axs[0, 2].set_xlabel("Position Bin")
     axs[0, 2].legend()
 
-    for i in range(len(animal_data_belt_old)):
-        axs[1, 2].plot(animal_data_belt_old[i])
-        axs[1, 2].set_title("New NDNF Animal Traces Concatenated")
-        axs[1, 2].set_ylim(-0.5, 2.0)
-        axs[1, 2].set_ylabel("DF/F")
-        axs[1, 2].set_xlabel("Position Bin")
-        axs[2, 2].plot(residual_data_belt_old[i])
-        axs[2, 2].set_title("New NDNF Animal Traces Concatenated")
-        axs[2, 2].set_ylim(-0.5, 2.0)
-        axs[2, 2].set_ylabel("DF/F")
-        axs[2, 2].set_xlabel("Position Bin")
+    sorted_indices = np.argsort(np.argmax(array_animal_data_belt_B_combined, axis=1))
+    im1 = axs[1, 2].imshow(array_animal_data_belt_B_combined[sorted_indices,:], aspect='auto', vmin=vmin, vmax=vmax)
+    axs[1, 2].set_title("Individual Cells Trial Averaged Raw")
+    axs[1, 2].set_ylabel("DF/F")
+    axs[1, 2].set_xlabel("Position Bin")
 
-    plt.tight_layout()
-    plt.plot()
+    im2 = axs[2, 2].imshow(array_animal_data_belt_B_combined_residuals, aspect='auto', vmin=vmin, vmax=vmax)
+    axs[2, 2].set_title("Individual Cells Trial Averaged Vel-Sub Resid.")
+    axs[2, 2].set_ylabel("DF/F")
+    axs[2, 2].set_xlabel("Position Bin")
 
-
-def get_plot_data(activity_dict, residual_activity_dict_NDNF_new, activity_dict_old_NDNF, residual_activity_dict_NDNF_old, animal_data=False):
-    animal_data_belt_A = []
-    animal_data_belt_B = []
-    residual_data_belt_A = []
-    residual_data_belt_B = []
-    belt_A_list = []
-    belt_B_list = []
-    belt_A_residuals_list = []
-    belt_B_residuals_list = []
-
-    cells_belt_A_overall = []
-    cells_belt_B_overall = []
-    cells_belt_A_residuals_overall = []
-    cells_belt_B_residuals_overall = []
-
-    correlation_dict_resid_raw = {}
-
-    for idx, animal in enumerate(activity_dict):
-        cell_list = []
-        residual_list = []
-        correlation_per_cell_resid_raw = {}
-        cells_belt_A = {}
-        cells_belt_B = {}
-        cells_belt_A_residuals = {}
-        cells_belt_B_residuals = {}
-        for cell in activity_dict[animal]:
-            cell_act = activity_dict[animal][cell]
-            residual_act = residual_activity_dict_NDNF_new[animal][cell]
-            trial_av = np.mean(cell_act, axis=1)
-            trial_av_residuals = np.mean(residual_act, axis=1)
-            r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
-            if animal_data:
-                if idx < 9:
-                    cells_belt_A[cell] = cell_act
-                    cells_belt_A_residuals[cell] = residual_act
-                else:
-                    cells_belt_B[cell] = cell_act
-                    cells_belt_B_residuals[cell] = residual_act
-            else:
-                if idx < 9:
-                    cells_belt_A_overall.append(np.mean(cell_act, axis=1))
-                    cells_belt_A_residuals_overall.append(np.mean(residual_act, axis=1))
-                else:
-                    cells_belt_B_overall.append(np.mean(cell_act, axis=1))
-                    cells_belt_B_residuals_overall.append(np.mean(residual_act, axis=1))
-
-            correlation_per_cell_resid_raw[cell] = r_value_resid_raw
-            cell_list.append(trial_av)
-            residual_list.append(trial_av_residuals)
-
-        if idx < 9:
-            belt_A_list.append(cells_belt_A)
-            belt_A_residuals_list.append(cells_belt_A_residuals)
-        else:
-            belt_B_list.append(cells_belt_B)
-            belt_B_residuals_list.append(cells_belt_B_residuals)
-
-        correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
-        cell_array = np.array(cell_list)
-        residual_array = np.array(residual_list)
-        cell_av = np.mean(cell_array, axis=0)
-        residual_av = np.mean(residual_array, axis=0)
-        if idx < 9:
-            animal_data_belt_A.append(cell_av)
-            residual_data_belt_A.append(residual_av)
-        else:
-            animal_data_belt_B.append(cell_av)
-            residual_data_belt_B.append(residual_av)
-
-
-    if animal_data:
-        array_animal_data_belt_A = np.array(animal_data_belt_A)
-        mean_animal_belt_A = np.mean(array_animal_data_belt_A, axis=0)
-        sem_animal_belt_A = sem(array_animal_data_belt_A, axis=0)
-
-        array_animal_data_belt_B = np.array(animal_data_belt_B)
-        mean_animal_belt_B = np.mean(array_animal_data_belt_B, axis=0)
-        sem_animal_belt_B = sem(array_animal_data_belt_B, axis=0)
-
-        array_residuals_A = np.array(residual_data_belt_A)
-        mean_residual_belt_A = np.mean(array_residuals_A, axis=0)
-        sem_residual_belt_A = sem(array_residuals_A, axis=0)
-
-        array_residuals_B = np.array(residual_data_belt_B)
-        mean_residual_belt_B = np.mean(array_residuals_B, axis=0)
-        sem_residual_belt_B = sem(array_residuals_B, axis=0)
-
-    else:
-        array_animal_data_belt_A = np.array(cells_belt_A_overall)
-        mean_animal_belt_A = np.mean(array_animal_data_belt_A, axis=0)
-        sem_animal_belt_A = sem(array_animal_data_belt_A, axis=0)
-
-        array_animal_data_belt_B = np.array(cells_belt_B_overall)
-        mean_animal_belt_B = np.mean(array_animal_data_belt_B, axis=0)
-        sem_animal_belt_B = sem(array_animal_data_belt_B, axis=0)
-
-        array_residuals_A = np.array(cells_belt_A_residuals_overall)
-        mean_residual_belt_A = np.mean(array_residuals_A, axis=0)
-        sem_residual_belt_A = sem(array_residuals_A, axis=0)
-
-        array_residuals_B = np.array(cells_belt_B_residuals_overall)
-        mean_residual_belt_B = np.mean(array_residuals_B, axis=0)
-        sem_residual_belt_B = sem(array_residuals_B, axis=0)
-
-    fig, axs = plt.subplots(3, 3, figsize=(20, 12))
-    axs[0, 0].plot(mean_animal_belt_A, color='grey', label='Raw')
-    axs[0, 0].fill_between(range(len(mean_animal_belt_A)), mean_animal_belt_A + sem_animal_belt_A, mean_animal_belt_A - sem_animal_belt_A, alpha=0.3, color='grey')
-    axs[0, 0].set_ylim(-0.25, 0.65)
-    axs[0, 0].plot(mean_residual_belt_A, color='orange', label='Velocity-Subtracted Residual')
-    axs[0, 0].fill_between(range(len(mean_residual_belt_A)), mean_residual_belt_A + sem_residual_belt_A, mean_residual_belt_A - sem_residual_belt_A, alpha=0.3, color='orange')
-    axs[0, 0].set_title("Belt E (Random)")
-    axs[0, 0].set_ylabel("DF/F")
-    axs[0, 0].set_xlabel("Position Bin")
-    axs[0, 0].legend()
-
-    axs[0, 1].plot(mean_animal_belt_B, color='grey', label='Raw')
-    axs[0, 1].fill_between(range(len(mean_animal_belt_B)), mean_animal_belt_B + sem_animal_belt_B, mean_animal_belt_B - sem_animal_belt_B, alpha=0.3, color='grey')
-    axs[0, 1].plot(mean_residual_belt_B, color='r', label='Velocity-Subtracted Residual')
-    axs[0, 1].fill_between(range(len(mean_residual_belt_B)), mean_residual_belt_B + sem_residual_belt_B, mean_residual_belt_B - sem_residual_belt_B, alpha=0.3, color='r')
-    axs[0, 1].set_ylim(-0.25, 0.65)
-    axs[0, 1].set_title("Belt 1A (Cue+Fixed)")
+    axs[0, 1].plot(mean_animal_belt_B_new, color='grey', label='Raw')
+    axs[0, 1].fill_between(range(len(mean_animal_belt_B_new)), mean_animal_belt_B_new + sem_animal_belt_B_new, mean_animal_belt_B_new - sem_animal_belt_B_new, alpha=0.3, color='grey')
+    axs[0, 1].plot(mean_animal_data_belt_B_new_residuals, color='orange', label='Velocity-Subtracted Residual')
+    axs[0, 1].fill_between(range(len(mean_animal_data_belt_B_new_residuals)), mean_animal_data_belt_B_new_residuals + sem_animal_data_belt_B_new_residuals, mean_animal_data_belt_B_new_residuals - sem_animal_data_belt_B_new_residuals, alpha=0.3, color='orange')
+    axs[0, 1].set_title("Velocity Subtraction Per Random Belt Combined New")
     axs[0, 1].set_ylabel("DF/F")
     axs[0, 1].set_xlabel("Position Bin")
     axs[0, 1].legend()
 
-    animal_data_belt_old = []
-    residual_data_belt_old = []
-    belt_old_list = []
-    belt_old_residuals_list = []
+    im3 = axs[1, 1].imshow(array_animal_data_belt_B_new, aspect='auto', vmin=vmin, vmax=vmax)
+    axs[1, 1].set_title("Individual Cells Trial Averaged Raw")
+    axs[1, 1].set_ylabel("DF/F")
+    axs[1, 1].set_xlabel("Position Bin")
 
-    cell_data_belt_old = []
-    cell_residual_data_belt_old = []
+    im4 = axs[2, 1].imshow(array_animal_data_belt_B_new_residuals, aspect='auto', vmin=vmin, vmax=vmax)
+    axs[2, 1].set_title("Individual Cells Trial Averaged Vel-Sub Resid.")
+    axs[2, 1].set_ylabel("DF/F")
+    axs[2, 1].set_xlabel("Position Bin")
 
-    correlation_dict_resid_raw = {}
+    axs[0, 0].plot(mean_animal_belt_B_old, color='grey', label='Raw')
+    axs[0, 0].fill_between(range(len(mean_animal_belt_B_old)), mean_animal_belt_B_old + sem_animal_belt_B_old, mean_animal_belt_B_old - sem_animal_belt_B_old, alpha=0.3, color='grey')
+    axs[0, 0].plot(mean_animal_data_belt_B_old_residuals, color='orange', label='Velocity-Subtracted Residual')
+    axs[0, 0].fill_between(range(len(mean_animal_data_belt_B_old_residuals)), mean_animal_data_belt_B_old_residuals + sem_animal_data_belt_B_old_residuals, mean_animal_data_belt_B_old_residuals - sem_animal_data_belt_B_old_residuals, alpha=0.3, color='orange')
+    axs[0, 0].set_title("Velocity Subtraction Per Random Belt Combined Original")
+    axs[0, 0].set_ylabel("DF/F")
+    axs[0, 0].set_xlabel("Position Bin")
+    axs[0, 0].legend()
 
-    for idx, animal in enumerate(activity_dict_old_NDNF):
-        cell_list = []
-        residual_list = []
-        correlation_per_cell_resid_raw = {}
-        cells_belt_old = {}
-        cells_belt_old_residuals = {}
+    im5 = axs[1, 0].imshow(array_animal_data_belt_B_old, aspect='auto', vmin=vmin, vmax=vmax)
+    axs[1, 0].set_title("Individual Cells Trial Averaged Raw")
+    axs[1, 0].set_ylabel("DF/F")
+    axs[1, 0].set_xlabel("Position Bin")
 
-        for cell in activity_dict_old_NDNF[animal]:
-            cell_act = activity_dict_old_NDNF[animal][cell]
-            residual_act = residual_activity_dict_NDNF_old[animal][cell]
-            trial_av = np.mean(cell_act, axis=1)
-            trial_av_residuals = np.mean(residual_act, axis=1)
-            r_value_resid_raw, _ = pearsonr(trial_av, trial_av_residuals)
+    im6 = axs[2, 0].imshow(array_animal_data_belt_B_old_residuals, aspect='auto', vmin=vmin, vmax=vmax)
+    axs[2, 0].set_title("Individual Cells Trial Averaged Vel-Sub Resid.")
+    axs[2, 0].set_ylabel("DF/F")
+    axs[2, 0].set_xlabel("Position Bin")
 
-            cells_belt_old[cell] = cell_act
-            cells_belt_old_residuals[cell] = residual_act
-
-            cell_data_belt_old.append(np.mean(cell_act, axis=1))
-            cell_residual_data_belt_old.append(np.mean(residual_act, axis=1))
-
-            correlation_per_cell_resid_raw[cell] = r_value_resid_raw
-            cell_list.append(trial_av)
-            residual_list.append(trial_av_residuals)
-        belt_old_list.append(cells_belt_old)
-        belt_old_residuals_list.append(cells_belt_old_residuals)
-
-        correlation_dict_resid_raw[animal] = correlation_per_cell_resid_raw
-        cell_array = np.array(cell_list)
-        residual_array = np.array(residual_list)
-        cell_av = np.mean(cell_array, axis=0)
-        residual_av = np.mean(residual_array, axis=0)
-        animal_data_belt_old.append(cell_av)
-        residual_data_belt_old.append(residual_av)
-
-    if animal_data:
-        array_animal_data_belt_old = np.array(animal_data_belt_old)
-        mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
-        sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
-
-        array_residuals_A = np.array(residual_data_belt_old)
-        mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
-        sem_residual_belt_old = sem(array_residuals_A, axis=0)
-
-        axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
-        axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
-        axs[0, 2].set_ylim(-0.25, 0.65)
-        axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
-        axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
-        axs[0, 2].set_ylim(-0.25, 0.65)
-        axs[0, 2].set_title("Original NDNF 4 Animals")
-        axs[0, 2].set_ylabel("DF/F")
-        axs[0, 2].set_xlabel("Position Bin")
-        axs[0, 2].legend()
-
-
-    else:
-        array_animal_data_belt_old = np.array(cell_data_belt_old)
-        mean_animal_belt_old = np.mean(array_animal_data_belt_old, axis=0)
-        sem_animal_belt_old = sem(array_animal_data_belt_old, axis=0)
-
-        array_residuals_A = np.array(cell_residual_data_belt_old)
-        mean_residual_belt_old = np.mean(array_residuals_A, axis=0)
-        sem_residual_belt_old = sem(array_residuals_A, axis=0)
-
-        axs[0, 2].plot(mean_animal_belt_old, color='grey', label='Raw')
-        axs[0, 2].fill_between(range(len(mean_animal_belt_old)), mean_animal_belt_old + sem_animal_belt_old, mean_animal_belt_old - sem_animal_belt_old, alpha=0.3, color='grey')
-        axs[0, 2].set_ylim(-0.25, 0.65)
-        axs[0, 2].plot(mean_residual_belt_old, color='orange', label='Velocity-Subtracted Residual')
-        axs[0, 2].fill_between(range(len(mean_residual_belt_old)), mean_residual_belt_old + sem_residual_belt_old, mean_residual_belt_old - sem_residual_belt_old, alpha=0.3, color='orange')
-        axs[0, 2].set_ylim(-0.25, 0.65)
-        axs[0, 2].set_title("Original NDNF 4 Animals")
-        axs[0, 2].set_ylabel("DF/F")
-        axs[0, 2].set_xlabel("Position Bin")
-        axs[0, 2].legend()
-
-    if animal_data:
-        raw_data_A = animal_data_belt_A
-        raw_data_B = animal_data_belt_B
-        resid_data_A = residual_data_belt_A
-        resid_data_B = residual_data_belt_B
-        raw_data_old = animal_data_belt_old
-        resid_data_old = residual_data_belt_old
-    else:
-        raw_data_A = cells_belt_A_overall
-        raw_data_B = cells_belt_B_overall
-        resid_data_A = cells_belt_A_residuals_overall
-        resid_data_B = cells_belt_B_residuals_overall
-        raw_data_old = cell_data_belt_old
-        resid_data_old = cell_residual_data_belt_old
-
-    for i in range(len(raw_data_A)):
-        axs[1, 0].plot(raw_data_A[i])
-        axs[1, 0].set_ylabel("DF/F")
-        axs[1, 0].set_xlabel("Position Bin")
-        if animal_data:
-            axs[1, 0].set_title("Belt E (Random) Animal Traces Raw")
-            axs[1, 0].set_ylim(-0.5, 2.0)
-        else:
-            axs[1, 0].set_title("Belt E (Random) Cell Traces Raw")
-            axs[1, 0].set_ylim(-1, 3.0)
-
-        axs[2, 0].plot(resid_data_A[i])
-        axs[2, 0].set_ylabel("DF/F")
-        axs[2, 0].set_xlabel("Position Bin")
-        if animal_data:
-            axs[2, 0].set_title("Belt E (Random) Animal Traces Vel-Sub")
-            axs[2, 0].set_ylim(-0.5, 2.0)
-        else:
-            axs[2, 0].set_title("Belt E (Random) Cell Traces Vel-Sub")
-            axs[2, 0].set_ylim(-1, 3.0)
-
-        axs[1, 1].plot(raw_data_B[i])
-        axs[1, 1].set_ylabel("DF/F")
-        axs[1, 1].set_xlabel("Position Bin")
-        if animal_data:
-            axs[1, 1].set_title("Belt 1A (Cue+Fixed) Animal Traces Raw")
-            axs[1, 1].set_ylim(-0.5, 2.0)
-        else:
-            axs[1, 1].set_title("Belt 1A (Cue+Fixed) Cell Traces Raw")
-            axs[1, 1].set_ylim(-1.0, 3.0)
-
-        axs[2, 1].plot(resid_data_B[i])
-        axs[2, 1].set_ylabel("DF/F")
-        axs[2, 1].set_xlabel("Position Bin")
-        if animal_data:
-            axs[2, 1].set_title("Belt 1A (Cue+Fixed) Animal Traces Vel-Sub")
-            axs[2, 1].set_ylim(-0.5, 2.0)
-        else:
-            axs[2, 1].set_title("Belt 1A (Cue+Fixed) Cell Traces Vel-Sub")
-            axs[2, 1].set_ylim(-1.0, 3.0)
-
-    for i in range(len(raw_data_old)):
-        axs[1, 2].plot(raw_data_old[i])
-        axs[1, 2].set_ylabel("DF/F")
-        axs[1, 2].set_xlabel("Position Bin")
-        if animal_data:
-            axs[1, 2].set_title("Original Animal Traces Raw")
-            axs[1, 2].set_ylim(-0.5, 2.0)
-        else:
-            axs[1, 2].set_title("Original Cell Traces Raw")
-            axs[1, 2].set_ylim(-1.0, 3.0)
-
-        axs[2, 2].plot(resid_data_old[i])
-        axs[2, 2].set_ylabel("DF/F")
-        axs[2, 2].set_xlabel("Position Bin")
-        if animal_data:
-            axs[2, 2].set_ylim(-0.5, 2.0)
-        else:
-            axs[2, 2].set_ylim(-1.0, 3.0)
+    fig.colorbar(im1, ax=axs[1, 2])
+    fig.colorbar(im2, ax=axs[2, 2])
+    fig.colorbar(im3, ax=axs[1, 1])
+    fig.colorbar(im4, ax=axs[2, 1])
+    fig.colorbar(im5, ax=axs[1, 0])
+    fig.colorbar(im6, ax=axs[2, 0])
 
     plt.tight_layout()
-    plt.show()
+    plt.plot()
 
 
 def plot_changepoint_distribution(fraction_animal_first_changepoints_list_new_NDNF, fraction_animal_second_changepoints_list_new_NDNF, cell_type="EC"):
@@ -1411,18 +1338,19 @@ def plot_changepoint_distribution(fraction_animal_first_changepoints_list_new_ND
 
 def plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="EC", title="NDNF New Cell SliceTCA x00"):
     if cell_type=="EC":
-        colors = ["gold", 'mediumseagreen', 'darkgreen']
+        colors = ["k", 'green']
     elif cell_type=="SST":
-        colors = ['cyan', 'dodgerblue', 'purple']
+        colors = ['cyan', 'blue']
     else:
-        colors = ['darkorange', 'orangered', 'red']
+        colors = ['orange', 'red']
 
-    for i in range(3):
-        plt.plot(mean_list_NDNF_new_cell_x00[i], label=["Early", "Middle", "Late"][i], color=colors[i])
+    for i in range(2):
+        plt.plot(mean_list_NDNF_new_cell_x00[i], label=["Early", "Late"][i], color=colors[i])
         plt.fill_between(range(len(mean_list_NDNF_new_cell_x00[i])),
                             mean_list_NDNF_new_cell_x00[i] + sem_list_NDNF_new_cell_x00[i],
                             mean_list_NDNF_new_cell_x00[i] - sem_list_NDNF_new_cell_x00[i],
                             color=colors[i], alpha=0.1)
+        plt.ylim(-0.6, 1)
     plt.title(title)
     plt.xlabel("Position Bins")
     plt.ylabel("DF/F")
@@ -1432,7 +1360,7 @@ def plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_ND
     plt.show()
 
 
-def get_contig_cluster_av(cell_new_NDNF_model_ranks20_contiguous_x00_cell, animal_TCA=False):
+def get_contig_cluster_av(cell_new_NDNF_model_ranks20_contiguous_x00_cell, newer_activity, animal_TCA=False):
     if animal_TCA:
 
         animal_clust_1_list = []
@@ -1440,28 +1368,13 @@ def get_contig_cluster_av(cell_new_NDNF_model_ranks20_contiguous_x00_cell, anima
         animal_clust_3_list = []
 
         for animal in cell_new_NDNF_model_ranks20_contiguous_x00_cell:
-            clust_1_list = []
-            clust_2_list = []
-            clust_3_list = []
 
             for cell in cell_new_NDNF_model_ranks20_contiguous_x00_cell[animal]:
                 mean_list = cell_new_NDNF_model_ranks20_contiguous_x00_cell[animal][cell]["cluster_trial_mean_dict"]["clusters_chosen_3"]
 
-                clust_1_list.append(mean_list[0])
-                clust_2_list.append(mean_list[1])
-                clust_3_list.append(mean_list[2])
-
-            clust_1_array = np.array(clust_1_list)
-            clust_2_array = np.array(clust_2_list)
-            clust_3_array = np.array(clust_3_list)
-
-            clust_1_mean = np.mean(clust_1_array, axis=0)
-            clust_2_mean = np.mean(clust_2_array, axis=0)
-            clust_3_mean = np.mean(clust_3_array, axis=0)
-
-            animal_clust_1_list.append(clust_1_mean)
-            animal_clust_2_list.append(clust_2_mean)
-            animal_clust_3_list.append(clust_3_mean)
+                animal_clust_1_list.append(mean_list[0])
+                animal_clust_2_list.append(mean_list[1])
+                animal_clust_3_list.append(mean_list[2])
 
         animal_clust_1_array = np.array(animal_clust_1_list)
         animal_clust_2_array = np.array(animal_clust_2_list)
@@ -1477,54 +1390,55 @@ def get_contig_cluster_av(cell_new_NDNF_model_ranks20_contiguous_x00_cell, anima
 
         mean_list = [mean_animal_clust_1, mean_animal_clust_2, mean_animal_clust_3]
         sem_list = [sem_animal_clust_1, sem_animal_clust_2, sem_animal_clust_3]
+        raw_cluster_list = [animal_clust_1_array, animal_clust_2_array, animal_clust_3_array]
 
 
     else:
 
+        animal_activity_residual = {}
+        for idx, animal in enumerate(newer_activity):
+            cell_activity = {}
+            for ids, cell in enumerate(newer_activity[animal]):
+                cell_activity[ids] = newer_activity[animal][cell]
+
+            animal_activity_residual[idx] = cell_activity
+
         animal_clust_1_list = []
         animal_clust_2_list = []
-        animal_clust_3_list = []
 
-        for animal in cell_new_NDNF_model_ranks20_contiguous_x00_cell[20]:
-            clust_1_list = []
-            clust_2_list = []
-            clust_3_list = []
+        for i, animal in enumerate(cell_new_NDNF_model_ranks20_contiguous_x00_cell[20]):
 
-            for cell in cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal]:
-                mean_list = cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal][cell][1][f"cell_{cell}"]["cluster_trial_mean_dict"]["clusters_chosen_3"]
+            for j, cell in enumerate(cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal]):
+                labels_array = cell_new_NDNF_model_ranks20_contiguous_x00_cell[20][animal][cell][1][f"cell_{cell}"]["labels_dict"]["clusters_chosen_3"]
+                cutpoints = np.unique(labels_array)
+                change_indices = np.where(np.diff(labels_array) != 0)[0] + 1
+                early_cp = change_indices[0]
+                late_cp = change_indices[1]
 
-                clust_1_list.append(mean_list[0])
-                clust_2_list.append(mean_list[1])
-                clust_3_list.append(mean_list[2])
+                residuals = animal_activity_residual[i][j]
 
-            clust_1_array = np.array(clust_1_list)
-            clust_2_array = np.array(clust_2_list)
-            clust_3_array = np.array(clust_3_list)
+                early_learn_activity = residuals[:, :early_cp]
+                mean_early_learn_activity = np.mean(early_learn_activity, axis=1)
+                late_learn_activity = residuals[:, late_cp:]
+                mean_late_learn_activity = np.mean(late_learn_activity, axis=1)
 
-            clust_1_mean = np.mean(clust_1_array, axis=0)
-            clust_2_mean = np.mean(clust_2_array, axis=0)
-            clust_3_mean = np.mean(clust_3_array, axis=0)
-
-            animal_clust_1_list.append(clust_1_mean)
-            animal_clust_2_list.append(clust_2_mean)
-            animal_clust_3_list.append(clust_3_mean)
+                animal_clust_1_list.append(mean_early_learn_activity)
+                animal_clust_2_list.append(mean_late_learn_activity)
 
         animal_clust_1_array = np.array(animal_clust_1_list)
         animal_clust_2_array = np.array(animal_clust_2_list)
-        animal_clust_3_array = np.array(animal_clust_3_list)
 
         mean_animal_clust_1 = np.mean(animal_clust_1_array, axis=0)
         mean_animal_clust_2 = np.mean(animal_clust_2_array, axis=0)
-        mean_animal_clust_3 = np.mean(animal_clust_3_array, axis=0)
 
         sem_animal_clust_1 = sem(animal_clust_1_array, axis=0)
         sem_animal_clust_2 = sem(animal_clust_2_array, axis=0)
-        sem_animal_clust_3 = sem(animal_clust_3_array, axis=0)
 
-        mean_list = [mean_animal_clust_1, mean_animal_clust_2, mean_animal_clust_3]
-        sem_list = [sem_animal_clust_1, sem_animal_clust_2, sem_animal_clust_3]
+        mean_list = [mean_animal_clust_1, mean_animal_clust_2]
+        sem_list = [sem_animal_clust_1, sem_animal_clust_2]
+        raw_cluster_list = [animal_clust_1_array, animal_clust_2_array]
 
-    return mean_list, sem_list
+    return mean_list, sem_list, raw_cluster_list
 
 
 def get_double_track_length(activity_dict, activity=True, dual_track_length=False):
@@ -1666,7 +1580,7 @@ def get_double_track_length(activity_dict, activity=True, dual_track_length=Fals
         return double_track_velocity_dict_new_NDNF
 
 
-def plot_window(activity_dict, factors_dict):
+def plot_window(activity_dict, factors_dict, residual_activity_dict_NDNF_new):
 
     window_length = 30
     half_window = window_length // 2
@@ -1739,18 +1653,24 @@ def plot_window(activity_dict, factors_dict):
     residual_mean_animal_reward_locked_array = np.mean(residual_animal_reward_locked_array, axis=0)
     residual_sem_animal_reward_locked_array = sem(residual_animal_reward_locked_array, axis=0)
 
-
-    plt.plot(mean_animal_reward_locked_array, color='grey', label='Raw')
-    plt.fill_between(range(len(mean_animal_reward_locked_array)), mean_animal_reward_locked_array+sem_animal_reward_locked_array, mean_animal_reward_locked_array-sem_animal_reward_locked_array, color='grey', alpha=0.3)
-    plt.plot(residual_mean_animal_reward_locked_array, color='orange', label='Vel-Sub Residual')
-    plt.fill_between(range(len(residual_mean_animal_reward_locked_array)), residual_mean_animal_reward_locked_array+residual_sem_animal_reward_locked_array, residual_mean_animal_reward_locked_array-residual_sem_animal_reward_locked_array, color='orange', alpha=0.3)
-    plt.legend()
-    plt.title(f"{window_length} Bins Surrounding Reward NDNF")
+    x_vals = np.arange(-(0.5*window_length), 0.5*window_length)
+    plt.axvline(0, linestyle="--", color="red", label="Random Reward")  # vertical red dashed line at 0
+    plt.plot(x_vals, mean_animal_reward_locked_array, color='grey', label='Raw')
+    plt.fill_between(x_vals, mean_animal_reward_locked_array+sem_animal_reward_locked_array, mean_animal_reward_locked_array-sem_animal_reward_locked_array, color='grey', alpha=0.3)
+    plt.plot(x_vals, residual_mean_animal_reward_locked_array, color='orange', label='Vel-Sub Residual')
+    plt.fill_between(x_vals, residual_mean_animal_reward_locked_array+residual_sem_animal_reward_locked_array, residual_mean_animal_reward_locked_array-residual_sem_animal_reward_locked_array, color='orange', alpha=0.3)
+    plt.title(f"{window_length} Bins Surrounding Reward Random Track NDNF")
     plt.ylabel("DF/F")
-    plt.xlabel("Postion Bins")
+    plt.xlabel("Position Bins")
+    plt.xticks(np.arange(-15, 16, 5))  # ticks from -15 to 15
+    plt.tight_layout()
+    plt.ylim(-0.5, 0.5)
+    plt.legend()
+    plt.show()
 
 
-def plot_roll(activity_dict, factors_dict):
+
+def plot_roll(activity_dict, factors_dict, residual_activity_dict_NDNF_new):
 
     animal_rolled_data = []
     animal_rolled_resid_data = []
@@ -1827,6 +1747,30 @@ def plot_roll(activity_dict, factors_dict):
     plt.legend(loc="lower center")
     plt.tight_layout()
     plt.show()
+
+
+def get_elbow_score_data(new_cell_SST_model_ranks20_kmeans_reassign_x00, animal=0, cell=0):
+    MSE_dict = new_cell_SST_model_ranks20_kmeans_reassign_x00[20][animal][cell][1][f"cell_{cell}"]['MSE_dict']
+
+    MSE_list = []
+    for clusters_chosen in MSE_dict:
+        MSE_list.append(MSE_dict[clusters_chosen])
+    MSE_array = np.array(MSE_list)
+
+    elbow_kmeans = find_elbow_point(MSE_array)
+
+    return elbow_kmeans
+
+
+def get_label_probs(testing_cell_super_new_NDNF_model_ranks20_reassign_regkmean_x00_cell, elbow_kmeans, animal=1, cell=1):
+    labels_dict = testing_cell_super_new_NDNF_model_ranks20_reassign_regkmean_x00_cell[20][animal][cell][1][f"cell_{cell}"]["labels_dict"]
+    for idx, clusters_chosen in enumerate(labels_dict):
+        cluster_of_interest = elbow_kmeans - 1
+        if idx == cluster_of_interest:
+            proper_labels = labels_dict[clusters_chosen]
+            label_probs = sliding_window_probabilities(proper_labels, window_size=10)
+
+    return label_probs
 
 
 def get_changepoints(cell_new_NDNF_model_ranks20_contiguous_x00_cell, activity_dict, animal_TCA=False):
@@ -1965,6 +1909,29 @@ def get_plot_umap(new_cell_SST_model_ranks20_kmeans_reassign_x00, k=5, use_3d_um
 
         plt.tight_layout()
         plt.show()
+
+
+def sliding_window_probabilities(labels, window_size=10):
+    labels = np.array(labels)
+    unique_labels = np.unique(labels)
+    n = len(labels)
+
+    # Dictionary to hold probability lists per label
+    label_probs = {label: [] for label in unique_labels}
+
+    for start in range(n - window_size + 1):
+        window = labels[start:start + window_size]
+        counts = np.bincount(window, minlength=unique_labels.max() + 1)
+        probs = counts / window_size
+
+        for label in unique_labels:
+            label_probs[label].append(probs[label])
+
+    # Convert lists to arrays
+    for label in label_probs:
+        label_probs[label] = np.array(label_probs[label])
+
+    return label_probs
 
 
 def find_elbow_point(y_vals, min_index=2):
@@ -2290,3 +2257,1660 @@ def get_diff_score(internals_per_animal_dict_EC_animal_x00_contig, animal=False)
             per_animal_diff_score[animal] = diff_dict
 
     return per_animal_diff_score
+
+
+def get_counts_of_first_kmeans_failure(model_dict, rank=20, cluster_range=range(1, 9)):
+    cluster_of_first_singletons_dict = {}
+    cluster_count_dict = {k: 0 for k in cluster_range}  # initialize 1–8 with 0s
+
+    if rank not in model_dict:
+        return cluster_of_first_singletons_dict, cluster_count_dict
+
+    for animal in model_dict[rank]:
+        for cell in model_dict[rank][animal]:
+            labels_dict = model_dict[rank][animal][cell][1][f"cell_{cell}"]['labels_dict']
+            found_singleton = False
+
+            for idx, clusters_chosen in enumerate(labels_dict):
+                labels = labels_dict[clusters_chosen]
+                unique_vals, counts = np.unique(labels, return_counts=True)
+                singleton_labels = unique_vals[counts == 1]
+
+                if len(singleton_labels) > 0 and not found_singleton:
+                    cluster_number = int(clusters_chosen.split('_')[-1])
+                    print(f"Warning: {len(singleton_labels)} singleton(s) found in {clusters_chosen} for {animal}, cell {cell}")
+
+                    if animal not in cluster_of_first_singletons_dict:
+                        cluster_of_first_singletons_dict[animal] = {}
+                    cluster_of_first_singletons_dict[animal][cell] = cluster_number
+
+                    if cluster_number in cluster_count_dict:
+                        cluster_count_dict[cluster_number] += 1
+
+                    found_singleton = True
+                    break
+
+    print(f"✅ Found first singleton cluster for {sum(len(c) for c in cluster_of_first_singletons_dict.values())} cells")
+    return cluster_of_first_singletons_dict, cluster_count_dict
+
+
+def plot_histogram_from_counts(cluster_count_list):
+    cluster_count_dict_SST = cluster_count_list[0]
+    cluster_count_dict_NDNF = cluster_count_list[1]
+    cluster_count_dict_EC = cluster_count_list[2]
+
+    fig, axs = plt.subplots(1, 3, figsize=(15, 6))
+
+    plt.suptitle("Number of Clusters with 2 or Less Members")
+
+    cluster_numbers_SST = sorted(cluster_count_dict_SST.keys())
+    counts_SST = [cluster_count_dict_SST[k] for k in cluster_numbers_SST]
+
+    axs[0].bar(cluster_numbers_SST, counts_SST, align='center', width=0.6, color='b')
+    axs[0].set_xlabel('Cluster number where first singleton appeared')
+    axs[0].set_ylabel('Number of cells')
+    axs[0].set_title("SST Cell SliceTCA x00")
+    axs[0].set_xticks(cluster_numbers_SST)
+
+    cluster_numbers_NDNF = sorted(cluster_count_dict_NDNF.keys())
+    counts_NDNF = [cluster_count_dict_NDNF[k] for k in cluster_numbers_NDNF]
+
+    axs[1].bar(cluster_numbers_NDNF, counts_NDNF, align='center', width=0.6, color='orange')
+    axs[1].set_xlabel('Cluster number where first singleton appeared')
+    axs[1].set_ylabel('Number of cells')
+    axs[1].set_title("NDNF Cell SliceTCA x00")
+    axs[1].set_xticks(cluster_numbers_NDNF)
+
+    cluster_numbers_EC = sorted(cluster_count_dict_EC.keys())
+    counts_EC = [cluster_count_dict_EC[k] for k in cluster_numbers_EC]
+
+    axs[2].bar(cluster_numbers_EC, counts_EC, align='center', width=0.6, color='g')
+    axs[2].set_xlabel('Cluster number where first singleton appeared')
+    axs[2].set_ylabel('Number of cells')
+    axs[2].set_title("EC Cell SliceTCA x00")
+    axs[2].set_xticks(cluster_numbers_EC)
+
+    plt.tight_layout()
+
+    plt.show()
+
+
+def load_data_MSEs():
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    file_name_template = "loss_dict_SST_latent_2_22_animal{i}"
+    SST_mean_2_22, SST_sem_2_22 = get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=10)
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    file_name_template = "loss_dict_SST_latent_22_42_animal{i}"
+    SST_mean_22_42, SST_sem_22_42 = get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=10)
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    file_name_template = "loss_dict_SST_latent_42_62_animal{i}"
+    sst_mean_42_64, sst_sem_42_64 = get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=10)
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    file_name_template = "NDNF_latent_loss_2_22_animal_{i}"
+    NDNF_mean_2_22, NDNF_sem_2_22 = get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=4)
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    file_name_template = "loss_dict_NDNF_latent_22_42_animal{i}"
+    NDNF_mean_22_42, NDNF_sem_22_42 = get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=4)
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    file_name_template = "loss_dict_NDNF_latent_42_62_animal{i}"
+    animal_list = [0, 2, 3]
+    NDNF_mean_42_62, NDNF_sem_42_62 = get_data_by_animal_num(base_dir, file_name_template, animal_list=animal_list, num_animals=None)
+
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_experiment"
+    EC_latent_means_2_22, EC_latent_sems_2_22 = cell_type_get_mean_sem(base_dir, start_num=2, end_num=22, cell_type="EC")
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+    EC_latent_means_22_42, EC_latent_sems_22_42 = cell_type_get_mean_sem(base_dir, start_num=22, end_num=43, cell_type="EC")
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_experiment"
+    EC_latent_means_42_62, EC_latent_sems_42_62 = cell_type_get_mean_sem(base_dir, start_num=43, end_num=63, cell_type="EC")
+
+
+    concatenated_EC_means = np.concatenate([EC_latent_means_2_22, EC_latent_means_22_42, EC_latent_means_42_62])
+    concatenated_EC_sem = np.concatenate([EC_latent_sems_2_22, EC_latent_sems_22_42, EC_latent_sems_42_62])
+
+    concatenated_SST_means = np.concatenate([SST_mean_2_22, SST_mean_22_42[:-1], sst_mean_42_64[:-1]])
+    concatenated_SST_sem = np.concatenate([SST_sem_2_22, SST_sem_22_42[:-1], sst_sem_42_64[:-1]])
+
+    concatenated_NDNF_means = np.concatenate([NDNF_mean_2_22, NDNF_mean_22_42[:-1], NDNF_mean_42_62[:-1]])
+    concatenated_NDNF_sem = np.concatenate([NDNF_sem_2_22, NDNF_sem_22_42[:-1], NDNF_sem_42_62[:-1]])
+
+
+
+    ##########################################
+
+
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_timebins_experiment"
+
+    # Holds lists of scalar losses for each latent number
+    latent_numbers = []
+
+    for i in range(2, 63):
+        # Get all matching files
+        pattern = os.path.join(base_dir, f"timebins_loss_dict_EC_latent_{i}_{i}_animal*.pkl")
+        file_paths = sorted(glob.glob(pattern))
+
+        # Store float values from each file
+        loss_floats = []
+
+        for path in file_paths:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+                data = float(data)
+                loss_floats.append(data)
+
+        latent_numbers.append(loss_floats)
+
+    EC_latent_means_timebins_62 = []
+    EC_latent_sems_timebins_62 = []
+
+    for i in latent_numbers:
+        EC_latent_means_timebins_62.append(np.mean(i))
+        EC_latent_sems_timebins_62.append(sem(i))
+
+    EC_latent_sems_timebins_62 = np.array(EC_latent_sems_timebins_62)
+
+
+
+
+
+
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets\EC_timebins_experiment"
+
+    # Holds lists of scalar losses for each latent number
+    latent_numbers = []
+
+    for i in range(2, 63):
+        # Get all matching files
+        pattern = os.path.join(base_dir, f"timebins_loss_dict_NDNF_latent_{i}_{i}_animal*.pkl")
+        file_paths = sorted(glob.glob(pattern))
+
+        # Store float values from each file
+        loss_floats = []
+
+        for path in file_paths:
+            with open(path, "rb") as f:
+                data = pickle.load(f)
+                data = float(data)
+                loss_floats.append(data)
+
+        latent_numbers.append(loss_floats)
+
+    NDNF_latent_means_timebins_62 = []
+    NDNF_latent_sems_timebins_62 = []
+
+    for i in latent_numbers:
+        NDNF_latent_means_timebins_62.append(np.mean(i))
+        NDNF_latent_sems_timebins_62.append(sem(i))
+    NDNF_latent_sems_timebins_62 = np.array(NDNF_latent_sems_timebins_62)
+
+
+
+
+
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+
+    SST_list_2_24_timebins = []
+
+
+    for i in range(10):  # Assuming animals 0 to
+
+        file_name = f"timebins_loss_dict_SST_latent_2_22_animal{i}.pkl"
+        file_path = os.path.join(base_dir, file_name)
+
+        # Load the pickle file
+        with open(file_path, "rb") as f:
+            animal = pickle.load(f)
+
+        SST_list_2_24_timebins.append(animal)
+
+    SST_mean_2_24_timebins, SST_sem_2_24_timebins = get_mean_sem_loss2(SST_list_2_24_timebins)
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+
+    SST_list_22_42_timebins = []
+
+
+    for i in range(10):  # Assuming animals 0 to
+
+        file_name = f"timebins_loss_dict_SST_latent_22_42_animal{i}.pkl"
+        file_path = os.path.join(base_dir, file_name)
+
+        # Load the pickle file
+        with open(file_path, "rb") as f:
+            animal = pickle.load(f)
+
+        SST_list_22_42_timebins.append(animal)
+
+    SST_mean_22_42_timebins, SST_sem_22_42_timebins = get_mean_sem_loss2(SST_list_22_42_timebins)
+
+
+    base_dir = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM\datasets"
+
+    SST_list_42_62_timebins = []
+
+
+    for i in range(10):  # Assuming animals 0 to
+
+        file_name = f"timebins_loss_dict_SST_latent_42_62_animal{i}.pkl"
+        file_path = os.path.join(base_dir, file_name)
+
+        # Load the pickle file
+        with open(file_path, "rb") as f:
+            animal = pickle.load(f)
+
+        SST_list_42_62_timebins.append(animal)
+
+    SST_mean_42_62_timebins, SST_sem_42_62_timebins = get_mean_sem_loss2(SST_list_42_62_timebins)
+
+    SST_latent_mean_timebins_62 = np.concatenate([SST_mean_2_24_timebins, SST_mean_22_42_timebins, SST_mean_42_62_timebins])
+    SST_latent_sem_timebins_62 = np.concatenate([SST_sem_2_24_timebins, SST_sem_22_42_timebins, SST_sem_42_62_timebins])
+
+
+    return concatenated_EC_means, concatenated_EC_sem, concatenated_SST_means, concatenated_SST_sem, concatenated_NDNF_means, concatenated_NDNF_sem, SST_latent_mean_timebins_62, SST_latent_sem_timebins_62, NDNF_latent_means_timebins_62, NDNF_latent_sems_timebins_62, EC_latent_means_timebins_62, EC_latent_sems_timebins_62
+
+
+def plot_MSE_latents(concatenated_EC_means, concatenated_EC_sem, concatenated_SST_means, concatenated_SST_sem, concatenated_NDNF_means, concatenated_NDNF_sem, SST_latent_mean_timebins_62, SST_latent_sem_timebins_62, NDNF_latent_means_timebins_62, NDNF_latent_sems_timebins_62, EC_latent_means_timebins_62, EC_latent_sems_timebins_62):
+
+    ##########################################
+
+    fig, axs = plt.subplots(1,2, figsize=(20,10))
+
+    axs[0].plot(concatenated_EC_means, label="EC", color='g')
+    axs[0].fill_between(range(len(concatenated_EC_means)),
+                     concatenated_EC_means + concatenated_EC_sem,
+                     concatenated_EC_means - concatenated_EC_sem,
+                     alpha=0.3, color='g')
+    axs[0].plot(concatenated_SST_means, label="SST", color='b')
+    axs[0].fill_between(range(len(concatenated_SST_means)),
+                     concatenated_SST_means + concatenated_SST_sem,
+                     concatenated_SST_means - concatenated_SST_sem,
+                     alpha=0.3, color='b')
+
+    axs[0].plot(concatenated_NDNF_means, label="NDNF", color='orange')
+    axs[0].fill_between(range(len(concatenated_NDNF_means)),
+                     concatenated_NDNF_means + concatenated_NDNF_sem,
+                     concatenated_NDNF_means - concatenated_NDNF_sem,
+                     alpha=0.3, color='orange')
+    axs[0].legend()
+    axs[0].set_ylabel("MSE")
+    axs[0].set_ylim(0,1)
+    axs[0].set_ylabel("MSE")
+    axs[0].set_title("Slice TCA per Animal (x,0,0)")
+    axs[0].set_xlabel("Number of Latents")
+
+
+    axs[1].plot(SST_latent_mean_timebins_62, color='b', label='SST')
+    axs[1].fill_between(range(len(SST_latent_mean_timebins_62)),
+                     SST_latent_mean_timebins_62 + SST_latent_sem_timebins_62,
+                     SST_latent_mean_timebins_62 - SST_latent_sem_timebins_62,
+                     alpha=0.3, color='b')
+    axs[1].plot(NDNF_latent_means_timebins_62, color='orange', label='NDNF')
+    axs[1].fill_between(range(len(NDNF_latent_means_timebins_62)),
+                     NDNF_latent_means_timebins_62 + NDNF_latent_sems_timebins_62,
+                     NDNF_latent_means_timebins_62 - NDNF_latent_sems_timebins_62,
+                     alpha=0.3, color='orange')
+    axs[1].plot(EC_latent_means_timebins_62, color='g', label='EC')
+    axs[1].fill_between(range(len(EC_latent_means_timebins_62)),
+                     EC_latent_means_timebins_62 + EC_latent_sems_timebins_62,
+                     EC_latent_means_timebins_62 - EC_latent_sems_timebins_62,
+                     alpha=0.3, color='g')
+    axs[1].legend()
+    axs[1].set_ylabel("MSE")
+    axs[1].set_title("Slice TCA per Animal (0,0,x)")
+    axs[1].set_ylim(0,1)
+    axs[1].set_xlabel("Number of Latents")
+
+    plt.show()
+
+
+def get_data_by_animal_num(base_dir, file_name_template, animal_list=None, num_animals=None):
+    SST_list_2_22 = []
+
+    if animal_list is None:
+        animal_list = range(num_animals)
+
+    for i in animal_list:
+        file_name = file_name_template.format(i=i)
+        file_path = os.path.join(base_dir, file_name)
+
+        with open(file_path, "rb") as f:
+            animal = pickle.load(f)
+
+        SST_list_2_22.append(animal)
+
+    SST_mean_2_22, SST_sem_2_22 = get_mean_sem_loss2(SST_list_2_22)
+    return SST_mean_2_22, SST_sem_2_22
+
+
+def show_contiguous_internals(cell_models, animal_models, activity_dicts, r2_variable_activity_dict_new_fixed_NDNF, r2_variable_activity_dict_old_NDNF, r2_variable_activity_dict_SST, r2_variable_activity_dict_EC, cell_type=True, seperate_fixed_random=True, random_reward=False, combine_new_old=True):
+    if cell_type == "NDNF_new":
+        model = cell_models[0]
+
+        if seperate_fixed_random:
+
+            models_blank = {20: {}}
+            models_fixed = {20: {}}
+
+            for idx in model[20]:
+                if idx < 9:
+                    models_blank[20][idx] = model[20][idx]
+                else:
+                    models_fixed[20][idx] = model[20][idx]
+
+            if random_reward:
+
+                new_activity = activity_dicts[0]
+                newer_activity = {}
+                for idx, animal in enumerate(new_activity):
+                    if idx < 9:
+                        newer_activity[animal] = new_activity[animal]
+
+                mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(models_blank, newer_activity, animal_TCA=False)
+                plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="NDNF", title="NDNF New Random Reward Cell SliceTCA Contiguous")
+                cell_first_changepoints_list_new_NDNF, fraction_cell_first_changepoints_list_new_NDNF, cell_second_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF = get_changepoints(models_blank, newer_activity)
+                plot_changepoint_distribution(fraction_cell_first_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF, cell_type='New NDNF Random Reward')
+                plot_individual_learning_traces(raw_cluster_list, sup="NDNF New Random Reward")
+
+
+            else:
+                if combine_new_old:
+                    new_model = models_fixed  # Start with NDNF_new
+                    original = cell_models[1]  # This is NDNF_original
+
+                    for animal in original[20]:
+                        new_model[20][f"old_{animal}"] = original[20][animal]
+
+                    new_activity = activity_dicts[0]
+                    original_activity = activity_dicts[1]
+
+                    newer_activity = {}
+                    for idx, animal in enumerate(new_activity):
+                        if idx > 8:
+                            newer_activity[animal] = new_activity[animal]
+
+                    for animal in original_activity:
+                        newer_activity[f"old_{animal}"] = original_activity[animal]
+
+                    print(f"newer_activity.keys() {newer_activity.keys()}")
+                    print(f"new_model[20].keys() {new_model[20].keys()}")
+
+                    mean_list_EC_cell_x00, sem_list_EC_cell_x00, raw_cluster_list = get_contig_cluster_av(new_model, newer_activity, animal_TCA=False)
+                    plot_average_activity_contig_kmeans(mean_list_EC_cell_x00, sem_list_EC_cell_x00, cell_type="NDNF", title="NDNF Combined New+Original Fixed Reward Cell SliceTCA Contiguous")
+                    cell_first_changepoints_list_EC, fraction_cell_first_changepoints_list_EC, cell_second_changepoints_list_EC, fraction_cell_second_changepoints_list_EC = get_changepoints(new_model, newer_activity)
+                    plot_changepoint_distribution(fraction_cell_first_changepoints_list_EC, fraction_cell_second_changepoints_list_EC, cell_type="NDNF Fixed Reward New+Original")
+                    plot_individual_learning_traces(raw_cluster_list, sup="NDNF Fixed New+Original")
+
+
+                else:
+                    new_activity = activity_dicts[0]
+                    newer_activity = {}
+                    for idx, animal in enumerate(new_activity):
+                        if idx > 8:
+                            newer_activity[animal] = new_activity[animal]
+
+                    mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(models_fixed, newer_activity, animal_TCA=False)
+                    plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="NDNF", title="NDNF New Fixed Cell SliceTCA Contiguous")
+                    cell_first_changepoints_list_new_NDNF, fraction_cell_first_changepoints_list_new_NDNF, cell_second_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF = get_changepoints(models_fixed, newer_activity)
+                    plot_changepoint_distribution(fraction_cell_first_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF, cell_type='New NDNF Fixed Reward')
+                    plot_individual_learning_traces(raw_cluster_list, sup="NDNF Fixed New")
+
+        else:
+            mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(models)
+            plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="NDNF", title="NDNF New Cell SliceTCA Contiguous")
+            cell_first_changepoints_list_new_NDNF, fraction_cell_first_changepoints_list_new_NDNF, cell_second_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF = get_changepoints(model, activity_dicts[0])
+            plot_changepoint_distribution(fraction_cell_first_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF, cell_type='New NDNF')
+            plot_individual_learning_traces(raw_cluster_list, sup="NDNF Fixed New+Original")
+
+    elif cell_type == "NDNF_above_zero":
+
+        model = cell_models[0]
+        old_model = cell_models[1]
+
+        #         for idx, animal in enumerate(models[20]):
+        #             if idx>8:
+        #                 model[20][animalal] = models[20][animal]
+
+        models_blank = {20: {}}
+        models_fixed = {20: {}}
+
+        for idx in model[20]:
+            if idx < 9:
+                models_blank[20][idx] = model[20][idx]
+            else:
+                models_fixed[20][idx] = model[20][idx]
+
+        combined_r_value_dict_fixed = {}
+
+        for animal in r2_variable_activity_dict_new_fixed_NDNF:
+            animal_num = int(animal.split('_')[-1])  # e.g., 10 from 'animal_10'
+            if animal_num > 8:
+                combined_r_value_dict_fixed[animal] = r2_variable_activity_dict_new_fixed_NDNF[animal]
+
+        combined_activity_dict = {}
+        for idx, animal in enumerate(residual_activity_dict_NDNF_new):
+            if idx > 8:
+                combined_activity_dict[animal] = residual_activity_dict_NDNF_new[animal]
+
+        above_zero_indices = []
+        below_zero_indices = []
+
+        above_zero_indices_numerical_list = []
+        below_zero_indices_numerical_list = []
+
+        for idx, animal in enumerate(combined_r_value_dict_fixed):
+            for ids, cell in enumerate(combined_r_value_dict_fixed[animal]):
+                indexing_list = [animal, cell]
+                indices = [idx + 9, ids]
+                if combined_r_value_dict_fixed[animal][cell] > 0:
+                    above_zero_indices.append(indexing_list)
+                    above_zero_indices_numerical_list.append(indices)
+                else:
+                    below_zero_indices.append(indexing_list)
+                    below_zero_indices_numerical_list.append(indices)
+
+        above_zero_activity_dict = {}
+        for animal_index, cell_index in above_zero_indices:
+            above_zero_activity_dict.setdefault(animal_index, {})[cell_index] = combined_activity_dict[animal_index][cell_index]
+
+        below_zero_activity_dict = {}
+        for animal_index, cell_index in below_zero_indices:
+            below_zero_activity_dict.setdefault(animal_index, {})[cell_index] = combined_activity_dict[animal_index][cell_index]
+
+        above_zero_models_dict = {20: {}}
+        for animal_index, cell_index in above_zero_indices_numerical_list:
+            above_zero_models_dict[20].setdefault(animal_index, {})[cell_index] = model[20][animal_index][cell_index]
+
+        below_zero_models_dict = {20: {}}
+        for animal_index, cell_index in below_zero_indices_numerical_list:
+            if (animal_index in model[20] and
+                    cell_index in model[20][animal_index]):
+                below_zero_models_dict[20].setdefault(animal_index, {})[cell_index] = model[20][animal_index][cell_index]
+            else:
+                continue
+
+        print(f"models_fixed[20].keys() {models_fixed[20].keys()}")
+        print(f"combined_activity_dict {combined_activity_dict.keys()}")
+        print(f"combined_r_value_dict_fixed.keys() {combined_r_value_dict_fixed.keys()}")
+
+        mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(above_zero_models_dict, above_zero_activity_dict, animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="NDNF", title="NDNF Above Zero Velocity Correlation")
+
+        mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(below_zero_models_dict, below_zero_activity_dict, animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="NDNF", title="NDNF Below Zero Velocity Correlation")
+        #
+
+        cell_first_changepoints_list_new_NDNF, fraction_cell_first_changepoints_list_new_NDNF, cell_second_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF = get_changepoints(models_fixed, combined_activity_dict)
+        plot_changepoint_distribution(fraction_cell_first_changepoints_list_new_NDNF, fraction_cell_second_changepoints_list_new_NDNF, cell_type='NDNF Above Zero Velocity Correlation')
+        plot_individual_learning_traces(raw_cluster_list, sup="NDNF Above Zero Velocity Correlation")
+
+
+
+    elif cell_type == "NDNF_original":
+        model = cell_models[1]
+        mean_list_NDNF_old_cell_x00, sem_list_NDNF_old_cell_x00, raw_cluster_list = get_contig_cluster_av(model, activity_dicts[1], animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_old_cell_x00, sem_list_NDNF_old_cell_x00, cell_type="NDNF", title="NDNF Original Cell SliceTCA Contiguous")
+        cell_first_changepoints_list_old_NDNF, fraction_cell_first_changepoints_list_old_NDNF, cell_second_changepoints_list_old_NDNF, fraction_cell_second_changepoints_list_old_NDNF = get_changepoints(model, activity_dicts[1])
+        plot_changepoint_distribution(fraction_cell_first_changepoints_list_old_NDNF, fraction_cell_second_changepoints_list_old_NDNF, cell_type="Original NDNF")
+        plot_individual_learning_traces(raw_cluster_list, sup="NDNF Fixed Original")
+
+    elif cell_type == "SST":
+        model = cell_models[2]
+        mean_list_SST_cell_x00, sem_list_SST_cell_x00, raw_cluster_list = get_contig_cluster_av(model, activity_dicts[2], animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_SST_cell_x00, sem_list_SST_cell_x00, cell_type="SST", title="SST Cell SliceTCA Contiguous")
+        cell_first_changepoints_list_SST, fraction_cell_first_changepoints_list_SST, cell_second_changepoints_list_SST, fraction_cell_second_changepoints_list_SST = get_changepoints(model, activity_dicts[2])
+        plot_changepoint_distribution(fraction_cell_first_changepoints_list_SST, fraction_cell_second_changepoints_list_SST, cell_type="SST")
+        plot_individual_learning_traces(raw_cluster_list, sup="SST Fixed Original")
+
+    elif cell_type == "SST_above_zero":
+
+        model = cell_models[2]
+        #         old_model = cell_models[1]
+
+        #         for animal in old_model[20]:
+        #             model[20][animal+18] = old_model[20][animal]
+
+        #         for animal in old_model[20]:
+        #             model[20][animal + 18] = old_model[20][animal]
+
+        #         print("After adding old model animals:")
+        #         print(sorted(model[20].keys()))
+
+        #         models_blank = {20: {}}
+        #         models_fixed = {20: {}}
+
+        #         for idx in model[20]:
+        #             if idx < 9:
+        #                 models_blank[20][idx] = model[20][idx]
+        #             else:
+        #                 models_fixed[20][idx] = model[20][idx]
+
+        combined_r_value_dict_fixed = r2_variable_activity_dict_SST
+
+        combined_activity_dict = activity_dicts[2]
+
+        above_zero_indices = []
+        below_zero_indices = []
+
+        above_zero_indices_numerical_list = []
+        below_zero_indices_numerical_list = []
+
+        for idx, animal in enumerate(combined_r_value_dict_fixed):
+            for ids, cell in enumerate(combined_r_value_dict_fixed[animal]):
+                indexing_list = [animal, cell]
+                indices = [idx, ids]
+                if combined_r_value_dict_fixed[animal][cell] > 0:
+                    above_zero_indices.append(indexing_list)
+                    above_zero_indices_numerical_list.append(indices)
+                else:
+                    below_zero_indices.append(indexing_list)
+                    below_zero_indices_numerical_list.append(indices)
+
+        above_zero_activity_dict = {}
+        for animal_index, cell_index in above_zero_indices:
+            above_zero_activity_dict.setdefault(animal_index, {})[cell_index] = combined_activity_dict[animal_index][cell_index]
+
+        below_zero_activity_dict = {}
+        for animal_index, cell_index in below_zero_indices:
+            below_zero_activity_dict.setdefault(animal_index, {})[cell_index] = combined_activity_dict[animal_index][cell_index]
+
+        above_zero_models_dict = {20: {}}
+        for animal_index, cell_index in above_zero_indices_numerical_list:
+            above_zero_models_dict[20].setdefault(animal_index, {})[cell_index] = model[20][animal_index][cell_index]
+
+        below_zero_models_dict = {20: {}}
+        for animal_index, cell_index in below_zero_indices_numerical_list:
+            if (animal_index in model[20] and
+                    cell_index in model[20][animal_index]):
+                below_zero_models_dict[20].setdefault(animal_index, {})[cell_index] = model[20][animal_index][cell_index]
+            else:
+                continue
+
+        mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(above_zero_models_dict, above_zero_activity_dict, animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="SST", title="SST Above Zero Velocity Correlation")
+
+        mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(below_zero_models_dict, below_zero_activity_dict, animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="SST", title="SST Below Zero Velocity Correlation")
+    #
+
+    elif cell_type == "EC_above_zero":
+
+        model = cell_models[3]
+
+        combined_r_value_dict_fixed = r2_variable_activity_dict_EC
+
+        combined_activity_dict = activity_dicts[3]
+
+        above_zero_indices = []
+        below_zero_indices = []
+
+        above_zero_indices_numerical_list = []
+        below_zero_indices_numerical_list = []
+
+        for idx, animal in enumerate(combined_r_value_dict_fixed):
+            for ids, cell in enumerate(combined_r_value_dict_fixed[animal]):
+                indexing_list = [animal, cell]
+                indices = [idx, ids]
+                if combined_r_value_dict_fixed[animal][cell] > 0:
+                    above_zero_indices.append(indexing_list)
+                    above_zero_indices_numerical_list.append(indices)
+                else:
+                    below_zero_indices.append(indexing_list)
+                    below_zero_indices_numerical_list.append(indices)
+
+        above_zero_activity_dict = {}
+        for animal_index, cell_index in above_zero_indices:
+            above_zero_activity_dict.setdefault(animal_index, {})[cell_index] = combined_activity_dict[animal_index][cell_index]
+
+        below_zero_activity_dict = {}
+        for animal_index, cell_index in below_zero_indices:
+            below_zero_activity_dict.setdefault(animal_index, {})[cell_index] = combined_activity_dict[animal_index][cell_index]
+
+        above_zero_models_dict = {20: {}}
+        for animal_index, cell_index in above_zero_indices_numerical_list:
+            above_zero_models_dict[20].setdefault(animal_index, {})[cell_index] = model[20][animal_index][cell_index]
+
+        below_zero_models_dict = {20: {}}
+        for animal_index, cell_index in below_zero_indices_numerical_list:
+            if (animal_index in model[20] and
+                    cell_index in model[20][animal_index]):
+                below_zero_models_dict[20].setdefault(animal_index, {})[cell_index] = model[20][animal_index][cell_index]
+            else:
+                continue
+
+        mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(above_zero_models_dict, above_zero_activity_dict, animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="EC", title="EC Above Zero Velocity Correlation")
+
+        mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, raw_cluster_list = get_contig_cluster_av(below_zero_models_dict, below_zero_activity_dict, animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_NDNF_new_cell_x00, sem_list_NDNF_new_cell_x00, cell_type="EC", title="EC Below Zero Velocity Correlation")
+    #
+
+    elif cell_type == "EC":
+        model = cell_models[3]
+        mean_list_EC_cell_x00, sem_list_EC_cell_x00, raw_cluster_list = get_contig_cluster_av(model, activity_dicts[3], animal_TCA=False)
+        plot_average_activity_contig_kmeans(mean_list_EC_cell_x00, sem_list_EC_cell_x00, cell_type="EC", title="EC Cell SliceTCA Contiguous")
+        cell_first_changepoints_list_EC, fraction_cell_first_changepoints_list_EC, cell_second_changepoints_list_EC, fraction_cell_second_changepoints_list_EC = get_changepoints(model, activity_dicts[3])
+        plot_changepoint_distribution(fraction_cell_first_changepoints_list_EC, fraction_cell_second_changepoints_list_EC, cell_type="EC")
+        plot_individual_learning_traces(raw_cluster_list, sup="EC Fixed Original")
+
+    elif cell_type == "NDNF_total":
+        new_model = copy.deepcopy(cell_models[0])  # Start with NDNF_new
+        original = cell_models[1]  # This is NDNF_original
+
+        for animal in original[20]:
+            new_model[20][f"new_{animal}"] = original[20][animal]
+
+        new_activity = activity_dicts[0]
+        original_activity = activity_dicts[1]
+
+        for animal in original_activity:
+            new_activity[f"new_{animal}"] = original_activity[animal]
+
+        mean_list_EC_cell_x00, sem_list_EC_cell_x00 = get_contig_cluster_av(new_model)
+        plot_average_activity_contig_kmeans(mean_list_EC_cell_x00, sem_list_EC_cell_x00, cell_type="EC", title="EC Cell SliceTCA")
+        cell_first_changepoints_list_EC, fraction_cell_first_changepoints_list_EC, cell_second_changepoints_list_EC, fraction_cell_second_changepoints_list_EC = get_changepoints(new_model, new_activity)
+        plot_changepoint_distribution(fraction_cell_first_changepoints_list_EC, fraction_cell_second_changepoints_list_EC, cell_type="NDNF")
+
+
+def get_correlations_per_cell(belt_A_list, belt_B_list, belt_A_residuals_list, belt_B_residuals_list, filtered_factors_dict):
+    correlation_vs_velocity_dict = {}
+    correlation_vs_velocity_dict_residuals = {}
+
+    for i in range(len(belt_A_list)):
+        animal_A = belt_A_list[i]
+        animal_B = belt_B_list[i]
+        animal_A_residuals = belt_A_residuals_list[i]
+        animal_B_residuals = belt_B_residuals_list[i]
+
+        correlation_per_cell_dict = {}
+        correlation_per_cell_dict_residuals = {}
+        correlation_per_cell_list = []
+        correlation_per_cell_list_residuals = []
+
+        for cell in animal_A:
+            cell_A_activity = animal_A[cell].flatten()
+            cell_A_residual_activity = animal_A_residuals[cell].flatten()
+            cell_B_activity = animal_B[cell].flatten()
+            cell_B_residual_activity = animal_B_residuals[cell].flatten()
+
+            velocity_early = filtered_factors_dict[f"animal_{i + 1}"]["Velocity"].flatten()
+            velocity_late = filtered_factors_dict[f"animal_{i + 10}"]["Velocity"].flatten()
+
+            r_value_vs_vel_A_residuals, _ = pearsonr(cell_A_residual_activity, velocity_early)
+            r_value_vs_vel_B_residuals, _ = pearsonr(cell_B_residual_activity, velocity_late)
+
+            r_value_vs_vel_A, _ = pearsonr(cell_A_activity, velocity_early)
+            r_value_vs_vel_B, _ = pearsonr(cell_B_activity, velocity_late)
+
+            r_value_list = [r_value_vs_vel_A, r_value_vs_vel_B]
+            r_value_list_residuals = [r_value_vs_vel_A_residuals, r_value_vs_vel_B_residuals]
+
+            correlation_per_cell_dict_residuals[cell] = r_value_list_residuals
+            correlation_per_cell_dict[cell] = r_value_list
+
+        correlation_vs_velocity_dict[i] = correlation_per_cell_dict
+        correlation_vs_velocity_dict_residuals[i] = correlation_per_cell_dict_residuals
+
+    return correlation_vs_velocity_dict, correlation_vs_velocity_dict_residuals
+
+
+def plot_correlations(correlation_vs_velocity_dict, correlation_vs_velocity_dict_residuals):
+    # plt.plot(correlation_vs_velocity_dict[0]["cell_5"])
+    length = len(correlation_vs_velocity_dict)
+    fig, axs = plt.subplots(1, length, figsize=(30, 4))
+    for i in range(length):
+        for cell in correlation_vs_velocity_dict[i]:
+            axs[i].plot(correlation_vs_velocity_dict[i][cell])
+            axs[i].set_ylim(-1, 1)
+            axs[i].set_title(f"Animal {i} Raw DF/F Cells")
+            axs[i].set_xticks(np.arange(2), ["Random Reward", "Fixed Reward"])
+            axs[i].set_ylabel("Correlation to Velocity")
+
+    plt.tight_layout()
+    plt.show()
+
+    length = len(correlation_vs_velocity_dict_residuals)
+    fig, axs = plt.subplots(1, length, figsize=(30, 4))
+    for i in range(length):
+        for cell in correlation_vs_velocity_dict_residuals[i]:
+            axs[i].plot(correlation_vs_velocity_dict_residuals[i][cell])
+            axs[i].set_ylim(-1, 1)
+            axs[i].set_title(f"Animal {i} Vel. Sub. Residuals")
+            axs[i].set_xticks(np.arange(2), ["Random Reward", "Fixed Reward"])
+            axs[i].set_ylabel("Correlation to Velocity")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_individual_learning_traces(raw_cluster_list, sup="NDNF Fixed New"):
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle(sup)
+
+    im = axs[0].imshow(raw_cluster_list[0], aspect='auto')
+    fig.colorbar(im, ax=axs[0])
+    axs[0].set_title("Early Learn Trial Av")
+    axs[0].set_ylabel("Cell ID")
+    axs[0].set_xlabel("Position Bins")
+
+    im2 = axs[1].imshow(raw_cluster_list[1], aspect='auto')
+    fig.colorbar(im2, ax=axs[1])
+    axs[1].set_title("Late Learn Trial Av")
+    axs[1].set_ylabel("Cell ID")
+    axs[1].set_xlabel("Position Bins")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def example_EC_cell(velocity):
+    length = 50
+    num_trials = velocity.shape[1]
+    x = np.linspace(0, length - 1, length)
+
+    mean1 = 15
+    std_dev1 = 5
+    original_gaussian1 = norm.pdf(x, mean1, std_dev1)
+
+    mean2 = 35
+    std_dev2 = 5
+    original_gaussian2 = norm.pdf(x, mean2, std_dev2)
+
+    gaussian_list = []
+
+    for i in range(num_trials):
+        appear_1 = np.random.choice([0, 1])
+        appear_2 = np.random.choice([0, 1])
+
+        gaussian1 = original_gaussian1 * appear_1
+        gaussian2 = original_gaussian2 * appear_2
+
+        combined_gaussian = gaussian1 + gaussian2
+
+        bimodal_gaussian = combined_gaussian / np.max(combined_gaussian) if np.max(combined_gaussian) != 0 else combined_gaussian
+
+        gaussian_list.append(bimodal_gaussian)
+
+    pf = np.stack(gaussian_list)
+
+    return pf
+
+
+def visualize_occupancy_weighting_problem(velocity_change=True, EC_bump=False, I_dip=False):
+    track_length = 200
+    total_time = 1000  # ms
+    position_bins = 50
+    threshold = 0  # baseline threshold
+
+    # 1. Time allocation: double time in middle 10 bins
+    time_per_bin = np.ones(position_bins)
+    middle_track = position_bins // 2
+    reward_bins = list(range(middle_track - 5, middle_track + 5))
+    time_per_bin[reward_bins] = 2
+
+    if velocity_change:
+
+        # Normalize to total time
+        time_per_bin = time_per_bin / np.sum(time_per_bin) * total_time
+        time_per_bin = np.round(time_per_bin).astype(int)
+
+        # Fix rounding error
+        diff = total_time - np.sum(time_per_bin)
+        time_per_bin[0] += diff
+
+    else:
+        time_per_bin = np.full(position_bins, total_time // position_bins)
+        diff = total_time - np.sum(time_per_bin)  # Just in case there's a leftover ms
+        time_per_bin[0] += diff  # Add it to the first bin to fix rounding
+
+    # 2. Generate E and I over time
+    E_rate_list = []
+    I_rate_list = []
+
+    for i in range(total_time):
+        # Baseline EC rhythm
+        if i % 10 == 0:
+            E = 0.45
+        else:
+            E = 0.4
+
+        # Dip inhibition during reward
+        if I_dip and 400 < i < 600:
+            I = 0.35
+        else:
+            I = 0.4
+
+        E_rate_list.append(E)
+        I_rate_list.append(I)
+
+    # 3. Simulate plateau record based on time allocation
+    plateau_record = []
+    global_time = 0
+    Vm_Record = []
+
+    for bin_idx in range(position_bins):
+        ms_in_bin = time_per_bin[bin_idx]
+
+        for _ in range(ms_in_bin):
+            E = E_rate_list[global_time]
+            I = I_rate_list[global_time]
+            Vm = E - I
+            Vm_Record.append(Vm)
+            plateau_record.append(1 if Vm > threshold else 0)
+            global_time += 1
+
+    # Get times (ms) where a plateau occurred
+    plateau_times = np.where(np.array(plateau_record) == 1)[0]  # time indices where plateau happened
+
+    # Bin into 20 equal-duration time bins from 0 to 1000 ms
+    bins = np.linspace(0, total_time, 21)  # 20 bins = 21 edges
+
+    plt.figure(figsize=(8, 3))
+    plt.hist(plateau_times, bins=bins, color="purple", edgecolor="black")
+    plt.title("Plateaus per Time Bin (Histogram of Plateau Times)")
+    plt.xlabel("Time (ms)")
+    plt.ylabel("# of Plateaus")
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure(figsize=(8, 3))
+    plt.plot(plateau_record[:200])
+    plt.title("Plateau Record (First 200 ms)")
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Plateau (0/1)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # 5. Plot plateaus per bin
+    plateau_per_bin = []
+    start = 0
+    for ms in time_per_bin:
+        bin_plateaus = plateau_record[start:start + ms]
+        plateau_per_bin.append(np.sum(bin_plateaus))
+        start += ms
+
+    plt.figure(figsize=(8, 3))
+    plt.bar(range(position_bins), plateau_per_bin)
+    plt.title("Plateaus per Position Bin")
+    plt.xlabel("Position Bin")
+    plt.ylabel("# of Plateaus")
+    plt.ylim(0, 10)
+    plt.tight_layout()
+    plt.show()
+
+    plt.plot(E_rate_list, label="EC", color='g')
+    plt.plot(I_rate_list, label="Dend_I", color='orange', linewidth=3)
+    plt.ylabel("Activity")
+    plt.xlabel("Time (ms)")
+    plt.ylim(0.3, 0.5)
+    plt.legend()
+    plt.show()
+
+    plt.plot(Vm_Record, label="Dendrite Vm", color='b')
+    plt.ylim(-0.1, 0.1)
+    plt.axhline(0, linestyle="--", linewidth=2, label='Threshold', color='r')
+    plt.ylabel("Activity")
+    plt.xlabel("Time (ms)")
+    plt.legend()
+    plt.show()
+
+    plt.figure(figsize=(8, 3))
+    plt.bar(range(position_bins), time_per_bin)
+    plt.title("Occupancy per Position Bin")
+    plt.xlabel("Position Bin")
+    plt.ylabel("Time Spent (ms)")
+    plt.tight_layout()
+    plt.show()
+
+
+def get_plot_trial_av_kmeans(cell_new_NDNF_model_ranks20_contiguous_x00_cell, activity_dict, residual_activity_dict_NDNF_new, use_residuals=True, k=3):
+    animal_first_changepoints_list, fraction_first_changepoints_list, animal_second_changepoints_list, fraction_second_changepoints_list = get_changepoints(cell_new_NDNF_model_ranks20_contiguous_x00_cell, activity_dict, animal_TCA=False)
+
+    early_activity_every_cell = []
+    late_activity_every_cell = []
+
+    q1_activity_every_cell = []
+    q5_activity_every_cell = []
+
+    raw_early_activity_every_cell = []
+    raw_late_activity_every_cell = []
+
+    raw_q1_activity_every_cell = []
+    raw_q5_activity_every_cell = []
+
+    cell_list = []
+    correlation_velcity_list = []
+    peak_loc_list = []
+    trough_loc_list = []
+
+    trial_av_act_list = []
+
+    for idx, animal in enumerate(residual_activity_dict_NDNF_new):
+        if idx > 8:
+            first_cp_animal = animal_first_changepoints_list[idx]
+            second_cp_animal = animal_second_changepoints_list[idx]
+            for ids, cell in enumerate(residual_activity_dict_NDNF_new[animal]):
+                early_cp = first_cp_animal[ids]
+                late_cp = second_cp_animal[ids]
+
+                if use_residuals:
+                    cell_activity = residual_activity_dict_NDNF_new[animal][cell]
+
+                    cell_raw_activity = activity_dict[animal][cell]
+
+                    cell_activity_trials = cell_activity.shape[1]
+                    quintile_length = cell_activity_trials // 5
+
+                    cutpoints_list = []
+                    counts = 0
+                    for i in range(4):
+                        cutpoints_list.append(counts + quintile_length)
+                        counts += quintile_length
+
+                    q1 = cutpoints_list[0]
+                    q5 = cutpoints_list[-1]
+
+                    q1_activity = cell_raw_activity[:, :q1]
+                    q5_activity = cell_raw_activity[:, q5:]
+                    raw_q1_activity_every_cell.append(np.mean(q1_activity, axis=1))
+                    raw_q5_activity_every_cell.append(np.mean(q5_activity, axis=1))
+
+                    early_activity = cell_raw_activity[:, :early_cp]
+                    late_activity = cell_raw_activity[:, :late_cp]
+
+                    raw_early_activity_every_cell.append(np.mean(early_activity, axis=1))
+                    raw_late_activity_every_cell.append(np.mean(late_activity, axis=1))
+
+
+                else:
+                    cell_activity = activity_dict[animal][cell]
+
+                cell_activity_trials = cell_activity.shape[1]
+                quintile_length = cell_activity_trials // 5
+
+                cutpoints_list = []
+                counts = 0
+                for i in range(4):
+                    cutpoints_list.append(counts + quintile_length)
+                    counts += quintile_length
+
+                q1 = cutpoints_list[0]
+                q5 = cutpoints_list[-1]
+
+                q1_activity = cell_activity[:, :q1]
+                q1_activity_every_cell.append(np.mean(q1_activity, axis=1))
+                q5_activity = cell_activity[:, q5:]
+                q5_activity_every_cell.append(np.mean(q5_activity, axis=1))
+
+                early_activity = cell_activity[:, :early_cp]
+                late_activity = cell_activity[:, :late_cp]
+
+                early_activity_every_cell.append(np.mean(early_activity, axis=1))
+                late_activity_every_cell.append(np.mean(late_activity, axis=1))
+
+                if use_residuals:
+                    trial_av = np.mean(residual_activity_dict_NDNF_new[animal][cell], axis=1)
+                    trial_av_act = np.mean(activity_dict[animal][cell], axis=1)
+                    trial_av_act_list.append(trial_av_act)
+                else:
+                    trial_av = np.mean(activity_dict[animal][cell], axis=1)
+                cell_list.append(trial_av)
+                cell_activity_flat = activity_dict[animal][cell].flatten()
+                velocity_flat = filtered_factors_dict[animal]["Velocity"].flatten()
+                r_value, _ = pearsonr(cell_activity_flat, velocity_flat)
+                peak_loc_list.append(np.argmax(trial_av))
+                trough_loc_list.append(np.argmin(trial_av))
+                correlation_velcity_list.append(r_value)
+
+    if use_residuals:
+
+        cell_array = np.array(trial_av_act_list)
+        residual_array = np.array(cell_list)
+
+        mean_resid = np.mean(residual_array, axis=0)
+        sem_resid = sem(residual_array, axis=0)
+
+        mean_cell = np.mean(cell_array, axis=0)
+        sem_cell = sem(cell_array, axis=0)
+
+        raw_early_activity_every_cell_array = np.array(raw_early_activity_every_cell)
+        mean_raw_early_activity_every_cell_array = np.mean(raw_early_activity_every_cell_array, axis=0)
+        sem_raw_early_activity_every_cell_array = sem(raw_early_activity_every_cell_array, axis=0)
+
+        raw_late_activity_every_cell_array = np.array(raw_late_activity_every_cell)
+        mean_raw_late_activity_every_cell_array = np.mean(raw_late_activity_every_cell_array, axis=0)
+        sem_raw_late_activity_every_cell_array = sem(raw_late_activity_every_cell_array, axis=0)
+
+        early_activity_every_cell_array = np.array(early_activity_every_cell)
+        mean_early_activity_every_cell_array = np.mean(early_activity_every_cell_array, axis=0)
+        sem_early_activity_every_cell_array = sem(early_activity_every_cell_array, axis=0)
+
+        late_activity_every_cell_array = np.array(late_activity_every_cell)
+        mean_late_activity_every_cell_array = np.mean(late_activity_every_cell_array, axis=0)
+        sem_late_activity_every_cell_array = sem(late_activity_every_cell_array, axis=0)
+
+        raw_q1_activity_every_cell_array = np.array(raw_q1_activity_every_cell)
+        mean_raw_q1_activity_every_cell_array = np.mean(raw_q1_activity_every_cell_array, axis=0)
+        sem_raw_q1_activity_every_cell_array = sem(raw_q1_activity_every_cell_array, axis=0)
+
+        raw_q5_activity_every_cell_array = np.array(raw_q5_activity_every_cell)
+        mean_raw_q5_activity_every_cell_array = np.mean(raw_q5_activity_every_cell_array, axis=0)
+        sem_raw_q5_activity_every_cell_array = sem(raw_q5_activity_every_cell_array, axis=0)
+
+        q1_activity_every_cell_array = np.array(q1_activity_every_cell)
+        mean_q1_activity_every_cell_array = np.mean(q1_activity_every_cell_array, axis=0)
+        sem_q1_activity_every_cell_array = sem(q1_activity_every_cell_array, axis=0)
+
+        q5_activity_every_cell_array = np.array(q5_activity_every_cell)
+        mean_q5_activity_every_cell_array = np.mean(q5_activity_every_cell_array, axis=0)
+        sem_q5_activity_every_cell_array = sem(q5_activity_every_cell_array, axis=0)
+
+        mean_resid = np.mean(residual_array, axis=0)
+        sem_resid = sem(residual_array, axis=0)
+
+        mean_cell = np.mean(cell_array, axis=0)
+        sem_cell = sem(cell_array, axis=0)
+
+        plt.plot(mean_resid, color='orange', label="Vel-Sub. Resid.")
+        plt.fill_between(range(len(mean_resid)), mean_resid - sem_resid, mean_resid + sem_resid, alpha=0.1, color="orange")
+        plt.plot(mean_cell, color='grey', label="Raw")
+        plt.fill_between(range(len(mean_cell)), mean_cell - sem_cell, mean_cell + sem_cell, alpha=0.1, color='grey')
+        plt.title("Raw vs Residual New NDNF Data")
+        plt.ylabel("Activity")
+        plt.xlabel("Position Bin")
+        plt.legend()
+        plt.show()
+
+        fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True, sharey=True)
+
+        # Plot 1: Residual Early vs Late
+        axs[0, 1].plot(mean_early_activity_every_cell_array, color='orange', label='Early')
+        axs[0, 1].fill_between(
+            range(len(mean_early_activity_every_cell_array)),
+            mean_early_activity_every_cell_array + sem_early_activity_every_cell_array,
+            mean_early_activity_every_cell_array - sem_early_activity_every_cell_array,
+            color='orange', alpha=0.1
+        )
+        axs[0, 1].plot(mean_late_activity_every_cell_array, color='r', label='Late')
+        axs[0, 1].fill_between(
+            range(len(mean_late_activity_every_cell_array)),
+            mean_late_activity_every_cell_array + sem_late_activity_every_cell_array,
+            mean_late_activity_every_cell_array - sem_late_activity_every_cell_array,
+            color='r', alpha=0.1
+        )
+        axs[0, 1].set_title("Residual Early vs Late")
+        axs[0, 1].legend()
+
+        # Plot 2: Raw Early vs Late
+        axs[0, 0].plot(mean_raw_early_activity_every_cell_array, color='orange', label='Raw Early')
+        axs[0, 0].fill_between(
+            range(len(mean_raw_early_activity_every_cell_array)),
+            mean_raw_early_activity_every_cell_array + sem_raw_early_activity_every_cell_array,
+            mean_raw_early_activity_every_cell_array - sem_raw_early_activity_every_cell_array,
+            color='orange', alpha=0.1
+        )
+        axs[0, 0].plot(mean_raw_late_activity_every_cell_array, color='r', label='Raw Late')
+        axs[0, 0].fill_between(
+            range(len(mean_raw_late_activity_every_cell_array)),
+            mean_raw_late_activity_every_cell_array + sem_raw_late_activity_every_cell_array,
+            mean_raw_late_activity_every_cell_array - sem_raw_late_activity_every_cell_array,
+            color='r', alpha=0.1)
+        axs[0, 0].set_title("Raw Early vs Late")
+        axs[0, 0].legend()
+
+        # Plot 3: Residual Q1 vs Q5
+        axs[1, 1].plot(mean_q1_activity_every_cell_array, color='orange', label='Q1')
+        axs[1, 1].fill_between(
+            range(len(mean_q1_activity_every_cell_array)),
+            mean_q1_activity_every_cell_array + sem_q1_activity_every_cell_array,
+            mean_q1_activity_every_cell_array - sem_q1_activity_every_cell_array,
+            color='orange', alpha=0.1
+        )
+        axs[1, 1].plot(mean_q5_activity_every_cell_array, color='r', label='Q5')
+        axs[1, 1].fill_between(
+            range(len(mean_q5_activity_every_cell_array)),
+            mean_q5_activity_every_cell_array + sem_q5_activity_every_cell_array,
+            mean_q5_activity_every_cell_array - sem_q5_activity_every_cell_array,
+            color='r', alpha=0.1
+        )
+        axs[1, 1].set_title("Residual Q1 vs Q5")
+        axs[1, 1].legend()
+
+        # Plot 4: Raw Q1 vs Q5
+        axs[1, 0].plot(mean_raw_q1_activity_every_cell_array, color='orange', label='Raw Q1')
+        axs[1, 0].fill_between(
+            range(len(mean_raw_q1_activity_every_cell_array)),
+            mean_raw_q1_activity_every_cell_array + sem_raw_q1_activity_every_cell_array,
+            mean_raw_q1_activity_every_cell_array - sem_raw_q1_activity_every_cell_array,
+            color='orange', alpha=0.1
+        )
+        axs[1, 0].plot(mean_raw_q5_activity_every_cell_array, color='r', label='Raw Q5')
+        axs[1, 0].fill_between(
+            range(len(mean_raw_q5_activity_every_cell_array)),
+            mean_raw_q5_activity_every_cell_array + sem_raw_q5_activity_every_cell_array,
+            mean_raw_q5_activity_every_cell_array - sem_raw_q5_activity_every_cell_array,
+            color='r', alpha=0.1
+        )
+        axs[1, 0].set_title("Raw Q1 vs Q5")
+        axs[1, 0].legend()
+
+        # Final touches
+        for ax in axs.flat:
+            ax.set_xlabel("Position Bin")
+            ax.set_ylabel("Activity (ΔF/F)")
+            ax.set_ylim(-0.5, 0.7)
+
+        plt.tight_layout()
+        plt.show()
+
+    cell_array = np.array(cell_list)
+    sorted_array = np.argsort(np.argmax(cell_array, axis=1))
+    plt.figure(figsize=(6, 10))
+    finished_cell_array = cell_array[sorted_array, :]
+    plt.imshow(finished_cell_array)
+    if use_residuals:
+        plt.title("NDNF Residual Activity")
+    else:
+        plt.title("NDNF Raw Activity")
+    plt.xlabel("Position Bins")
+    plt.ylabel("Cell ID")
+
+    X = np.column_stack((peak_loc_list, correlation_velcity_list, trough_loc_list))
+
+    n_clusters = k  # e.g. 3
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init=20)
+    labels = kmeans.fit_predict(X)
+
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+    scatter1 = axs[0].scatter(X[:, 0], X[:, 1], c=labels)
+    axs[0].set_xlabel("Peak Location (Bin)")
+    axs[0].set_ylabel("Correlation to Velocity")
+    axs[0].set_title("Peak vs Velocity")
+    axs[0].grid(True)
+    fig.colorbar(scatter1, ax=axs[0], label="Cluster ID")
+
+    scatter2 = axs[1].scatter(X[:, 2], X[:, 1], c=labels)
+    axs[1].set_xlabel("Trough Location (Bin)")
+    axs[1].set_ylabel("Correlation to Velocity")
+    axs[1].set_title("Trough vs Velocity")
+    axs[1].grid(True)
+    fig.colorbar(scatter2, ax=axs[1], label="Cluster ID")
+
+    scatter3 = axs[2].scatter(X[:, 2], X[:, 0], c=labels)
+    axs[2].set_xlabel("Trough Location (Bin)")
+    axs[2].set_ylabel("Peak Location (Bin)")
+    axs[2].set_title("Trough vs Peak")
+    axs[2].grid(True)
+    fig.colorbar(scatter3, ax=axs[2], label="Cluster ID")
+
+    plt.tight_layout()
+    plt.show()
+
+    early_cluster_activity_dict = defaultdict(list)
+    late_cluster_activity_dict = defaultdict(list)
+    for i, label in enumerate(labels):
+        early_cluster_activity_dict[label].append(early_activity_every_cell[i])
+        late_cluster_activity_dict[label].append(late_activity_every_cell[i])
+
+    q1_cluster_activity_dict = defaultdict(list)
+    q5_cluster_activity_dict = defaultdict(list)
+    for i, label in enumerate(labels):
+        q1_cluster_activity_dict[label].append(q1_activity_every_cell[i])
+        q5_cluster_activity_dict[label].append(q5_activity_every_cell[i])
+
+    cluster_activity_dict = defaultdict(list)
+
+    for i, label in enumerate(labels):
+        cluster_activity_dict[label].append(cell_list[i])
+
+    fig, axs = plt.subplots(4, len(cluster_activity_dict), figsize=(15, 15))
+    for cluster in cluster_activity_dict:
+        activity_list = cluster_activity_dict[cluster]
+        activity_array = np.array(activity_list)
+
+        early_cluster_activity_list = early_cluster_activity_dict[cluster]
+        late_cluster_activity_list = late_cluster_activity_dict[cluster]
+
+        early_cluster_activity_array = np.array(early_cluster_activity_dict[cluster])
+        late_cluster_activity_array = np.array(late_cluster_activity_dict[cluster])
+
+        sem_early = sem(early_cluster_activity_array, axis=0)
+        sem_late = sem(late_cluster_activity_array, axis=0)
+
+        mean_early = np.mean(early_cluster_activity_array, axis=0)
+        mean_late = np.mean(late_cluster_activity_array, axis=0)
+
+        q1_cluster_activity_list = q1_cluster_activity_dict[cluster]
+        q5_cluster_activity_list = q5_cluster_activity_dict[cluster]
+
+        q1_cluster_activity_array = np.array(q1_cluster_activity_list)
+        q5_cluster_activity_array = np.array(q5_cluster_activity_list)
+
+        sem_q1 = sem(q1_cluster_activity_array, axis=0)
+        sem_q5 = sem(q5_cluster_activity_array, axis=0)
+
+        mean_q1 = np.mean(q1_cluster_activity_array, axis=0)
+        mean_q5 = np.mean(q5_cluster_activity_array, axis=0)
+
+        if use_residuals:
+            plt.suptitle("Velocity-Subtracted Residual Data")
+        else:
+            plt.suptitle("Raw Data")
+
+        axs[0, cluster].imshow(activity_array, aspect='auto')
+        axs[0, cluster].set_title(f"Cluster {cluster} \n Cells Activity")
+        axs[0, cluster].set_ylabel("Cell ID")
+        axs[0, cluster].set_xlabel("Position Bin")
+        axs[1, cluster].plot(np.mean(activity_array, axis=0))
+        axs[1, cluster].set_ylabel("Cell ID")
+        axs[1, cluster].set_xlabel("Position Bin")
+        axs[1, cluster].set_title(f"Trial Average Activity")
+        axs[1, cluster].set_ylim(-0.6, 1.3)
+
+        axs[2, cluster].plot(mean_early, color='orange', label="Early Learn")
+        axs[2, cluster].fill_between(range(len(mean_early)), mean_early + sem_early, mean_early - sem_early, color="orange", alpha=0.1)
+        axs[2, cluster].plot(mean_late, color='r', label="Late Learn")
+        axs[2, cluster].fill_between(range(len(mean_late)), mean_late + sem_late, mean_late - sem_late, color="r", alpha=0.1)
+        axs[2, cluster].set_ylabel("Cell ID")
+        axs[2, cluster].set_xlabel("Position Bin")
+        axs[2, cluster].set_title(f"Contiguous Changepoints")
+        axs[2, cluster].set_ylim(-0.6, 1.3)
+        axs[2, cluster].legend()
+
+        axs[3, cluster].plot(mean_q1, color='orange', label="Q1")
+        axs[3, cluster].fill_between(range(len(mean_q1)), mean_q1 + sem_q1, mean_q1 - sem_q1, color="orange", alpha=0.1)
+        axs[3, cluster].plot(mean_q5, color='r', label="Q5")
+        axs[3, cluster].fill_between(range(len(mean_q5)), mean_q5 + sem_q5, mean_q5 - sem_q5, color="r", alpha=0.1)
+        axs[3, cluster].set_ylabel("Cell ID")
+        axs[3, cluster].set_xlabel("Position Bin")
+        axs[3, cluster].set_title(f"Quintiles")
+        axs[3, cluster].set_ylim(-0.6, 1.3)
+        axs[3, cluster].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_probability_curves_EC(n=212):
+
+    num_trials = n
+
+    # Field 1: uniform probability (e.g., 0.5 across all trials)
+    prob_field1 = np.full(num_trials, 0.5)
+
+    # Field 2: Gaussian-shaped probability centered in the middle trials
+    trial_indices = np.arange(num_trials)
+    center = num_trials // 2
+    std_for_prob = num_trials / 5
+    prob_field2 = norm.pdf(trial_indices, loc=center, scale=std_for_prob)
+    prob_field2 = prob_field2 / np.max(prob_field2)  # normalize to [0, 1]
+
+    # Plot
+    plt.figure(figsize=(5, 4))
+    plt.plot(prob_field1, label="Field 1 Probability (uniform)", linestyle="--")
+    plt.plot(prob_field2, label="Field 2 Probability (center-weighted)", color="orange")
+    plt.xlabel("Trial Index")
+    plt.ylabel("Probability of Appearing")
+    plt.title("Probability Curves for Field 1 and Field 2")
+    plt.legend(fontsize=8)
+    plt.tight_layout()
+    plt.show()
+
+
+def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_field_scale=1, place_field_shift=0, velocity_weight_type='flat', velocity_weight=1, velocity_power=1, noise_scale=1):
+    from scipy.stats import norm
+
+    # 1. Make "ground truth" place field
+    def get_average_cell_profile(activity_dict):
+        all_cells_average = []
+        for animal in activity_dict:
+            for neuron in activity_dict[animal]:
+                cell_trial_average = activity_dict[animal][neuron].mean(axis=1)
+                all_cells_average.append(cell_trial_average)
+        all_cells_average = np.stack(all_cells_average, axis=0).mean(axis=0)
+        return all_cells_average
+
+    place_field_profile = get_average_cell_profile(activity_dict)
+    num_trials = velocity.shape[1]
+    place_field = np.tile(place_field_profile, (num_trials, 1)).T
+
+    def staircase_vector(start, stop, num_steps, length):
+        steps = np.linspace(start, stop, num_steps)  # Generate step levels
+        step_counts = np.full(num_steps, length // num_steps)  # Base count per step
+        step_counts[:length % num_steps] += 1  # Distribute remainder among first steps
+        return np.repeat(steps, step_counts)  # Repeat steps with adjusted counts
+
+    match place_field_type:
+        case "flat":
+            place_field_scale = np.ones(num_trials)
+            place_field *= place_field_scale
+        case "positive_ramp":
+            place_field_scale = np.linspace(0, place_field_scale, num_trials)
+            place_field *= place_field_scale
+        case "negative_ramp":
+            place_field_scale = np.linspace(place_field_scale, 0, num_trials)
+            place_field *= place_field_scale
+        case "step":
+            place_field_scale = staircase_vector(0, place_field_scale, num_steps=2, length=num_trials)
+            place_field *= place_field_scale
+        case "BTSP":
+            place_field_scale = BTSP_field(num_trials)
+            place_field *= place_field_scale
+        case "EC":
+            place_field = example_EC_cell(velocity)
+            place_field = place_field.T
+
+    place_field = np.roll(place_field, shift=place_field_shift, axis=0)
+
+    # 2. Combine the synthetic place field with velocity
+    match velocity_weight_type:
+        case "flat":
+            velocity_weight = velocity_weight * np.ones(num_trials)
+        case "positive_ramp":
+            velocity_weight = np.linspace(0, velocity_weight, num_trials)
+        case "negative_ramp":
+            velocity_weight = np.linspace(velocity_weight, 0, num_trials)
+        case "step":
+            velocity_weight = staircase_vector(0, velocity_weight, num_steps=5, length=num_trials)
+
+    velocity_component = velocity_weight * (velocity ** velocity_power)
+
+    noise = np.random.normal(0, noise_scale, size=(len(place_field_profile), num_trials))
+    combined_activity = place_field + velocity_component + noise
+
+    return combined_activity, place_field, velocity_component, noise
+
+
+def example_EC_cell(velocity):
+    length = 50
+    num_trials = velocity.shape[1]  # shape should be (position, trials)
+    x = np.linspace(0, length - 1, length)
+
+    # Define Gaussians
+    mean1 = 15
+    std_dev1 = 5
+    original_gaussian1 = norm.pdf(x, mean1, std_dev1)
+
+    mean2 = 35
+    std_dev2 = 5
+    original_gaussian2 = norm.pdf(x, mean2, std_dev2)
+
+    # Define probability curve for field 2
+    trial_indices = np.arange(num_trials)
+    center = num_trials // 2
+    std_for_prob = num_trials / 5
+    prob_curve_field2 = norm.pdf(trial_indices, loc=center, scale=std_for_prob)
+    prob_curve_field2 = prob_curve_field2 / np.max(prob_curve_field2)  # Normalize to [0, 1]
+
+    gaussian_list = []
+
+    for i in range(num_trials):
+        appear_1 = np.random.choice([0, 1])  # Uniform probability for field 1
+
+        # Use the center-weighted probability for field 2
+        appear_2 = np.random.rand() < prob_curve_field2[i]
+
+        gaussian1 = original_gaussian1 * appear_1
+        gaussian2 = original_gaussian2 * appear_2
+
+        combined_gaussian = gaussian1 + gaussian2
+        bimodal_gaussian = combined_gaussian / np.max(combined_gaussian) if np.max(combined_gaussian) != 0 else combined_gaussian
+
+        gaussian_list.append(bimodal_gaussian)
+
+    pf = np.stack(gaussian_list)
+    return pf
+
+
+def model_cell_TCA():
+    # Define the Gaussian curve
+    position_bins = 50
+    trials = 60
+    x1 = np.linspace(-1, 1, 50)
+    x2 = np.linspace(-0.5, 1.5, 50)
+    positive_gaussian = np.exp(-x1 ** 2 / (2 * 0.1 ** 2))
+    negative_gaussian = -np.exp(-x2 ** 2 / (2 * 0.1 ** 2))
+
+    # Define the weights
+    weight_one = np.concatenate([
+        np.ones(20),
+        np.linspace(1, 0, 20),
+        np.zeros(20)
+    ])
+    weight_two = np.concatenate([
+        np.zeros(20),
+        np.linspace(0, 1, 20),
+        np.ones(20)
+    ])
+
+    plt.plot(positive_gaussian, color="orange")
+    plt.title("Early Place Field")
+    plt.xlabel("Position Bins")
+    plt.show()
+    plt.plot(negative_gaussian, color="b")
+    plt.title("Late Place Field")
+    plt.xlabel("Position Bins")
+    plt.show()
+
+    plt.plot(weight_one, label="Weight 1", color="orange")
+    plt.plot(weight_two, label="Weight 2", color="b")
+    plt.ylabel("Weights")
+    plt.xlabel("Trials")
+    plt.legend()
+    plt.show()
+
+    # Make the 60 × 50 matrices
+    positive_matrix = np.outer(weight_one, positive_gaussian)
+    negative_matrix = np.outer(weight_two, negative_gaussian)
+
+    # Combine them
+    combined_matrix = positive_matrix + negative_matrix
+
+    import seaborn as sns
+    sns.heatmap(combined_matrix, cmap='inferno', xticklabels=5, yticklabels=5)
+    plt.xlabel("Position Bins")
+    plt.ylabel("Trials")
+    plt.title("Combined Activity Matrix")
+    plt.show()
+
+    # combined_matrix_normalized = (combined_matrix / np.max(combined_matrix)) / (np.min(combined_matrix) / np.max(combined_matrix))
+
+    # Convert to PyTorch tensor and reshape to [60, 1, 50]
+    tensor_combined = torch.tensor(combined_matrix, dtype=torch.float32).unsqueeze(1)
+
+    # Confirm the shape
+    print(tensor_combined.shape)  # should be: torch.Size([60, 1, 50])
+
+    ranks = 2
+
+    components, model_synthetic_SST = slicetca.decompose(tensor_combined,
+                                                         number_components=(ranks, 0, 0),  # (trials, neurons, time bins)
+                                                         positive=False,
+                                                         learning_rate=1 * 10 ** -3,
+                                                         min_std=10 ** -5,  # max_iter=150,
+                                                         max_iter=15_000,
+                                                         seed=0)
+
+    axes = slicetca.plot(model_synthetic_SST,
+                         variables=('trial', 'neuron', 'time'),
+                         #               colors=(trial_colors[trial_idx], None, None), # we only want the trials to be colored
+                         #               ticks=(None, None, np.linspace(0,150,4)), # we only want to modify the time ticks
+                         #               tick_labels=(None, None, np.linspace(-1,0.5,4)),
+                         #               sorting_indices=(trial_idx, neuron_sorting_peak_time, None),
+                         quantile=0.99)
+
+    X = model_synthetic_SST.vectors[0][0].detach().numpy().T
+
+    print(X.shape)
+
+    # Let's say you want to find 2 changepoints (i.e., 3 segments)
+    n_bkps = 2
+
+    # Run change point detection using Binseg (can also try 'pelt' or 'bottomup')
+    model = rpt.Binseg(model="l2").fit(X)
+    change_points = model.predict(n_bkps=n_bkps)
+    change_points = change_points[:-1]
+    # change_points includes the *end* of each segment
+    print(f"Change points: {change_points}")  # e.g., [18, 40, 60]
+
+    # Plot both latents with vertical lines at changepoints
+    plt.figure(figsize=(10, 4))
+    plt.plot(X[:, 0], label='Latent 1')
+    plt.plot(X[:, 1], label='Latent 2')
+    for cp in change_points:  # exclude the final one (always == len)
+        plt.axvline(cp, color='red', linestyle='--', label='Changepoint' if cp == change_points[0] else None)
+
+    plt.xlabel("Trial")
+    plt.ylabel("Latent Value")
+    plt.title("SliceTCA Latents with Changepoints")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    plt.imshow(combined_matrix, aspect='auto')
+    plt.ylabel("Trials")
+    plt.xlabel("Position Bins")
+    plt.title("Synthetic Neuron")
+    plt.colorbar()
+    plt.show()
+
+    early_cut = combined_matrix[:25, :]
+    plt.imshow(early_cut, aspect='auto', vmin=-1, vmax=1)
+    plt.ylabel("Trials")
+    plt.xlabel("Position Bins")
+    plt.title("Synthetic Neuron Early Learn")
+    plt.colorbar()
+    plt.show()
+
+    plt.plot(np.mean(early_cut, axis=0), color='orange')
+    plt.xlabel("Position Bins")
+    plt.title("Synthetic Neuron Early Learn Trial Av")
+    plt.show()
+
+    late_cut = combined_matrix[30:, :]
+    plt.imshow(late_cut, aspect='auto', vmin=-1, vmax=1)
+    plt.ylabel("Trials")
+    plt.xlabel("Position Bins")
+    plt.title("Synthetic Neuron Late Learn")
+    plt.colorbar()
+    plt.show()
+
+    plt.plot(np.mean(late_cut, axis=0), color='b')
+    plt.xlabel("Position Bins")
+    plt.title("Synthetic Neuron Late Learn Trial Av")
+    plt.show()
+
+
+def sliceTCA_example_SST_cell():
+    # MSE_list, x_pca_list, labels_list, indices_for_cluster_number, Recon_by_cluster_av_list, TCA_reconstructions_list, cluster_trial_mean_list = get_per_cell_sliceTCA_reconstruction_MSE(SST_every_cell_model_list, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=False)
+    # Load data
+    filename = "SSTindivsomata_GLM"
+    # filename = "NDNFindivsomata_GLM"
+    # filename = "EC_GLM"
+    # filename = "NDNFanalC"
+
+    # cell_id = int(sys.argv[1])         # SLURM_ARRAY_TASK_ID
+    # animal_id = int(sys.argv[2])       # Provided via command-line argument
+    # ranks = int(sys.argv[3])
+
+    cell_id = 2
+    animal_id = 1
+    ranks = 20
+
+    filepath = os.path.join(filename + ".mat")
+    activity_dict, factors_dict = ut.preprocess_data2(filepath, normalize=True, new_NDNF=False)
+
+    filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
+    GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
+    residual_activity_dict = ut.get_residual_activity_dict(activity_dict, predicted_activity_dict)
+
+    tensor_list_by_animal_all_SST = []
+    for animal in residual_activity_dict:
+        neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
+        neural_data_tensor = torch.tensor(neural_data)
+        # Normalize per cell
+        for i in range(neural_data_tensor.shape[1]):
+            cell = neural_data_tensor[:, i, :]
+            min_val = cell.min()
+            max_val = cell.max()
+            neural_data_tensor[:, i, :] = (cell - min_val) / (max_val - min_val + 1e-8)
+        tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
+    if __name__ == "__main__":
+
+        tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
+        print(tensor_for_animal.shape)
+        tensor_for_cell = tensor_for_animal[:, cell_id, :]
+        cell_of_interest = tensor_for_animal[:, cell_id, :].unsqueeze(1)
+        print(f"cell_of_interest.shape {cell_of_interest.shape}")
+        cell_of_interest.requires_grad_()
+        components, SST_model = slicetca.decompose(cell_of_interest,
+                                                   number_components=(ranks, 0, 0),  # (trials, neurons, time bins)
+                                                   positive=True,
+                                                   learning_rate=1 * 10 ** -3,
+                                                   min_std=10 ** -5,  # max_iter=150,
+                                                   max_iter=15_000, seed=0)
+        w_SST = SST_model.vectors[0][0].detach().numpy()
+        X = w_SST.T
+
+        from scipy.ndimage import gaussian_filter1d
+
+        # Apply Gaussian smoothing along the trials (axis=0)
+        X_smooth = gaussian_filter1d(X, sigma=2, axis=0)  # try sigma=1, 2, or 3
+
+        # Re-run change point detection on smoothed data
+        model = rpt.Binseg(model="l2").fit(X_smooth)
+        change_points = model.predict(n_bkps=n_bkps)[:-1]  # remove final 'len' cp
+
+        # Plot smoothed latents with changepoints
+        plt.figure(figsize=(10, 4))
+        for i in range(X_smooth.shape[1]):
+            plt.plot(X_smooth[:, i])
+
+        for cp in change_points:
+            plt.axvline(cp, color='red', linestyle='--', label='Changepoint' if cp == change_points[0] else None)
+
+        plt.xlabel("Trial")
+        plt.ylabel("Latent Value")
+        plt.title("SliceTCA Latents with Changepoints")
+        plt.tight_layout()
+        plt.show()
+
+        SST_model, change_points = sliceTCA_example_SST_cell()
+
+        cell_id = 4
+
+        plt.imshow(activity_dict_SST['animal_2'][f"cell_{cell_id}"].T, aspect='auto')
+        plt.axhline(change_points[0], linestyle="--", linewidth=3, color='r')
+        plt.axhline(change_points[1], linestyle="--", linewidth=3, color='r')
+        plt.ylabel("Trials")
+        plt.xlabel("Position Bin")
+        plt.show()
+
+        cell_ex_activity = activity_dict_SST['animal_2'][f"cell_{cell_id}"]
+        early_cp = change_points[0]
+        late_cp = change_points[1]
+
+        plt.plot(np.mean(cell_ex_activity[:, :early_cp], axis=1), color='cyan', label='Early Learn')
+        plt.plot(np.mean(cell_ex_activity[:, late_cp:], axis=1), color='blue', label='Late Learn')
+        plt.ylabel("DF/F")
+        plt.xlabel("Position Bins")
+        plt.legend()
+        plt.show()

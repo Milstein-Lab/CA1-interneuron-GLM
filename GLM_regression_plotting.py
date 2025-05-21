@@ -322,6 +322,7 @@ def plot_pop_correlation(r2_variable_activity_dict, r2_variable_residual_dict, v
     plt.ylabel("R Value")
     plt.title(f"{cell_type} R Values")
     plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.ylim(-1, 1)
 
     plt.tight_layout()
 
@@ -2972,7 +2973,7 @@ def get_MSE_array_and_plot(activity_dict, factors_dict, velocity_weight_type="fl
 
             if multimodel:
 
-                MSE_activity, MSE_residual, MSE_divided, velocity_weight, place_field, velocity, residual, combined_activity, divided_array, neuron_predicted_activity, place_field_type, z_score = get_synthetic_data(activity_dict, factors_dict, velocity_weight_type=velocity_weight_type, noise_scale=noise_scale, place_field_type=place_field_type, use_GAM=use_GAM, velocity_power=velocity_power, velocity_weight=velocity_weight, place_field_shift=i, place_field_scale=j, z_score=z_score)
+                MSE_activity, MSE_residual, MSE_divided, velocity_weight, place_field, velocity, residual, combined_activity, divided_array, neuron_predicted_activity, place_field_type, z_score = get_synthetic_data2(activity_dict, factors_dict, velocity_weight_type=velocity_weight_type, noise_scale=noise_scale, place_field_type=place_field_type, use_GAM=use_GAM, velocity_power=velocity_power, velocity_weight=velocity_weight, place_field_shift=i, place_field_scale=j, z_score=z_score)
 
 
             else:
