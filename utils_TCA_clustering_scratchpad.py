@@ -40,7 +40,7 @@ def load_data_regular(name="NDNFanalC", new_NDNF=True):
     GLM_params, double_predicted_activity_dict_NDNF_new = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
     double_residual_activity_dict_NDNF_new = ut.get_residual_activity_dict(activity_dict, double_predicted_activity_dict_NDNF_new)
 
-    return activity_dict, double_predicted_activity_dict_NDNF_new, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
+    return GLM_params, activity_dict, double_predicted_activity_dict_NDNF_new, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
 
 
 def load_data_double(name="NDNFanalC", double_track=False):
