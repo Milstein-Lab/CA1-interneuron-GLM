@@ -656,7 +656,9 @@ def get_model_data_per_cell(mse_dir):
     return rank_mse_dict
 
 
-def plot_per_cell_clustering_internals_single_cluster(cell_NDNF_model_ranks20_kmeans_reassign_umap_x00, residual_activity_dict_NDNF, animal_id=1, cell_id=1, num_clusters=4, plot=True):
+def plot_per_cell_clustering_internals_single_cluster(cell_EC_model_ranks20_contig_x00, cell_NDNF_model_ranks20_kmeans_reassign_umap_x00, residual_activity_dict_NDNF, animal_id=1, cell_id=1, num_clusters=4, plot=True, early_late_nothing="nothing"):
+    animal_first_changepoints_list, fraction_first_changepoints_list, animal_second_changepoints_list, fraction_second_changepoints_list = get_changepoints(cell_EC_model_ranks20_contig_x00, residual_activity_dict_NDNF, animal_TCA=False)
+
     tensor_list_by_animal_all_NDNF = []
     for animal in residual_activity_dict_NDNF:
         neural_data = ut.get_animal_neural_tensor(residual_activity_dict_NDNF, animal=animal)
@@ -701,9 +703,21 @@ def plot_per_cell_clustering_internals_single_cluster(cell_NDNF_model_ranks20_km
 
     for n in range(num_clusters):
         indices = indices_dict[n]
-        cluster = real_activity[indices, :]  # trials x bins
+
+        if early_late_nothing == "nothing":
+            indices_list = indices
+        elif early_late_nothing == "early":
+            indices_list = [i for i in indices if i < animal_first_changepoints_list[animal_id][cell_id]]
+        elif early_late_nothing == "late":
+            indices_list = [i for i in indices if i > animal_second_changepoints_list[animal_id][cell_id]]
+        else:
+            raise ValueError(f"Invalid value for early_late_nothing: {early_late_nothing}")
+
+        cluster = real_activity[indices_list, :]
         clusters_list.append(cluster)
 
+        #         cluster = real_activity[indices_list, :]  # trials x bins
+        #         clusters_list.append(cluster)
 
         if plot:
             axs[0, n].imshow(cluster, aspect='auto', vmin=0, vmax=1)
