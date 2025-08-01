@@ -381,6 +381,72 @@ def get_model_dict_early_celltype_late_another_celltype(EC_data_array, fixed_act
         
     return model_EC_dict
 
+
+def plot_early_late_split_all_input_types(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array, cp_dict_EC, cp_dict_SST, cp_dict_NDNF, ymax=1.55):
+
+
+    SST_data_array_late_TA = get_activity_late(activity_dict_SST, cp_dict_SST)
+    SST_data_array_early_TA = get_activity_early(activity_dict_SST, cp_dict_SST)
+
+    EC_data_array_late_TA = get_activity_late(activity_dict_EC, cp_dict_EC)
+    EC_data_array_early_TA = get_activity_early(activity_dict_EC, cp_dict_EC)
+
+    NDNF_data_array_late_TA = get_activity_late(fixed_activity_dict_NDNF_newest, cp_dict_NDNF)
+    NDNF_data_array_early_TA = get_activity_early(fixed_activity_dict_NDNF_newest, cp_dict_NDNF)
+
+    EC_CA3_data_array_TA_early = np.concatenate([EC_data_array_early_TA, ca3_vs_position_all_cells_array], axis=0)
+    EC_CA3_data_array_TA_late = np.concatenate([EC_data_array_late_TA, ca3_vs_position_all_cells_array], axis=0)
+
+    EC_SST_data_array_TA_early = np.concatenate([EC_data_array_early_TA, SST_data_array_early_TA], axis=0)
+    EC_SST_data_array_TA_late = np.concatenate([EC_data_array_late_TA, SST_data_array_late_TA], axis=0)
+
+    CA3_SST_data_array_TA_early = np.concatenate([ca3_vs_position_all_cells_array, SST_data_array_early_TA], axis=0)
+    CA3_SST_data_array_TA_late = np.concatenate([ca3_vs_position_all_cells_array, SST_data_array_late_TA], axis=0)
+
+
+
+    model_EC_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(EC_data_array_early_TA, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
+    MSE_list_EC_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_data_array_late_TA)
+    MSE_list_EC_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_data_array_early_TA)
+
+
+
+    model_SST_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(SST_data_array_early_TA, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
+    MSE_list_SST_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, SST_data_array_late_TA)
+    MSE_list_SST_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, SST_data_array_early_TA)
+
+
+
+    model_CA3_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(ca3_vs_position_all_cells_array, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
+    MSE_list_CA3_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array)
+    MSE_list_CA3_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array)
+
+
+
+    model_EC_CA3_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(EC_CA3_data_array_TA_early, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
+    MSE_list_EC_CA3_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_CA3_data_array_TA_late)
+    MSE_list_EC_CA3_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_CA3_data_array_TA_early)
+
+
+    model_EC_SST_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(EC_SST_data_array_TA_early, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
+    MSE_list_EC_SST_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_SST_data_array_TA_late)
+    MSE_list_EC_SST_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_SST_data_array_TA_early)
+
+
+    model_CA3_SST_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(CA3_SST_data_array_TA_early, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
+    MSE_list_CA3_SST_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, CA3_SST_data_array_TA_late)
+    MSE_list_CA3_SST_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, CA3_SST_data_array_TA_early)
+
+
+
+    data_list = [MSE_list_EC_early_predicting_NDNF_late_TA, MSE_list_EC_early_predicting_NDNF_early_TA, MSE_list_SST_early_predicting_NDNF_late_TA, MSE_list_SST_early_predicting_NDNF_early_TA, MSE_list_SST_early_predicting_NDNF_late_TA, MSE_list_SST_early_predicting_NDNF_early_TA, MSE_list_CA3_early_predicting_NDNF_late_TA, MSE_list_CA3_early_predicting_NDNF_early_TA, MSE_list_EC_CA3_early_predicting_NDNF_late_TA, MSE_list_EC_CA3_early_predicting_NDNF_early_TA, MSE_list_EC_SST_early_predicting_NDNF_late_TA, MSE_list_EC_SST_early_predicting_NDNF_early_TA, MSE_list_CA3_SST_early_predicting_NDNF_late_TA, MSE_list_CA3_SST_early_predicting_NDNF_early_TA]
+    input_titles = ["EC_early:NDNF_late", "EC_early:NDNF_early", "SST_early:NDNF_late", "SST_early:NDNF_early", "SST_early:NDNF_late", "SST_early:NDNF_early", "CA3_early:NDNF_late", "CA3_early:NDNF_early", "EC_CA3_early:NDNF_late", "EC_CA3_early:NDNF_early", "EC_SST_early:NDNF_late", "EC_SST_early:NDNF_early", "CA3_SST_early:NDNF_late", "CA3_SST_early:NDNF_early"]
+
+
+    reordered_data_list, reordered_input_titles = reorder_early_late_pairs(data_list, input_titles)
+
+    plot_models_trained_early_late(reordered_data_list, reordered_input_titles, ymax=ymax, title="Train Timepoint : Test Timepoint)")
+
 def plot_models_trained_early_late(data_list, input_titles, title="Model MSEs", ylabel="MSE"):
     assert len(data_list) == len(input_titles), "Mismatch: data_list and input_titles must be same length"
 
@@ -421,7 +487,6 @@ def plot_models_trained_early_late(data_list, input_titles, title="Model MSEs", 
     plt.tight_layout()
     plt.show()
 
-
 def get_model_dict_early_celltype_late_another_celltype_TA(EC_data_array, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=20, end=30):
 
     """"
@@ -445,7 +510,6 @@ def get_model_dict_early_celltype_late_another_celltype_TA(EC_data_array, fixed_
         
     return model_EC_dict
 
-
 def get_MSE_cell_type_TA(model_EC_just_SST, fixed_residual_activity_dict_NDNF_newest, SST_data_array):
     MSE_list = []
     coefficients_list = []
@@ -464,7 +528,7 @@ def get_MSE_cell_type_TA(model_EC_just_SST, fixed_residual_activity_dict_NDNF_ne
             
     return MSE_list, coefficients_list
 
-def plot_models_trained_early_late(data_list, input_titles, ymax=3):
+def plot_models_trained_early_late(data_list, input_titles, ymax=3, title="Labels=Train_timepoint:Test_timepoint)"):
     assert len(data_list) == len(input_titles), "Mismatch: data_list and input_titles must be same length"
 
     # Flatten MSE values and their labels
@@ -496,14 +560,20 @@ def plot_models_trained_early_late(data_list, input_titles, ymax=3):
 
     # Final polish
     plt.xticks(ticks=x_positions, labels=input_order, rotation=20, fontsize=7)
-    plt.xlabel("Input Type")
+    plt.xlabel(title)
     plt.ylabel("Mean Squared Error")
-    # plt.title("Train on Early, Test on Late (Same Cell Type)")
+    # plt.title(title)
     plt.ylim(0, ymax)
     plt.legend()
     plt.tight_layout()
     plt.show()
 
+def get_fixed_model_dict_NDNF_newest(cell_NDNF_model_ranks20_contig_x00):
+    fixed_model_dict_NDNF_newest = {20:{}}
+    for animal in cell_NDNF_model_ranks20_contig_x00[20]:
+        if 17 < animal < 31:
+            fixed_model_dict_NDNF_newest[20][animal-18] = cell_NDNF_model_ranks20_contig_x00[20][animal]
+    return fixed_model_dict_NDNF_newest
 
 def reorder_early_late_pairs(data_list, input_titles):
     assert len(data_list) == len(input_titles), "Mismatch in data and title lengths"
@@ -540,7 +610,6 @@ def reorder_early_late_pairs(data_list, input_titles):
 
     return reordered_data, reordered_titles
 
-
 def get_activity_av_all_trials(activity_dict_SST):
     SST_data_list = []
     for animal in activity_dict_SST:
@@ -550,27 +619,150 @@ def get_activity_av_all_trials(activity_dict_SST):
     SST_data_array_early = np.array(SST_data_list)
     return SST_data_array_early
 
+def get_cp_dict(cell_SST_model_ranks20_contig_x00):
+    changepoints_dict = {}
+    for animal in cell_SST_model_ranks20_contig_x00[20]:
+        changepoints_cell_dict = {}
+        for cell in cell_SST_model_ranks20_contig_x00[20][animal]:
+            labels = cell_SST_model_ranks20_contig_x00[20][animal][cell][1][f'cell_{cell}']["labels_dict"]["clusters_chosen_3"]
+            changepoints = np.where(np.diff(labels) != 0)[0]
+            changepoints_cell_dict[cell] = changepoints
+        changepoints_dict[animal] = changepoints_cell_dict
 
+    return changepoints_dict
 
-def get_activity_early(activity_dict_SST, end=30):
+def get_activity_early(activity_dict_SST, cp_dict_SST):
     SST_data_list = []
-    for animal in activity_dict_SST:
-        for cell in activity_dict_SST[animal]:
-            SST_data_list.append(np.mean(activity_dict_SST[animal][cell][:,:end], axis=1))
+    for idx, animal in enumerate(activity_dict_SST):
+        for idt, cell in enumerate(activity_dict_SST[animal]):
+            cp_early = cp_dict_SST[idx][idt][0]
+            SST_data_list.append(np.mean(activity_dict_SST[animal][cell][:,:cp_early], axis=1))
             # SST_data_list.append(np.mean(activity_dict_SST[animal][cell], axis=1))
 
     SST_data_array_early = np.array(SST_data_list)
     return SST_data_array_early
 
-def get_activity_late(activity_dict_SST, start=20, end=30):
+def get_activity_late(activity_dict_SST, cp_dict_SST):
     SST_data_list = []
-    for animal in activity_dict_SST:
-        for cell in activity_dict_SST[animal]:
-            SST_data_list.append(np.mean(activity_dict_SST[animal][cell][:,start:end], axis=1))
+    for idx, animal in enumerate(activity_dict_SST):
+        for idt, cell in enumerate(activity_dict_SST[animal]):
+            cp_late = cp_dict_SST[idx][idt][1]
+            SST_data_list.append(np.mean(activity_dict_SST[animal][cell][:,-cp_late:], axis=1))
             # SST_data_list.append(np.mean(activity_dict_SST[animal][cell], axis=1))
 
     SST_data_array_late = np.array(SST_data_list)
     return SST_data_array_late
+
+def get_MSE_lists(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before):
+  indices_array = list(np.arange(4))
+  MSE_list_all = remove_behaviors_GLM(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before, indices_array)
+
+  indices_array = list(indices_array[1:])
+  MSE_list_minusV = remove_behaviors_GLM(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before, indices_array)
+
+  indices_array = [0,2,3,4]
+  MSE_list_minusL = remove_behaviors_GLM(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before, indices_array)
+
+  indices_array = [0,1,3,4]
+  MSE_list_minusC = remove_behaviors_GLM(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before, indices_array)
+
+  indices_array = [0,1,2,4]
+  MSE_list_minusR = remove_behaviors_GLM(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before, indices_array)
+
+  indices_array = list(np.arange(3))
+  MSE_list_minusT = remove_behaviors_GLM(neural_activity_sup_bef_V1, GLM_data_dict_sup_bef_V1, behavioral_correlates_before, indices_array)
+
+  return MSE_list_all, MSE_list_minusV, MSE_list_minusL, MSE_list_minusC, MSE_list_minusR, MSE_list_minusT
+
+def remove_behaviors_GLM(activity_dict_NDNF, NDNF_GLM_models, design_matrix_dict_NDNF, indices_array):
+  MSE_list = []
+  prediction_list = []
+  weights_list = []
+
+  for animal in NDNF_GLM_models:
+    for cell in NDNF_GLM_models[animal]:
+    
+        neuron_data = activity_dict_NDNF[animal][cell]
+        weights = NDNF_GLM_models[animal][cell].coef_
+        intercept = NDNF_GLM_models[animal][cell].intercept_
+
+        behavioral_correlates_before_slice = design_matrix_dict_NDNF[animal][cell][indices_array,:]
+
+        prediction = (weights[indices_array] @ behavioral_correlates_before_slice) + intercept
+        prediction_reshaped = prediction.reshape(neuron_data.shape)
+        prediction_list.append(prediction_reshaped)
+
+        mean_neuron_data = np.mean(neuron_data, axis=1)
+        mean_prediction_data = np.mean(prediction_reshaped, axis=1)
+
+        MSE = np.mean(np.square(mean_neuron_data - mean_prediction_data))
+        MSE_list.append(MSE)
+
+        weights_list.append(weights)
+
+  return MSE_list, prediction_list, weights_list
+
+
+def get_GLM_models_cell_type(fixed_activity_dict_NDNF_newest, fixed_factors_dict_NDNF_newest):
+    NDNF_GLM_models = {}
+    design_matrix_dict={}
+
+    for i, animal in enumerate(fixed_activity_dict_NDNF_newest):
+        GLM_cell_models = {}
+        design_matrix_cell_dict = {}
+        for cell in fixed_activity_dict_NDNF_newest[animal]:
+            animal_lick_data = fixed_factors_dict_NDNF_newest[animal]['Licks']
+            animal_lick_data_flat = animal_lick_data.flatten()
+
+            animal_reward_data = fixed_factors_dict_NDNF_newest[animal]['Reward_loc']
+            animal_reward_data_flat = animal_reward_data.flatten()
+
+            animal_velocity_data = fixed_factors_dict_NDNF_newest[animal]['Velocity']
+            animal_velocity_data_flat = animal_velocity_data.flatten()
+
+            design_matrix = np.vstack([animal_lick_data_flat, animal_reward_data_flat, animal_velocity_data_flat])
+            design_matrix_cell_dict[cell] = design_matrix
+            
+            neuron_activity = fixed_activity_dict_NDNF_newest[animal][cell]
+
+            neuron_activity_flat = neuron_activity.flatten()
+
+            model = fit_GLM2(design_matrix, neuron_activity_flat, regression='linear', alphas=None)
+            
+            GLM_cell_models[cell] = model
+
+        NDNF_GLM_models[animal] = GLM_cell_models
+        design_matrix_dict[animal] = design_matrix_cell_dict
+
+    return NDNF_GLM_models, design_matrix_dict
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def get_model_dict_split(EC_data_array, fixed_residual_activity_dict_NDNF_newest, start=20, end=30, reg_type="ridge", early=True):
@@ -758,73 +950,6 @@ def plot_SST_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activi
 
 
 
-def plot_early_late_split_all_input_types(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ymax=1.55):
-
-    ca3_vs_position_all_cells_array
-
-    SST_data_array_late_TA = get_activity_late(activity_dict_SST, start=38, end=58)
-    SST_data_array_early_TA = get_activity_early(activity_dict_SST, end=20)
-
-    EC_data_array_late_TA = get_activity_late(activity_dict_EC, start=38, end=58)
-    EC_data_array_early_TA = get_activity_early(activity_dict_EC, end=20)
-
-    NDNF_data_array_late_TA = get_activity_late(fixed_activity_dict_NDNF_newest, start=38, end=58)
-    NDNF_data_array_early_TA = get_activity_early(fixed_activity_dict_NDNF_newest, end=20)
-
-    EC_CA3_data_array_TA_early = np.concatenate([EC_data_array_early_TA, ca3_vs_position_all_cells_array], axis=0)
-    EC_CA3_data_array_TA_late = np.concatenate([EC_data_array_late_TA, ca3_vs_position_all_cells_array], axis=0)
-
-    EC_SST_data_array_TA_early = np.concatenate([EC_data_array_early_TA, SST_data_array_early_TA], axis=0)
-    EC_SST_data_array_TA_late = np.concatenate([EC_data_array_late_TA, SST_data_array_late_TA], axis=0)
-
-    CA3_SST_data_array_TA_early = np.concatenate([ca3_vs_position_all_cells_array, SST_data_array_early_TA], axis=0)
-    CA3_SST_data_array_TA_late = np.concatenate([ca3_vs_position_all_cells_array, SST_data_array_late_TA], axis=0)
-
-
-
-    model_EC_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(EC_data_array_early_TA, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
-    MSE_list_EC_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_data_array_late_TA)
-    MSE_list_EC_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_data_array_early_TA)
-
-
-
-    model_SST_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(SST_data_array_early_TA, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
-    MSE_list_SST_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, SST_data_array_late_TA)
-    MSE_list_SST_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, SST_data_array_early_TA)
-
-
-
-    model_CA3_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(ca3_vs_position_all_cells_array, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
-    MSE_list_CA3_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array)
-    MSE_list_CA3_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array)
-
-
-
-    model_EC_CA3_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(EC_CA3_data_array_TA_early, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
-    MSE_list_EC_CA3_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_CA3_data_array_TA_late)
-    MSE_list_EC_CA3_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_CA3_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_CA3_data_array_TA_early)
-
-
-    model_EC_SST_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(EC_SST_data_array_TA_early, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
-    MSE_list_EC_SST_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_SST_data_array_TA_late)
-    MSE_list_EC_SST_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_EC_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, EC_SST_data_array_TA_early)
-
-
-    model_CA3_SST_dict_early_TA = get_model_dict_early_celltype_late_another_celltype_TA(CA3_SST_data_array_TA_early, fixed_activity_dict_NDNF_newest, reg_type="ridge", early_or_late="early", start=0, end=20)
-    MSE_list_CA3_SST_early_predicting_NDNF_late_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, CA3_SST_data_array_TA_late)
-    MSE_list_CA3_SST_early_predicting_NDNF_early_TA, coefficients_list_EC_early = get_MSE_cell_type_TA(model_CA3_SST_dict_early_TA, fixed_activity_dict_NDNF_newest, CA3_SST_data_array_TA_early)
-
-
-
-    data_list = [MSE_list_EC_early_predicting_NDNF_late_TA, MSE_list_EC_early_predicting_NDNF_early_TA, MSE_list_SST_early_predicting_NDNF_late_TA, MSE_list_SST_early_predicting_NDNF_early_TA, MSE_list_SST_early_predicting_NDNF_late_TA, MSE_list_SST_early_predicting_NDNF_early_TA, MSE_list_CA3_early_predicting_NDNF_late_TA, MSE_list_CA3_early_predicting_NDNF_early_TA, MSE_list_EC_CA3_early_predicting_NDNF_late_TA, MSE_list_EC_CA3_early_predicting_NDNF_early_TA, MSE_list_EC_SST_early_predicting_NDNF_late_TA, MSE_list_EC_SST_early_predicting_NDNF_early_TA, MSE_list_CA3_SST_early_predicting_NDNF_late_TA, MSE_list_CA3_SST_early_predicting_NDNF_early_TA]
-    input_titles = ["EC_early_NDNF_late", "EC_early_NDNF_early", "SST_early_NDNF_late", "SST_early_NDNF_early", "SST_early_NDNF_late", "SST_early_NDNF_early", "CA3_early_NDNF_late", "CA3_early_NDNF_early", "EC_CA3_early_NDNF_late", "EC_CA3_early_NDNF", "EC_CA3_early_NDNF_late", "EC_CA3_early_NDNF_early", "CA3_SST_early_NDNF_late", "CA3_SST_early_NDNF_early"]
-
-
-    reordered_data_list, reordered_input_titles = reorder_early_late_pairs(data_list, input_titles)
-
-    plot_models_trained_early_late(reordered_data_list, reordered_input_titles, ymax=ymax)
-
-
 def get_velocities(factors_dict_SST):
     SST_data_list = []
     for animal in factors_dict_SST:
@@ -962,5 +1087,5 @@ def plot_coefficients_all_celltypes_together(weights_list_NDNF, weights_list_SST
     plt.axhline(0, linestyle='--', color='grey')
     plt.title(title)
     plt.tight_layout()
-    plt.ylim(-0.5, 0.9)
+    plt.ylim(-0.6, 0.9)
     plt.show()
