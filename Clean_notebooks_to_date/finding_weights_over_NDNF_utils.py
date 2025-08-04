@@ -381,7 +381,6 @@ def get_model_dict_early_celltype_late_another_celltype(EC_data_array, fixed_act
         
     return model_EC_dict
 
-
 def plot_early_late_split_all_input_types(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array, cp_dict_EC, cp_dict_SST, cp_dict_NDNF, ymax=1.55):
 
 
@@ -703,66 +702,6 @@ def remove_behaviors_GLM(activity_dict_NDNF, NDNF_GLM_models, design_matrix_dict
   return MSE_list, prediction_list, weights_list
 
 
-def get_GLM_models_cell_type(fixed_activity_dict_NDNF_newest, fixed_factors_dict_NDNF_newest):
-    NDNF_GLM_models = {}
-    design_matrix_dict={}
-
-    for i, animal in enumerate(fixed_activity_dict_NDNF_newest):
-        GLM_cell_models = {}
-        design_matrix_cell_dict = {}
-        for cell in fixed_activity_dict_NDNF_newest[animal]:
-            animal_lick_data = fixed_factors_dict_NDNF_newest[animal]['Licks']
-            animal_lick_data_flat = animal_lick_data.flatten()
-
-            animal_reward_data = fixed_factors_dict_NDNF_newest[animal]['Reward_loc']
-            animal_reward_data_flat = animal_reward_data.flatten()
-
-            animal_velocity_data = fixed_factors_dict_NDNF_newest[animal]['Velocity']
-            animal_velocity_data_flat = animal_velocity_data.flatten()
-
-            design_matrix = np.vstack([animal_lick_data_flat, animal_reward_data_flat, animal_velocity_data_flat])
-            design_matrix_cell_dict[cell] = design_matrix
-            
-            neuron_activity = fixed_activity_dict_NDNF_newest[animal][cell]
-
-            neuron_activity_flat = neuron_activity.flatten()
-
-            model = fit_GLM2(design_matrix, neuron_activity_flat, regression='linear', alphas=None)
-            
-            GLM_cell_models[cell] = model
-
-        NDNF_GLM_models[animal] = GLM_cell_models
-        design_matrix_dict[animal] = design_matrix_cell_dict
-
-    return NDNF_GLM_models, design_matrix_dict
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def get_model_dict_split(EC_data_array, fixed_residual_activity_dict_NDNF_newest, start=20, end=30, reg_type="ridge", early=True):
@@ -806,7 +745,6 @@ def get_MSE_cell_type_TA(model_EC_just_SST, fixed_residual_activity_dict_NDNF_ne
             MSE_list.append(MSE) 
             
     return MSE_list, coefficients_list
-
 
 def plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE_list_just_EC, MSE_list_just_CA3, MSE_list_EC_CA3, MSE_list_EC_SST, MSE_list_CA3_SST, MSE_list_EC_CA3_SST, MSE_list_random, inputs_list, output_cell_type="NDNF Output", ymax=0.03):
     df = pd.DataFrame({
@@ -855,7 +793,6 @@ def plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE
     plt.tight_layout()
     plt.show()
 
-
 def plot_NDNF_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ymax=0.10):
     # SST_data_array_late = get_activity_late(activity_dict_SST, start=40, end=60)
     SST_data_array_TA = get_activity_av_all_trials(activity_dict_SST)
@@ -898,8 +835,6 @@ def plot_NDNF_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activ
     inputs_list = ["SST", "EC", "CA3", "EC + CA3", "EC + SST", "CA3 + SST", "EC + CA3 + SST", "Random Control"]
 
     plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE_list_just_EC, MSE_list_just_CA3, MSE_list_EC_CA3, MSE_list_EC_SST, MSE_list_CA3_SST, MSE_list_EC_CA3_SST, MSE_list_random_TA, inputs_list, output_cell_type="NDNF Output Trial Averaged Input", ymax=ymax)
-
-
 
 def plot_SST_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ymax=0.10):
 
@@ -948,8 +883,6 @@ def plot_SST_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activi
 
     plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_NDNF_TA, MSE_list_just_EC_TA, MSE_list_just_CA3_TA, MSE_list_EC_CA3_TA, MSE_list_EC_NDNF_TA, MSE_list_CA3_NDNF_TA, MSE_list_EC_CA3_NDNF_TA, MSE_list_random_TA, inputs_list, output_cell_type="SST Output Trial Averaged Input", ymax=ymax)
 
-
-
 def get_velocities(factors_dict_SST):
     SST_data_list = []
     for animal in factors_dict_SST:
@@ -976,8 +909,6 @@ def plot_datar(SST_datas, title="Velocity Across All Animals", color='b'):
     # plt.ylim(-0.5,0.5)
     plt.show()
 
-
-
 def plot_data(SST_datas, SST_datas_r, title="SST Activity Across All Cells", color='b'):
     SST_data_mean = np.mean(SST_datas, axis=0)
     SST_data_sem = sem(SST_datas, axis=0)  
@@ -995,8 +926,6 @@ def plot_data(SST_datas, SST_datas_r, title="SST Activity Across All Cells", col
     plt.ylim(-0.5,0.5)
     plt.legend()
     plt.show()
-
-
 
 def plot_coefficients_cell_type(weights_list_EC, cell_type="EC"):
     lick_weights = []
@@ -1044,8 +973,6 @@ def plot_coefficients_cell_type(weights_list_EC, cell_type="EC"):
     plt.tight_layout()
     plt.show()
 
-
-# --- Assuming these are lists of weight vectors like [[lick, reward, velocity], ...] ---
 def extract_weight_lists(weights_list):
     lick = [w[0] for w in weights_list]
     reward = [w[1] for w in weights_list]
