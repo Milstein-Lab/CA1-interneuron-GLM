@@ -98,6 +98,71 @@ def get_clusters_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ra
 
     return clusters_dict_EC
 
+def get_indices_TCA(cell_EC_model_ranks20_contig_x00, cell_NDNF_model_ranks20_kmeans_reassign_umap_x00, residual_activity_dict_NDNF, animal_id=1, cell_id=1, num_clusters=4, early_late_nothing="nothing"):
+    animal_first_changepoints_list, fraction_first_changepoints_list, animal_second_changepoints_list, fraction_second_changepoints_list = get_changepoints(cell_EC_model_ranks20_contig_x00, residual_activity_dict_NDNF, animal_TCA=False)
+
+  
+    indices_dict = cell_NDNF_model_ranks20_kmeans_reassign_umap_x00[20][animal_id][cell_id][1][f"cell_{cell_id}"]["indices_for_cluster_number"][f"clusters_chosen_{num_clusters}"]
+
+
+    num_clusters = len(indices_dict)
+
+    new_indices_dict = {}
+
+    for n in range(num_clusters):
+        indices = indices_dict[n]
+
+        if early_late_nothing == "nothing":
+            indices_list = indices
+            new_indices_dict[n] = indices_list
+        elif early_late_nothing == "early":
+            indices_list = [i for i in indices if i < animal_first_changepoints_list[animal_id][cell_id]]
+            new_indices_dict[n] = indices_list
+        elif early_late_nothing == "late":
+            indices_list = [i for i in indices if i > animal_second_changepoints_list[animal_id][cell_id]]
+            new_indices_dict[n] = indices_list
+        else:
+            raise ValueError(f"Invalid value for early_late_nothing: {early_late_nothing}")
+
+
+    return new_indices_dict
+
+def get_indices_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, eln="nothing"):
+
+    """
+    - takes in the contiguous cutpoints slice TCA model and the K-Means slice TCA model
+    - use elbow kmeans to loop through every number of cluster (up to 8) to get the optimal number of clusters via reconstruction MSE of cluster average reconstruction vs real data for the cell
+    - returns a dict where every cell's activity is seperated by its cluster via trial indices for each cluster
+    - since we are seperating by trial indices we can ask whether the indices are within the early sliceTCA changepoint or in late and seperate the data by learning
+    """
+
+    indices_dict_EC = {}
+
+    for animal_num, animal in enumerate(residual_activity_dict_EC):
+        indices_cell_EC = {}
+        for cell_num, cell in enumerate(residual_activity_dict_EC[animal]):
+            #             cell_num = int(cell.split("_")[-1])  # e.g., from 'cell_3' -> 3
+            #             elbow_kmeans = get_elbow_score_data(testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, animal=animal_num, cell=cell_num)
+            # ✅ skip if cell is missing in model dict
+            try:
+                elbow_kmeans = get_elbow_score_data(
+                    testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell,
+                    animal=animal_num,
+                    cell=cell_num
+                )
+            except KeyError:
+                print(f"⚠️ Skipping animal {animal_num}, cell {cell_num} — not in model dict")
+                continue
+
+            #             elbow_kmeans = get_elbow_score_data(testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, animal=animal_num, cell=cell_num)
+            clusters = elbow_kmeans + 1
+            indices = get_indices_TCA(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, animal_id=animal_num, cell_id=cell_num, num_clusters=clusters, early_late_nothing=eln)
+            indices_cell_EC[cell] = indices
+
+        indices_dict_EC[animal] = indices_cell_EC
+
+    return indices_dict_EC
+
 def get_clusters_dict_field_type(means_list, clusters_dict_EC, residual_activity_dict_EC, use_peak=True):
 
     '''
