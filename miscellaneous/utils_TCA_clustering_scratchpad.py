@@ -28,8 +28,8 @@ from GLM_regression import *
 import warnings
 
 
-def load_data_regular(name="NDNFanalC", new_NDNF=True):
-    file_path = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM"
+def load_data_regular(file_path=r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM", name="NDNFanalC", new_NDNF=True):
+    file_path = file_path
     filename = name
     filepath = os.path.join(file_path, "datasets", filename + ".mat")
 
@@ -43,8 +43,8 @@ def load_data_regular(name="NDNFanalC", new_NDNF=True):
     return GLM_params, activity_dict, double_predicted_activity_dict_NDNF_new, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
 
 
-def load_data_double(name="NDNFanalC", double_track=False):
-    file_path = r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM"
+def load_data_double(file_path=r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM", name="NDNFanalC", double_track=False):
+    file_path = file_path
     filename = name
     filepath = os.path.join(file_path, "datasets", filename + ".mat")
 

@@ -1,0 +1,935 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>modelling_multiple_generative_cells_utils &#8212; CA1 Interneuron Model Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../_static/togglebutton.css?v=13237357" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=fd3f3429" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../../_static/togglebutton.js?v=4a39c7ea"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/modelling_multiple_generative_cells_utils/index';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="API Reference" href="../index.html" />
+    <link rel="prev" title="selectivity_over_learning_utils" href="../selectivity_over_learning_utils/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search this book..."
+         aria-label="Search this book..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../intro.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CA1 Interneuron Model Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../intro.html">
+                    EIANN Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Galloni et al. 2025</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../SliceTCA_example/index.html">SliceTCA_example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../finding_weights_over_NDNF_utils/index.html">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../SliceTCA_example/index.html">SliceTCA_example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../finding_weights_over_NDNF_utils/index.html">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/edit/main/docs/autoapi/modelling_multiple_generative_cells_utils/index.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/issues/new?title=Issue%20on%20page%20%2Fautoapi/modelling_multiple_generative_cells_utils/index.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/autoapi/modelling_multiple_generative_cells_utils/index.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>modelling_multiple_generative_cells_utils</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_means_list"><code class="docutils literal notranslate"><span class="pre">get_means_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_clusters_dict"><code class="docutils literal notranslate"><span class="pre">get_clusters_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_indices_TCA"><code class="docutils literal notranslate"><span class="pre">get_indices_TCA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_indices_dict"><code class="docutils literal notranslate"><span class="pre">get_indices_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_clusters_dict_field_type"><code class="docutils literal notranslate"><span class="pre">get_clusters_dict_field_type()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster"><code class="docutils literal notranslate"><span class="pre">plot_per_cell_clustering_internals_single_cluster()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_count"><code class="docutils literal notranslate"><span class="pre">get_count()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks"><code class="docutils literal notranslate"><span class="pre">plot_cluster_peaks()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages"><code class="docutils literal notranslate"><span class="pre">plot_clustered_averages()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic"><code class="docutils literal notranslate"><span class="pre">plot_clustered_averages_deterministic()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.generate_gaussian"><code class="docutils literal notranslate"><span class="pre">generate_gaussian()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.random_timeseries"><code class="docutils literal notranslate"><span class="pre">random_timeseries()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.remove_duplicate_trials"><code class="docutils literal notranslate"><span class="pre">remove_duplicate_trials()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.remove_all_duplicates"><code class="docutils literal notranslate"><span class="pre">remove_all_duplicates()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5"><code class="docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters5()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_early_vs_late_activity"><code class="docutils literal notranslate"><span class="pre">get_early_vs_late_activity()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.min_max_my_data"><code class="docutils literal notranslate"><span class="pre">min_max_my_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.compare_within_subtype"><code class="docutils literal notranslate"><span class="pre">compare_within_subtype()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.split_data"><code class="docutils literal notranslate"><span class="pre">split_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages2"><code class="docutils literal notranslate"><span class="pre">plot_clustered_averages2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_field_type_percents2"><code class="docutils literal notranslate"><span class="pre">get_field_type_percents2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_cells_percents"><code class="docutils literal notranslate"><span class="pre">get_cells_percents()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.random_timeseries2"><code class="docutils literal notranslate"><span class="pre">random_timeseries2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_means_array"><code class="docutils literal notranslate"><span class="pre">get_means_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent"><code class="docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell"><code class="docutils literal notranslate"><span class="pre">get_weighted_activityies_per_cell()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks2"><code class="docutils literal notranslate"><span class="pre">plot_cluster_peaks2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split"><code class="docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_generative_model"><code class="docutils literal notranslate"><span class="pre">plot_generative_model()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.slot_trials_into_spots"><code class="docutils literal notranslate"><span class="pre">slot_trials_into_spots()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_trial_indices"><code class="docutils literal notranslate"><span class="pre">get_trial_indices()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_cell_array"><code class="docutils literal notranslate"><span class="pre">get_cell_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.randomly_pick_cells"><code class="docutils literal notranslate"><span class="pre">randomly_pick_cells()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-modelling_multiple_generative_cells_utils">
+<span id="modelling-multiple-generative-cells-utils"></span><h1>modelling_multiple_generative_cells_utils<a class="headerlink" href="#module-modelling_multiple_generative_cells_utils" title="Link to this heading">#</a></h1>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_means_list" title="modelling_multiple_generative_cells_utils.get_means_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_means_list</span></code></a>(residual_activity_dict_EC)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_clusters_dict" title="modelling_multiple_generative_cells_utils.get_clusters_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_clusters_dict</span></code></a>(cell_EC_model_ranks20_contig_x00, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_indices_TCA" title="modelling_multiple_generative_cells_utils.get_indices_TCA"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_indices_TCA</span></code></a>(cell_EC_model_ranks20_contig_x00, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_indices_dict" title="modelling_multiple_generative_cells_utils.get_indices_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_indices_dict</span></code></a>(cell_EC_model_ranks20_contig_x00, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_clusters_dict_field_type" title="modelling_multiple_generative_cells_utils.get_clusters_dict_field_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_clusters_dict_field_type</span></code></a>(means_list, ...[, use_peak])</p></td>
+<td><p>-finds the argmax or argmin of each clusters' average activity from the cell dict of activity seperated into clusters and then labells that cluster as a before, near(reward), after or wraparound if the peak was near the end of the trial and there was a peak near the start (within 5 position bins) of the next trial</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster" title="modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_per_cell_clustering_internals_single_cluster</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_count" title="modelling_multiple_generative_cells_utils.get_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_count</span></code></a>(animal_percent_dict_EC_early_peak[, field_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks" title="modelling_multiple_generative_cells_utils.plot_cluster_peaks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_cluster_peaks</span></code></a>(...[, field_type, plot])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages" title="modelling_multiple_generative_cells_utils.plot_clustered_averages"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_clustered_averages</span></code></a>(...[, use_trough, plot, cell_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic" title="modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_clustered_averages_deterministic</span></code></a>(...[, plot, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.generate_gaussian" title="modelling_multiple_generative_cells_utils.generate_gaussian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_gaussian</span></code></a>([length, peak_position, std, amplitude])</p></td>
+<td><p>Generate a Gaussian array of given length, peaking at <cite>peak_position</cite>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.random_timeseries" title="modelling_multiple_generative_cells_utils.random_timeseries"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_timeseries</span></code></a>(initial_value, volatility, count, rng)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.remove_duplicate_trials" title="modelling_multiple_generative_cells_utils.remove_duplicate_trials"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_duplicate_trials</span></code></a>(cells_with_A, cells_with_B, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.remove_all_duplicates" title="modelling_multiple_generative_cells_utils.remove_all_duplicates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_all_duplicates</span></code></a>(trial_dicts, cells_with_types, ...)</p></td>
+<td><p>trial_dicts: dict of field_type -&gt; {cell_id -&gt; np.array of trial indices}</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5" title="modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters5</span></code></a>(...[, cell_type, plot])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_early_vs_late_activity" title="modelling_multiple_generative_cells_utils.get_early_vs_late_activity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_early_vs_late_activity</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.min_max_my_data" title="modelling_multiple_generative_cells_utils.min_max_my_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_max_my_data</span></code></a>(array_data)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.compare_within_subtype" title="modelling_multiple_generative_cells_utils.compare_within_subtype"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_within_subtype</span></code></a>(...[, cell_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.split_data" title="modelling_multiple_generative_cells_utils.split_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">split_data</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages2" title="modelling_multiple_generative_cells_utils.plot_clustered_averages2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_clustered_averages2</span></code></a>(...[, use_trough, plot, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_field_type_percents2" title="modelling_multiple_generative_cells_utils.get_field_type_percents2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_field_type_percents2</span></code></a>(...[, e_or_l])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_cells_percents" title="modelling_multiple_generative_cells_utils.get_cells_percents"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cells_percents</span></code></a>(animal_percent_dict_EC_early_peak, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.random_timeseries2" title="modelling_multiple_generative_cells_utils.random_timeseries2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">random_timeseries2</span></code></a>(initial_value, volatility, count, rng)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_means_array" title="modelling_multiple_generative_cells_utils.get_means_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_means_array</span></code></a>(final_weighted_means_per_cell_before_early)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent" title="modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell" title="modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_weighted_activityies_per_cell</span></code></a>(field_dict[, field_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks2" title="modelling_multiple_generative_cells_utils.plot_cluster_peaks2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_cluster_peaks2</span></code></a>(...[, field_type, plot])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split" title="modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent_split</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.plot_generative_model" title="modelling_multiple_generative_cells_utils.plot_generative_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_generative_model</span></code></a>(final_weights_early, ...[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.slot_trials_into_spots" title="modelling_multiple_generative_cells_utils.slot_trials_into_spots"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slot_trials_into_spots</span></code></a>(animal_first_changepoints_list, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_trial_indices" title="modelling_multiple_generative_cells_utils.get_trial_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_trial_indices</span></code></a>(animal_first_changepoints_list, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.get_cell_array" title="modelling_multiple_generative_cells_utils.get_cell_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cell_array</span></code></a>(animal_first_changepoints_list, inits, vol)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#modelling_multiple_generative_cells_utils.randomly_pick_cells" title="modelling_multiple_generative_cells_utils.randomly_pick_cells"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomly_pick_cells</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_means_list">
+<span class="sig-name descname"><span class="pre">get_means_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_means_list" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_clusters_dict">
+<span class="sig-name descname"><span class="pre">get_clusters_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eln</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nothing'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_clusters_dict" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>takes in the contiguous cutpoints slice TCA model and the K-Means slice TCA model</p></li>
+<li><p>use elbow kmeans to loop through every number of cluster (up to 8) to get the optimal number of clusters via reconstruction MSE of cluster average reconstruction vs real data for the cell</p></li>
+<li><p>returns a dict where every cell’s activity is seperated by its cluster via trial indices for each cluster</p></li>
+<li><p>since we are seperating by trial indices we can ask whether the indices are within the early sliceTCA changepoint or in late and seperate the data by learning</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_indices_TCA">
+<span class="sig-name descname"><span class="pre">get_indices_TCA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_NDNF_model_ranks20_kmeans_reassign_umap_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_clusters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_late_nothing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nothing'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_indices_TCA" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_indices_dict">
+<span class="sig-name descname"><span class="pre">get_indices_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eln</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nothing'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_indices_dict" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>takes in the contiguous cutpoints slice TCA model and the K-Means slice TCA model</p></li>
+<li><p>use elbow kmeans to loop through every number of cluster (up to 8) to get the optimal number of clusters via reconstruction MSE of cluster average reconstruction vs real data for the cell</p></li>
+<li><p>returns a dict where every cell’s activity is seperated by its cluster via trial indices for each cluster</p></li>
+<li><p>since we are seperating by trial indices we can ask whether the indices are within the early sliceTCA changepoint or in late and seperate the data by learning</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_clusters_dict_field_type">
+<span class="sig-name descname"><span class="pre">get_clusters_dict_field_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">means_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_peak</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_clusters_dict_field_type" title="Link to this definition">#</a></dt>
+<dd><p>-finds the argmax or argmin of each clusters’ average activity from the cell dict of activity seperated into clusters and then labells that cluster as a before, near(reward), after or wraparound if the peak was near the end of the trial and there was a peak near the start (within 5 position bins) of the next trial</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster">
+<span class="sig-name descname"><span class="pre">plot_per_cell_clustering_internals_single_cluster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_NDNF_model_ranks20_kmeans_reassign_umap_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_clusters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_late_nothing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nothing'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_count">
+<span class="sig-name descname"><span class="pre">get_count</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_early_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'before_percent'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_count" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_cluster_peaks">
+<span class="sig-name descname"><span class="pre">plot_cluster_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_early_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'near_field'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_clustered_averages">
+<span class="sig-name descname"><span class="pre">plot_clustered_averages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_early_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_late_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_early_SST_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_late_SST_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_trough</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SST'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>uses plot cluster peaks to give you a average of the trials in the cluster for every cluster grouping - roughtly 1 of each per cell - does so for our 4 types of clusters/trial types - before, near, after and wraparound</p></li>
+<li><p>then gets the mean and sem across cells</p></li>
+<li><p>plots the array which is the trial average of every cluster across the whole dataset and the mean of them</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic">
+<span class="sig-name descname"><span class="pre">plot_clustered_averages_deterministic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_early_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_late_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SST'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.generate_gaussian">
+<span class="sig-name descname"><span class="pre">generate_gaussian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_position</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">25</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">amplitude</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.generate_gaussian" title="Link to this definition">#</a></dt>
+<dd><p>Generate a Gaussian array of given length, peaking at <cite>peak_position</cite>.</p>
+<p>Parameters:
+- length: total number of bins (default 50)
+- peak_position: where the Gaussian peaks (can be float)
+- std: standard deviation of the Gaussian
+- amplitude: height of the peak</p>
+<p>Returns:
+- 1D numpy array of shape (length,)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.random_timeseries">
+<span class="sig-name descname"><span class="pre">random_timeseries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initial_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volatility</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.random_timeseries" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.remove_duplicate_trials">
+<span class="sig-name descname"><span class="pre">remove_duplicate_trials</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cells_with_A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_with_B</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trials_A_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trials_B_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.remove_duplicate_trials" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.remove_all_duplicates">
+<span class="sig-name descname"><span class="pre">remove_all_duplicates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trial_dicts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_with_types</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_array_early_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.remove_all_duplicates" title="Link to this definition">#</a></dt>
+<dd><p>trial_dicts: dict of field_type -&gt; {cell_id -&gt; np.array of trial indices}
+cells_with_types: dict of field_type -&gt; np.array of cell ids</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5">
+<span class="sig-name descname"><span class="pre">reconstruct_activity_from_clusters5</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_before_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_near_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_after_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_wraparound_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_before_field_late</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_near_field_late</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_after_field_late</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">example_wraparound_field_late</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_early_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_late_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_early_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_late_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'EC</span> <span class="pre">Trough'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>consult the percent of cells that have the given trial type and then random choice select cells to express that field type</p></li>
+<li><p>within each cell that gets a field get a number of trials that will express based on the proportion and then randomly select which trials out of all possible trials for that cell will be assigned that field types activity</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_early_vs_late_activity">
+<span class="sig-name descname"><span class="pre">get_early_vs_late_activity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_SST_model_ranks20_contig_x00</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_early_vs_late_activity" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.min_max_my_data">
+<span class="sig-name descname"><span class="pre">min_max_my_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">array_data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.min_max_my_data" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.compare_within_subtype">
+<span class="sig-name descname"><span class="pre">compare_within_subtype</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_SST_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_averaged_cell_array_early_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_averaged_cell_array_late_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">full_activity_trial_av_array_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SST</span> <span class="pre">Peak'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.compare_within_subtype" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.split_data">
+<span class="sig-name descname"><span class="pre">split_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">testing_cell_super_new_NDNF_model_ranks20_reassign_regkmean_x00_cell</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.split_data" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_clustered_averages2">
+<span class="sig-name descname"><span class="pre">plot_clustered_averages2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_early_SST_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_late_SST_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_middle_SST_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_trough</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SST'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_array</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages2" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>params: early, middle and late cluster dicts cut by contiguous kmeans</p></li>
+<li><p>returns: either dicts seperated by cell and animal for the cluster mean activity or arrays where all the clusters trial averages are clumped togther in a 2d array - dependent on the return_array flag</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_field_type_percents2">
+<span class="sig-name descname"><span class="pre">get_field_type_percents2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">e_or_l</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'e'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_field_type_percents2" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>get a count of the total number of each of our 4 categories appearing across trials for each cell and then divide by total num trials for that cell to get a probability of trial appearance</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_cells_percents">
+<span class="sig-name descname"><span class="pre">get_cells_percents</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_early_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_late_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_middle_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_early_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_late_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_percent_dict_EC_middle_trough</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_cells_percents" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.random_timeseries2">
+<span class="sig-name descname"><span class="pre">random_timeseries2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initial_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volatility</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.random_timeseries2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_means_array">
+<span class="sig-name descname"><span class="pre">get_means_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">final_weighted_means_per_cell_before_early</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_means_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent">
+<span class="sig-name descname"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">before_field_array_early_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_field_array_early_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">after_field_array_early_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wraparound_field_array_early_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">before_field_array_late_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_field_array_late_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">after_field_array_late_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wraparound_field_array_late_trough_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_early_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_late_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_early_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_late_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'EC</span> <span class="pre">Trough'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>same function as the other reconstruction except we are no longer reusing the same across-cell average trace slotted into every trial across all cells, now we are using a different average trace for each cell’s trials but it is just a single trace per trial</p></li>
+<li><p>uses the function get_weighted_activityies_per_cell in case there were multiple of the same type of field per cell (ex / 2 clusters that were both before fields with different kinetics) and gets a weighted average of them to hand into the before trials for that given cell</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell">
+<span class="sig-name descname"><span class="pre">get_weighted_activityies_per_cell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'before_field'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_cluster_peaks2">
+<span class="sig-name descname"><span class="pre">plot_cluster_peaks2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_labelled_field_type_early_SST_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'near_field'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split">
+<span class="sig-name descname"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent_split</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_data_list_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">late_data_list_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">middle_data_list_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_early_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_late_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_middle_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_early_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_late_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_middle_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'EC</span> <span class="pre">Trough'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_t_e</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_t_m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">40</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_t_l</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>same function as the other reconstruction except we are no longer reusing the same across-cell average trace slotted into every trial across all cells, now we are using a different average trace for each cell’s trials but it is just a single trace per trial</p></li>
+<li><p>uses the function get_weighted_activityies_per_cell in case there were multiple of the same type of field per cell (ex / 2 clusters that were both before fields with different kinetics) and gets a weighted average of them to hand into the before trials for that given cell</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.plot_generative_model">
+<span class="sig-name descname"><span class="pre">plot_generative_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">final_weights_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">final_weights_late</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_early_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_lists_EC_late_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_early_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_late_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">full_activity_trial_av_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_averaged_cell_array_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_averaged_cell_array_late</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trial_averaged_cell_array_middle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SST'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.plot_generative_model" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.slot_trials_into_spots">
+<span class="sig-name descname"><span class="pre">slot_trials_into_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">animal_first_changepoints_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_lists</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trials_lists</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_array_lists</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.slot_trials_into_spots" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_trial_indices">
+<span class="sig-name descname"><span class="pre">get_trial_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">animal_first_changepoints_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">before_percent_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_percent_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">after_percent_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wraparound_percent_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_with_before_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_with_near_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_with_after_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cells_with_wraparound_field_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_trials</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_trial_indices" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.get_cell_array">
+<span class="sig-name descname"><span class="pre">get_cell_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">animal_first_changepoints_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_trials_early</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.get_cell_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="modelling_multiple_generative_cells_utils.randomly_pick_cells">
+<span class="sig-name descname"><span class="pre">randomly_pick_cells</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">percent_of_cells_list_EC_early_trough</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_first_changepoints_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_cells</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#modelling_multiple_generative_cells_utils.randomly_pick_cells" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./autoapi/modelling_multiple_generative_cells_utils"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../selectivity_over_learning_utils/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">selectivity_over_learning_utils</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">API Reference</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_means_list"><code class="docutils literal notranslate"><span class="pre">get_means_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_clusters_dict"><code class="docutils literal notranslate"><span class="pre">get_clusters_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_indices_TCA"><code class="docutils literal notranslate"><span class="pre">get_indices_TCA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_indices_dict"><code class="docutils literal notranslate"><span class="pre">get_indices_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_clusters_dict_field_type"><code class="docutils literal notranslate"><span class="pre">get_clusters_dict_field_type()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster"><code class="docutils literal notranslate"><span class="pre">plot_per_cell_clustering_internals_single_cluster()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_count"><code class="docutils literal notranslate"><span class="pre">get_count()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks"><code class="docutils literal notranslate"><span class="pre">plot_cluster_peaks()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages"><code class="docutils literal notranslate"><span class="pre">plot_clustered_averages()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic"><code class="docutils literal notranslate"><span class="pre">plot_clustered_averages_deterministic()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.generate_gaussian"><code class="docutils literal notranslate"><span class="pre">generate_gaussian()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.random_timeseries"><code class="docutils literal notranslate"><span class="pre">random_timeseries()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.remove_duplicate_trials"><code class="docutils literal notranslate"><span class="pre">remove_duplicate_trials()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.remove_all_duplicates"><code class="docutils literal notranslate"><span class="pre">remove_all_duplicates()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5"><code class="docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters5()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_early_vs_late_activity"><code class="docutils literal notranslate"><span class="pre">get_early_vs_late_activity()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.min_max_my_data"><code class="docutils literal notranslate"><span class="pre">min_max_my_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.compare_within_subtype"><code class="docutils literal notranslate"><span class="pre">compare_within_subtype()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.split_data"><code class="docutils literal notranslate"><span class="pre">split_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_clustered_averages2"><code class="docutils literal notranslate"><span class="pre">plot_clustered_averages2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_field_type_percents2"><code class="docutils literal notranslate"><span class="pre">get_field_type_percents2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_cells_percents"><code class="docutils literal notranslate"><span class="pre">get_cells_percents()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.random_timeseries2"><code class="docutils literal notranslate"><span class="pre">random_timeseries2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_means_array"><code class="docutils literal notranslate"><span class="pre">get_means_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent"><code class="docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell"><code class="docutils literal notranslate"><span class="pre">get_weighted_activityies_per_cell()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_cluster_peaks2"><code class="docutils literal notranslate"><span class="pre">plot_cluster_peaks2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split"><code class="docutils literal notranslate"><span class="pre">reconstruct_activity_from_clusters_every_cell_diff_latent_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.plot_generative_model"><code class="docutils literal notranslate"><span class="pre">plot_generative_model()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.slot_trials_into_spots"><code class="docutils literal notranslate"><span class="pre">slot_trials_into_spots()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_trial_indices"><code class="docutils literal notranslate"><span class="pre">get_trial_indices()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.get_cell_array"><code class="docutils literal notranslate"><span class="pre">get_cell_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#modelling_multiple_generative_cells_utils.randomly_pick_cells"><code class="docutils literal notranslate"><span class="pre">randomly_pick_cells()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Michael Finch, Alessandro Galloni and Aaron Milstein
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

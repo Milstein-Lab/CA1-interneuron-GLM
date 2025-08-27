@@ -359,6 +359,7 @@ def get_synthetic_data(activity_dict, velocity, place_field_type='flat', place_f
         return all_cells_average
 
     place_field_profile = get_average_cell_profile(activity_dict)
+    place_field_profile = place_field_profile*-1
     num_trials = velocity.shape[1]
     place_field = np.tile(place_field_profile, (num_trials,1)).T
     def staircase_vector(start, stop, num_steps, length):

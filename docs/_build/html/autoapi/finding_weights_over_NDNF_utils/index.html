@@ -1,0 +1,973 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>finding_weights_over_NDNF_utils &#8212; CA1 Interneuron Model Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../_static/togglebutton.css?v=13237357" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=fd3f3429" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../../_static/togglebutton.js?v=4a39c7ea"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/finding_weights_over_NDNF_utils/index';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="selectivity_over_learning_utils" href="../selectivity_over_learning_utils/index.html" />
+    <link rel="prev" title="SliceTCA_example" href="../SliceTCA_example/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search this book..."
+         aria-label="Search this book..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../intro.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CA1 Interneuron Model Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../intro.html">
+                    EIANN Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Galloni et al. 2025</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../SliceTCA_example/index.html">SliceTCA_example</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modelling_multiple_generative_cells_utils/index.html">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../SliceTCA_example/index.html">SliceTCA_example</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modelling_multiple_generative_cells_utils/index.html">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/edit/main/docs/autoapi/finding_weights_over_NDNF_utils/index.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/issues/new?title=Issue%20on%20page%20%2Fautoapi/finding_weights_over_NDNF_utils/index.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/autoapi/finding_weights_over_NDNF_utils/index.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>finding_weights_over_NDNF_utils</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.subset_factors"><code class="docutils literal notranslate"><span class="pre">subset_factors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.generate_spatial_rate_maps"><code class="docutils literal notranslate"><span class="pre">generate_spatial_rate_maps()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.wrap_around_and_compress"><code class="docutils literal notranslate"><span class="pre">wrap_around_and_compress()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_CA3_data"><code class="docutils literal notranslate"><span class="pre">get_CA3_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_CA3"><code class="docutils literal notranslate"><span class="pre">plot_CA3()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_plot_EC"><code class="docutils literal notranslate"><span class="pre">get_plot_EC()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_synthetic_NDNF"><code class="docutils literal notranslate"><span class="pre">get_synthetic_NDNF()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.fit_GLM2"><code class="docutils literal notranslate"><span class="pre">fit_GLM2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_EC_data_array"><code class="docutils literal notranslate"><span class="pre">get_EC_data_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_CA3_data_array"><code class="docutils literal notranslate"><span class="pre">get_CA3_data_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_SST_data_array"><code class="docutils literal notranslate"><span class="pre">get_SST_data_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input"><code class="docutils literal notranslate"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict"><code class="docutils literal notranslate"><span class="pre">get_model_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_data_array_learning_split"><code class="docutils literal notranslate"><span class="pre">get_data_array_learning_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type2"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype"><code class="docutils literal notranslate"><span class="pre">get_model_dict_early_celltype_late_another_celltype()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types"><code class="docutils literal notranslate"><span class="pre">plot_early_late_split_all_input_types()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_models_trained_early_late"><code class="docutils literal notranslate"><span class="pre">plot_models_trained_early_late()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA"><code class="docutils literal notranslate"><span class="pre">get_model_dict_early_celltype_late_another_celltype_TA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type_TA"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type_TA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">plot_models_trained_early_late()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest"><code class="docutils literal notranslate"><span class="pre">get_fixed_model_dict_NDNF_newest()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.reorder_early_late_pairs"><code class="docutils literal notranslate"><span class="pre">reorder_early_late_pairs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_activity_av_all_trials"><code class="docutils literal notranslate"><span class="pre">get_activity_av_all_trials()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_cp_dict"><code class="docutils literal notranslate"><span class="pre">get_cp_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_activity_early"><code class="docutils literal notranslate"><span class="pre">get_activity_early()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_activity_late"><code class="docutils literal notranslate"><span class="pre">get_activity_late()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_lists"><code class="docutils literal notranslate"><span class="pre">get_MSE_lists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.remove_behaviors_GLM"><code class="docutils literal notranslate"><span class="pre">remove_behaviors_GLM()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict_split"><code class="docutils literal notranslate"><span class="pre">get_model_dict_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type_TA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random"><code class="docutils literal notranslate"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input_random()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM"><code class="docutils literal notranslate"><span class="pre">plot_SST_prediction_from_other_celltypes_input_GLM()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_velocities"><code class="docutils literal notranslate"><span class="pre">get_velocities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_datar"><code class="docutils literal notranslate"><span class="pre">plot_datar()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_data"><code class="docutils literal notranslate"><span class="pre">plot_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_coefficients_cell_type"><code class="docutils literal notranslate"><span class="pre">plot_coefficients_cell_type()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.extract_weight_lists"><code class="docutils literal notranslate"><span class="pre">extract_weight_lists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together"><code class="docutils literal notranslate"><span class="pre">plot_coefficients_all_celltypes_together()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-finding_weights_over_NDNF_utils">
+<span id="finding-weights-over-ndnf-utils"></span><h1>finding_weights_over_NDNF_utils<a class="headerlink" href="#module-finding_weights_over_NDNF_utils" title="Link to this heading">#</a></h1>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.subset_factors" title="finding_weights_over_NDNF_utils.subset_factors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">subset_factors</span></code></a>(factors_dict_NDNF_newest)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.generate_spatial_rate_maps" title="finding_weights_over_NDNF_utils.generate_spatial_rate_maps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_spatial_rate_maps</span></code></a>(x[, n, peak_rate, ...])</p></td>
+<td><p>Return a list of spatial rate maps with peak locations that span the track. Return firing rate vs. location</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.wrap_around_and_compress" title="finding_weights_over_NDNF_utils.wrap_around_and_compress"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wrap_around_and_compress</span></code></a>(waveform, interp_x)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_CA3_data" title="finding_weights_over_NDNF_utils.get_CA3_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_CA3_data</span></code></a>([track_length, num_cells])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_CA3" title="finding_weights_over_NDNF_utils.plot_CA3"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_CA3</span></code></a>(ca3_vs_position_all_cells_array)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_plot_EC" title="finding_weights_over_NDNF_utils.get_plot_EC"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_plot_EC</span></code></a>(residual_activity_dict_EC)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_synthetic_NDNF" title="finding_weights_over_NDNF_utils.get_synthetic_NDNF"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_synthetic_NDNF</span></code></a>(EC_residuals_array, ...[, dist_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.fit_GLM2" title="finding_weights_over_NDNF_utils.fit_GLM2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fit_GLM2</span></code></a>(EC_data_array, neuron_activity_flat[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_EC_data_array" title="finding_weights_over_NDNF_utils.get_EC_data_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_EC_data_array</span></code></a>(residual_activity_dict_EC)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_CA3_data_array" title="finding_weights_over_NDNF_utils.get_CA3_data_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_CA3_data_array</span></code></a>(ca3_vs_position_all_cells_array)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_SST_data_array" title="finding_weights_over_NDNF_utils.get_SST_data_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_SST_data_array</span></code></a>(activity_dict_SST, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type" title="finding_weights_over_NDNF_utils.get_MSE_cell_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_MSE_cell_type</span></code></a>(model_EC_just_SST, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input" title="finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input</span></code></a>(...[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_model_dict" title="finding_weights_over_NDNF_utils.get_model_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_model_dict</span></code></a>(EC_data_array, ...[, reg_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_data_array_learning_split" title="finding_weights_over_NDNF_utils.get_data_array_learning_split"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_data_array_learning_split</span></code></a>(activity_dict_EC)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type2" title="finding_weights_over_NDNF_utils.get_MSE_cell_type2"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_MSE_cell_type2</span></code></a>(model_EC_dict_early, ...[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype" title="finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_model_dict_early_celltype_late_another_celltype</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types" title="finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_early_late_split_all_input_types</span></code></a>(...[, ymax])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#id0" title="finding_weights_over_NDNF_utils.plot_models_trained_early_late"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_models_trained_early_late</span></code></a>(data_list, input_titles)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA" title="finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_model_dict_early_celltype_late_another_celltype_TA</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#id1" title="finding_weights_over_NDNF_utils.get_MSE_cell_type_TA"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_MSE_cell_type_TA</span></code></a>(model_EC_just_SST, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#id0" title="finding_weights_over_NDNF_utils.plot_models_trained_early_late"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_models_trained_early_late</span></code></a>(data_list, input_titles)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest" title="finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_fixed_model_dict_NDNF_newest</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.reorder_early_late_pairs" title="finding_weights_over_NDNF_utils.reorder_early_late_pairs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reorder_early_late_pairs</span></code></a>(data_list, input_titles)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_activity_av_all_trials" title="finding_weights_over_NDNF_utils.get_activity_av_all_trials"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_activity_av_all_trials</span></code></a>(activity_dict_SST)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_cp_dict" title="finding_weights_over_NDNF_utils.get_cp_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cp_dict</span></code></a>(cell_SST_model_ranks20_contig_x00)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_activity_early" title="finding_weights_over_NDNF_utils.get_activity_early"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_activity_early</span></code></a>(activity_dict_SST, cp_dict_SST)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_activity_late" title="finding_weights_over_NDNF_utils.get_activity_late"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_activity_late</span></code></a>(activity_dict_SST, cp_dict_SST)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_MSE_lists" title="finding_weights_over_NDNF_utils.get_MSE_lists"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_MSE_lists</span></code></a>(neural_activity_sup_bef_V1, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.remove_behaviors_GLM" title="finding_weights_over_NDNF_utils.remove_behaviors_GLM"><code class="xref py py-obj docutils literal notranslate"><span class="pre">remove_behaviors_GLM</span></code></a>(activity_dict_NDNF, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_model_dict_split" title="finding_weights_over_NDNF_utils.get_model_dict_split"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_model_dict_split</span></code></a>(EC_data_array, ...[, start, end, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#id1" title="finding_weights_over_NDNF_utils.get_MSE_cell_type_TA"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_MSE_cell_type_TA</span></code></a>(model_EC_just_SST, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random" title="finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input_random</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM" title="finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_SST_prediction_from_other_celltypes_input_GLM</span></code></a>(...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.get_velocities" title="finding_weights_over_NDNF_utils.get_velocities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_velocities</span></code></a>(factors_dict_SST)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_datar" title="finding_weights_over_NDNF_utils.plot_datar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_datar</span></code></a>(SST_datas[, title, color])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_data" title="finding_weights_over_NDNF_utils.plot_data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_data</span></code></a>(SST_datas, SST_datas_r[, title, color])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_coefficients_cell_type" title="finding_weights_over_NDNF_utils.plot_coefficients_cell_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_coefficients_cell_type</span></code></a>(weights_list_EC[, cell_type])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.extract_weight_lists" title="finding_weights_over_NDNF_utils.extract_weight_lists"><code class="xref py py-obj docutils literal notranslate"><span class="pre">extract_weight_lists</span></code></a>(weights_list)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together" title="finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_coefficients_all_celltypes_together</span></code></a>(...[, title])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.subset_factors">
+<span class="sig-name descname"><span class="pre">subset_factors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factors_dict_NDNF_newest</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.subset_factors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.generate_spatial_rate_maps">
+<span class="sig-name descname"><span class="pre">generate_spatial_rate_maps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">90.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">track_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">180.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.generate_spatial_rate_maps" title="Link to this definition">#</a></dt>
+<dd><p>Return a list of spatial rate maps with peak locations that span the track. Return firing rate vs. location
+computed at the resolution of the provided x array.
+:param x: array
+:param n: int
+:param peak_rate: float
+:param field_width: float
+:param track_length: float
+:return: list of array, array</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.wrap_around_and_compress">
+<span class="sig-name descname"><span class="pre">wrap_around_and_compress</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">waveform</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interp_x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.wrap_around_and_compress" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_CA3_data">
+<span class="sig-name descname"><span class="pre">get_CA3_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_length</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">180</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_cells</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_CA3_data" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_CA3">
+<span class="sig-name descname"><span class="pre">plot_CA3</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ca3_vs_position_all_cells_array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_CA3" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_plot_EC">
+<span class="sig-name descname"><span class="pre">get_plot_EC</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_plot_EC" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_synthetic_NDNF">
+<span class="sig-name descname"><span class="pre">get_synthetic_NDNF</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">EC_residuals_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ca3_vs_position_all_cells_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dist_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'normal'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_synthetic_NDNF" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.fit_GLM2">
+<span class="sig-name descname"><span class="pre">fit_GLM2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">EC_data_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neuron_activity_flat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regression</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.fit_GLM2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_EC_data_array">
+<span class="sig-name descname"><span class="pre">get_EC_data_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_EC_data_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_CA3_data_array">
+<span class="sig-name descname"><span class="pre">get_CA3_data_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ca3_vs_position_all_cells_array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_CA3_data_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_SST_data_array">
+<span class="sig-name descname"><span class="pre">get_SST_data_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_SST</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_SST_data_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_MSE_cell_type">
+<span class="sig-name descname"><span class="pre">get_MSE_cell_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_EC_just_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_residual_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">SST_data_array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input">
+<span class="sig-name descname"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">MSE_list_just_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_just_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_just_CA3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_EC_CA3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_EC_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_CA3_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_EC_CA3_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'NDNF</span> <span class="pre">Output'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_model_dict">
+<span class="sig-name descname"><span class="pre">get_model_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">EC_data_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_residual_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ridge'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_model_dict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_data_array_learning_split">
+<span class="sig-name descname"><span class="pre">get_data_array_learning_split</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_data_array_learning_split" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_MSE_cell_type2">
+<span class="sig-name descname"><span class="pre">get_MSE_cell_type2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_EC_dict_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_late_array_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predict_early_or_late</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'early'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type2" title="Link to this definition">#</a></dt>
+<dd><p>”
+inputs - the models that were trained on early data from EC and is trained to predict early NDNF, testing on the neuron activity of EC late which will give a prediction of NDNF late
+input order - the models that were trained just on the</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype">
+<span class="sig-name descname"><span class="pre">get_model_dict_early_celltype_late_another_celltype</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">EC_data_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ridge'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_or_late</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'early'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype" title="Link to this definition">#</a></dt>
+<dd><p>”
+train on the set of all possible inputs early in learn (first few trials for them) then test the output cell population (NDNF)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types">
+<span class="sig-name descname"><span class="pre">plot_early_late_split_all_input_types</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ca3_vs_position_all_cells_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cp_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cp_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cp_dict_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ymax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.55</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_models_trained_early_late">
+<span class="sig-name descname"><span class="pre">plot_models_trained_early_late</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_titles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Model</span> <span class="pre">MSEs'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylabel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'MSE'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_models_trained_early_late" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA">
+<span class="sig-name descname"><span class="pre">get_model_dict_early_celltype_late_another_celltype_TA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">EC_data_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ridge'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_or_late</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'early'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA" title="Link to this definition">#</a></dt>
+<dd><p>”
+train on the set of all possible inputs early in learn (first few trials for them) then test the output cell population (NDNF)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_MSE_cell_type_TA">
+<span class="sig-name descname"><span class="pre">get_MSE_cell_type_TA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_EC_just_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_residual_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">SST_data_array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type_TA" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">plot_models_trained_early_late</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_titles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ymax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Labels=Train_timepoint:Test_timepoint)'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest">
+<span class="sig-name descname"><span class="pre">get_fixed_model_dict_NDNF_newest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_NDNF_model_ranks20_contig_x00</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.reorder_early_late_pairs">
+<span class="sig-name descname"><span class="pre">reorder_early_late_pairs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_titles</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.reorder_early_late_pairs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_activity_av_all_trials">
+<span class="sig-name descname"><span class="pre">get_activity_av_all_trials</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_SST</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_activity_av_all_trials" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_cp_dict">
+<span class="sig-name descname"><span class="pre">get_cp_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_SST_model_ranks20_contig_x00</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_cp_dict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_activity_early">
+<span class="sig-name descname"><span class="pre">get_activity_early</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cp_dict_SST</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_activity_early" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_activity_late">
+<span class="sig-name descname"><span class="pre">get_activity_late</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cp_dict_SST</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_activity_late" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_MSE_lists">
+<span class="sig-name descname"><span class="pre">get_MSE_lists</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">neural_activity_sup_bef_V1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">GLM_data_dict_sup_bef_V1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">behavioral_correlates_before</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_MSE_lists" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.remove_behaviors_GLM">
+<span class="sig-name descname"><span class="pre">remove_behaviors_GLM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">NDNF_GLM_models</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">design_matrix_dict_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices_array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.remove_behaviors_GLM" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_model_dict_split">
+<span class="sig-name descname"><span class="pre">get_model_dict_split</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">EC_data_array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_residual_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ridge'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_model_dict_split" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">get_MSE_cell_type_TA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_EC_just_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_residual_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">SST_data_array</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random">
+<span class="sig-name descname"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input_random</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">MSE_list_just_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_just_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_just_CA3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_EC_CA3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_EC_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_CA3_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_EC_CA3_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">MSE_list_random</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'NDNF</span> <span class="pre">Output'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ymax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.03</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM">
+<span class="sig-name descname"><span class="pre">plot_SST_prediction_from_other_celltypes_input_GLM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ymax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.get_velocities">
+<span class="sig-name descname"><span class="pre">get_velocities</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">factors_dict_SST</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.get_velocities" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_datar">
+<span class="sig-name descname"><span class="pre">plot_datar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">SST_datas</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Velocity</span> <span class="pre">Across</span> <span class="pre">All</span> <span class="pre">Animals'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'b'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_datar" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_data">
+<span class="sig-name descname"><span class="pre">plot_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">SST_datas</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">SST_datas_r</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SST</span> <span class="pre">Activity</span> <span class="pre">Across</span> <span class="pre">All</span> <span class="pre">Cells'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">color</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'b'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_data" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_coefficients_cell_type">
+<span class="sig-name descname"><span class="pre">plot_coefficients_cell_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights_list_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'EC'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_coefficients_cell_type" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.extract_weight_lists">
+<span class="sig-name descname"><span class="pre">extract_weight_lists</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights_list</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.extract_weight_lists" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together">
+<span class="sig-name descname"><span class="pre">plot_coefficients_all_celltypes_together</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights_list_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_list_SST</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_list_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'GLM</span> <span class="pre">Coefficients</span> <span class="pre">Across</span> <span class="pre">Cell</span> <span class="pre">Types'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./autoapi/finding_weights_over_NDNF_utils"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../SliceTCA_example/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">SliceTCA_example</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../selectivity_over_learning_utils/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">selectivity_over_learning_utils</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.subset_factors"><code class="docutils literal notranslate"><span class="pre">subset_factors()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.generate_spatial_rate_maps"><code class="docutils literal notranslate"><span class="pre">generate_spatial_rate_maps()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.wrap_around_and_compress"><code class="docutils literal notranslate"><span class="pre">wrap_around_and_compress()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_CA3_data"><code class="docutils literal notranslate"><span class="pre">get_CA3_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_CA3"><code class="docutils literal notranslate"><span class="pre">plot_CA3()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_plot_EC"><code class="docutils literal notranslate"><span class="pre">get_plot_EC()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_synthetic_NDNF"><code class="docutils literal notranslate"><span class="pre">get_synthetic_NDNF()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.fit_GLM2"><code class="docutils literal notranslate"><span class="pre">fit_GLM2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_EC_data_array"><code class="docutils literal notranslate"><span class="pre">get_EC_data_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_CA3_data_array"><code class="docutils literal notranslate"><span class="pre">get_CA3_data_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_SST_data_array"><code class="docutils literal notranslate"><span class="pre">get_SST_data_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input"><code class="docutils literal notranslate"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict"><code class="docutils literal notranslate"><span class="pre">get_model_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_data_array_learning_split"><code class="docutils literal notranslate"><span class="pre">get_data_array_learning_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type2"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type2()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype"><code class="docutils literal notranslate"><span class="pre">get_model_dict_early_celltype_late_another_celltype()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types"><code class="docutils literal notranslate"><span class="pre">plot_early_late_split_all_input_types()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_models_trained_early_late"><code class="docutils literal notranslate"><span class="pre">plot_models_trained_early_late()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA"><code class="docutils literal notranslate"><span class="pre">get_model_dict_early_celltype_late_another_celltype_TA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_cell_type_TA"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type_TA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">plot_models_trained_early_late()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest"><code class="docutils literal notranslate"><span class="pre">get_fixed_model_dict_NDNF_newest()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.reorder_early_late_pairs"><code class="docutils literal notranslate"><span class="pre">reorder_early_late_pairs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_activity_av_all_trials"><code class="docutils literal notranslate"><span class="pre">get_activity_av_all_trials()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_cp_dict"><code class="docutils literal notranslate"><span class="pre">get_cp_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_activity_early"><code class="docutils literal notranslate"><span class="pre">get_activity_early()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_activity_late"><code class="docutils literal notranslate"><span class="pre">get_activity_late()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_MSE_lists"><code class="docutils literal notranslate"><span class="pre">get_MSE_lists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.remove_behaviors_GLM"><code class="docutils literal notranslate"><span class="pre">remove_behaviors_GLM()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_model_dict_split"><code class="docutils literal notranslate"><span class="pre">get_model_dict_split()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">get_MSE_cell_type_TA()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random"><code class="docutils literal notranslate"><span class="pre">plot_MSE_for_NDNF_pred_by_other_celltype_input_random()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM"><code class="docutils literal notranslate"><span class="pre">plot_SST_prediction_from_other_celltypes_input_GLM()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.get_velocities"><code class="docutils literal notranslate"><span class="pre">get_velocities()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_datar"><code class="docutils literal notranslate"><span class="pre">plot_datar()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_data"><code class="docutils literal notranslate"><span class="pre">plot_data()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_coefficients_cell_type"><code class="docutils literal notranslate"><span class="pre">plot_coefficients_cell_type()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.extract_weight_lists"><code class="docutils literal notranslate"><span class="pre">extract_weight_lists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together"><code class="docutils literal notranslate"><span class="pre">plot_coefficients_all_celltypes_together()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Michael Finch, Alessandro Galloni and Aaron Milstein
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

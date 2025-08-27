@@ -1,0 +1,83 @@
+# Table of contents
+# Learn more at https://jupyterbook.org/customize/toc.html
+
+format: jb-book
+root: intro
+
+parts:
+  - caption: Using EIANN
+    chapters:
+    - file: installation
+    - file: Using_EIANN/1_eiann_basics
+    - file: Using_EIANN/2_training_feedforward_network
+    - file: Using_EIANN/3_visualizing_network_properties
+
+  - caption: Galloni et al. 2025
+    chapters:
+    - file: autoapi/SliceTCA_example/index
+    - file: autoapi/finding_weights_over_NDNF_utils/index
+    - file: autoapi/selectivity_over_learning_utils/index
+    - file: autoapi/modelling_multiple_generative_cells_utils/index
+    - file: Galloni_etal_2025/1_feedforward_ANN_Backprop
+    - file: Galloni_etal_2025/2_EIANN_learned_somaI_Backprop
+    - file: Galloni_etal_2025/3_EIANN_fixed_somaI_Backprop
+    # - file: Galloni_etal_2025/4_EIANN_learned_somaI_Hebbian
+    # - file: Galloni_etal_2025/5_EIANN_DendTargetProp_LDS
+    # - file: Galloni_etal_2025/6_EIANN_DendTargetProp_BTSP
+
+  - caption: Python API  
+    chapters:
+    - file: autoapi/index
+    # - glob: autoapi/Clean_notebooks_to_date/*
+      
+
+# - file: modules_reference
+#   chapters:
+#   - file: autoapi/EIANN/index
+#   - file: autoapi/EIANN/optimize/index
+#   - file: autoapi/EIANN/plot/index
+#   - file: autoapi/EIANN/rules/index
+#   - file: autoapi/EIANN/utils/index
+
+  # chapters:
+  # - file: user_guide/basic_usage
+  # - file: user_guide/network_architecture
+  # - file: user_guide/ei_cell_types
+  # - file: user_guide/learning_rules
+  # - file: user_guide/yaml_configuration
+  # - file: user_guide/training_networks
+
+# - caption: Tutorials
+#   chapters:
+#   - file: tutorials/mnist_example
+#   - file: tutorials/spirals_example
+#   - file: tutorials/custom_network
+#   - file: tutorials/learning_rules_comparison
+#   - file: tutorials/dale_law_constraints
+# - caption: Examples
+#   chapters:
+#   - file: examples/classification_tasks
+#   - file: examples/recurrent_dynamics
+#   - file: examples/plasticity_analysis
+#   - file: examples/hyperparameter_optimization
+# - caption: API Reference
+#   chapters:
+#   - file: api/overview
+#   - file: api/models
+#   - file: api/layers
+#   - file: api/learning_rules
+#   - file: api/constraints
+#   - file: api/utils
+# - caption: Advanced Topics
+#   chapters:
+#   - file: advanced/custom_learning_rules
+#   - file: advanced/dendrite_mechanisms
+#   - file: advanced/performance_optimization
+#   - file: advanced/nested_integration
+# - caption: Development
+#   chapters:
+#   - file: development/contributing
+#   - file: development/testing
+#   - file: development/roadmap
+# - file: changelog
+# - file: references

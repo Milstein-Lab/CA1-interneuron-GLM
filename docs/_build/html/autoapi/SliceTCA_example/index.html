@@ -1,0 +1,854 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>SliceTCA_example &#8212; CA1 Interneuron Model Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../../_static/togglebutton.css?v=13237357" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=fd3f3429" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../../_static/togglebutton.js?v=4a39c7ea"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/SliceTCA_example/index';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="finding_weights_over_NDNF_utils" href="../finding_weights_over_NDNF_utils/index.html" />
+    <link rel="prev" title="EIANN Documentation" href="../../intro.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search this book..."
+         aria-label="Search this book..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../intro.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CA1 Interneuron Model Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../intro.html">
+                    EIANN Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Galloni et al. 2025</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">SliceTCA_example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../finding_weights_over_NDNF_utils/index.html">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modelling_multiple_generative_cells_utils/index.html">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">API Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">SliceTCA_example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../finding_weights_over_NDNF_utils/index.html">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../modelling_multiple_generative_cells_utils/index.html">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/edit/main/docs/autoapi/SliceTCA_example/index.rst" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/issues/new?title=Issue%20on%20page%20%2Fautoapi/SliceTCA_example/index.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/autoapi/SliceTCA_example/index.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>SliceTCA_example</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_synthetic_sliceTCA_ex"><code class="docutils literal notranslate"><span class="pre">plot_synthetic_sliceTCA_ex()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.run_slice_tca_ideal_ex"><code class="docutils literal notranslate"><span class="pre">run_slice_tca_ideal_ex()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_ideal_random_cell"><code class="docutils literal notranslate"><span class="pre">get_ideal_random_cell()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_model_vs_reco"><code class="docutils literal notranslate"><span class="pre">plot_model_vs_reco()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_example_weights_latents_real"><code class="docutils literal notranslate"><span class="pre">plot_example_weights_latents_real()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_real_activity_clusters"><code class="docutils literal notranslate"><span class="pre">plot_real_activity_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_peak_trough_histograms"><code class="docutils literal notranslate"><span class="pre">plot_peak_trough_histograms()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_optimal_num_clusters_histogram"><code class="docutils literal notranslate"><span class="pre">plot_optimal_num_clusters_histogram()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_cluster_expression_probs"><code class="docutils literal notranslate"><span class="pre">plot_cluster_expression_probs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_max_clusters"><code class="docutils literal notranslate"><span class="pre">plot_max_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_indices_dict"><code class="docutils literal notranslate"><span class="pre">get_indices_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_per_cell_clustering_indices"><code class="docutils literal notranslate"><span class="pre">get_per_cell_clustering_indices()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_activity_from_indices"><code class="docutils literal notranslate"><span class="pre">get_activity_from_indices()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_data_by_peak"><code class="docutils literal notranslate"><span class="pre">get_data_by_peak()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.mean_sems_peak_trough"><code class="docutils literal notranslate"><span class="pre">mean_sems_peak_trough()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_means_sems_max_min"><code class="docutils literal notranslate"><span class="pre">plot_means_sems_max_min()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.find_elbow_point"><code class="docutils literal notranslate"><span class="pre">find_elbow_point()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_elbow_cell_example"><code class="docutils literal notranslate"><span class="pre">plot_elbow_cell_example()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">plot_synthetic_sliceTCA_ex()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_real_cells_internals"><code class="docutils literal notranslate"><span class="pre">plot_real_cells_internals()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">plot_real_activity_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_activity_array"><code class="docutils literal notranslate"><span class="pre">get_activity_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_mean_activity_array"><code class="docutils literal notranslate"><span class="pre">get_mean_activity_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_pop_stats"><code class="docutils literal notranslate"><span class="pre">plot_pop_stats()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.compare_cluster_2_0"><code class="docutils literal notranslate"><span class="pre">compare_cluster_2_0()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.cell_by_cell_variance_values"><code class="docutils literal notranslate"><span class="pre">cell_by_cell_variance_values()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.sum_ec_then_get_var"><code class="docutils literal notranslate"><span class="pre">sum_ec_then_get_var()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_cluster_frequency_by_animal"><code class="docutils literal notranslate"><span class="pre">plot_cluster_frequency_by_animal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">plot_cluster_frequency_by_animal()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-SliceTCA_example">
+<span id="slicetca-example"></span><h1>SliceTCA_example<a class="headerlink" href="#module-SliceTCA_example" title="Link to this heading">#</a></h1>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#id0" title="SliceTCA_example.plot_synthetic_sliceTCA_ex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_synthetic_sliceTCA_ex</span></code></a>(model, ideal_cell)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.run_slice_tca_ideal_ex" title="SliceTCA_example.run_slice_tca_ideal_ex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">run_slice_tca_ideal_ex</span></code></a>(ideal_cell)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.get_ideal_random_cell" title="SliceTCA_example.get_ideal_random_cell"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_ideal_random_cell</span></code></a>([num_trials, num_timebins])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_model_vs_reco" title="SliceTCA_example.plot_model_vs_reco"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_model_vs_reco</span></code></a>(example_EC_cell_tensor, model_60[, x])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.plot_example_weights_latents_real" title="SliceTCA_example.plot_example_weights_latents_real"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_example_weights_latents_real</span></code></a>(...[, animal, cell])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#id1" title="SliceTCA_example.plot_real_activity_clusters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_real_activity_clusters</span></code></a>(...[, animal, cell])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.plot_peak_trough_histograms" title="SliceTCA_example.plot_peak_trough_histograms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_peak_trough_histograms</span></code></a>(clusters_dict_NDNF_early)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_optimal_num_clusters_histogram" title="SliceTCA_example.plot_optimal_num_clusters_histogram"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_optimal_num_clusters_histogram</span></code></a>(...[, title, ylim, ax])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.plot_cluster_expression_probs" title="SliceTCA_example.plot_cluster_expression_probs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_cluster_expression_probs</span></code></a>(...[, title, ylim, ax])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_max_clusters" title="SliceTCA_example.plot_max_clusters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_max_clusters</span></code></a>(...[, title, ax])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.get_indices_dict" title="SliceTCA_example.get_indices_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_indices_dict</span></code></a>(cell_EC_model_ranks20_contig_x00, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.get_per_cell_clustering_indices" title="SliceTCA_example.get_per_cell_clustering_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_per_cell_clustering_indices</span></code></a>(...[, animal_id, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.get_activity_from_indices" title="SliceTCA_example.get_activity_from_indices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_activity_from_indices</span></code></a>(residual_activity_dict_EC, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.get_data_by_peak" title="SliceTCA_example.get_data_by_peak"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_data_by_peak</span></code></a>(activity_indices_EC_dict[, use_peak])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.mean_sems_peak_trough" title="SliceTCA_example.mean_sems_peak_trough"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean_sems_peak_trough</span></code></a>(mean_data_by_peak, max_bin[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_means_sems_max_min" title="SliceTCA_example.plot_means_sems_max_min"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_means_sems_max_min</span></code></a>(activity_indices_EC_dict[, ax])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.find_elbow_point" title="SliceTCA_example.find_elbow_point"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_elbow_point</span></code></a>(y_vals[, min_index])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_elbow_cell_example" title="SliceTCA_example.plot_elbow_cell_example"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_elbow_cell_example</span></code></a>(...[, animal, cell])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#id0" title="SliceTCA_example.plot_synthetic_sliceTCA_ex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_synthetic_sliceTCA_ex</span></code></a>(model, ideal_cell)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_real_cells_internals" title="SliceTCA_example.plot_real_cells_internals"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_real_cells_internals</span></code></a>(model_2)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#id1" title="SliceTCA_example.plot_real_activity_clusters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_real_activity_clusters</span></code></a>(...[, animal, cell])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.get_activity_array" title="SliceTCA_example.get_activity_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_activity_array</span></code></a>(activity, ax, i[, total_num_trials])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.get_mean_activity_array" title="SliceTCA_example.get_mean_activity_array"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_mean_activity_array</span></code></a>(activity, ax, i[, min, max, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.plot_pop_stats" title="SliceTCA_example.plot_pop_stats"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_pop_stats</span></code></a>(clusters_dict_EC_overall, ...[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.compare_cluster_2_0" title="SliceTCA_example.compare_cluster_2_0"><code class="xref py py-obj docutils literal notranslate"><span class="pre">compare_cluster_2_0</span></code></a>(cell_EC_model_ranks20_contig_x00, ...)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#SliceTCA_example.cell_by_cell_variance_values" title="SliceTCA_example.cell_by_cell_variance_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cell_by_cell_variance_values</span></code></a>(activity_dict_EC)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#SliceTCA_example.sum_ec_then_get_var" title="SliceTCA_example.sum_ec_then_get_var"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sum_ec_then_get_var</span></code></a>(activity_dict_EC)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#id2" title="SliceTCA_example.plot_cluster_frequency_by_animal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_cluster_frequency_by_animal</span></code></a>(...[, use_argmax, title])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#id2" title="SliceTCA_example.plot_cluster_frequency_by_animal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot_cluster_frequency_by_animal</span></code></a>(...[, use_argmax, title])</p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_synthetic_sliceTCA_ex">
+<span class="sig-name descname"><span class="pre">plot_synthetic_sliceTCA_ex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ideal_cell</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_synthetic_sliceTCA_ex" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.run_slice_tca_ideal_ex">
+<span class="sig-name descname"><span class="pre">run_slice_tca_ideal_ex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ideal_cell</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.run_slice_tca_ideal_ex" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_ideal_random_cell">
+<span class="sig-name descname"><span class="pre">get_ideal_random_cell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_trials</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_timebins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_ideal_random_cell" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_model_vs_reco">
+<span class="sig-name descname"><span class="pre">plot_model_vs_reco</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">example_EC_cell_tensor</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_model_vs_reco" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_example_weights_latents_real">
+<span class="sig-name descname"><span class="pre">plot_example_weights_latents_real</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_example_weights_latents_real" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_real_activity_clusters">
+<span class="sig-name descname"><span class="pre">plot_real_activity_clusters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_real_activity_clusters" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_peak_trough_histograms">
+<span class="sig-name descname"><span class="pre">plot_peak_trough_histograms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_NDNF_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_argmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_peak_trough_histograms" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_optimal_num_clusters_histogram">
+<span class="sig-name descname"><span class="pre">plot_optimal_num_clusters_histogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_NDNF_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_optimal_num_clusters_histogram" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_cluster_expression_probs">
+<span class="sig-name descname"><span class="pre">plot_cluster_expression_probs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_NDNF_early</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_NDNF_newest</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_cluster_expression_probs" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_max_clusters">
+<span class="sig-name descname"><span class="pre">plot_max_clusters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_max_clusters" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_indices_dict">
+<span class="sig-name descname"><span class="pre">get_indices_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eln</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nothing'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_indices_dict" title="Link to this definition">#</a></dt>
+<dd><ul class="simple">
+<li><p>takes in the contiguous cutpoints slice TCA model and the K-Means slice TCA model</p></li>
+<li><p>use elbow kmeans to loop through every number of cluster (up to 8) to get the optimal number of clusters via reconstruction MSE of cluster average reconstruction vs real data for the cell</p></li>
+<li><p>returns a dict where every cell’s activity is seperated by its cluster via trial indices for each cluster</p></li>
+<li><p>since we are seperating by trial indices we can ask whether the indices are within the early sliceTCA changepoint or in late and seperate the data by learning</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_per_cell_clustering_indices">
+<span class="sig-name descname"><span class="pre">get_per_cell_clustering_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_NDNF</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_NDNF_model_ranks20_kmeans_reassign_umap_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_clusters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">split_learn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_late_nothing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nothing'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_per_cell_clustering_indices" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_activity_from_indices">
+<span class="sig-name descname"><span class="pre">get_activity_from_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices_dict_EC_overall</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_activity_from_indices" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_data_by_peak">
+<span class="sig-name descname"><span class="pre">get_data_by_peak</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_indices_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_peak</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_data_by_peak" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.mean_sems_peak_trough">
+<span class="sig-name descname"><span class="pre">mean_sems_peak_trough</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mean_data_by_peak</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_bin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_peak</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.mean_sems_peak_trough" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_means_sems_max_min">
+<span class="sig-name descname"><span class="pre">plot_means_sems_max_min</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_indices_EC_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_means_sems_max_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.find_elbow_point">
+<span class="sig-name descname"><span class="pre">find_elbow_point</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y_vals</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.find_elbow_point" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_elbow_cell_example">
+<span class="sig-name descname"><span class="pre">plot_elbow_cell_example</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_elbow_cell_example" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">plot_synthetic_sliceTCA_ex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ideal_cell</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_real_cells_internals">
+<span class="sig-name descname"><span class="pre">plot_real_cells_internals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_real_cells_internals" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">plot_real_activity_clusters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id1" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_activity_array">
+<span class="sig-name descname"><span class="pre">get_activity_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total_num_trials</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_activity_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.get_mean_activity_array">
+<span class="sig-name descname"><span class="pre">get_mean_activity_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total_num_trials</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.get_mean_activity_array" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_pop_stats">
+<span class="sig-name descname"><span class="pre">plot_pop_stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_EC_overall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">animal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'EC'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_pop_stats" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.compare_cluster_2_0">
+<span class="sig-name descname"><span class="pre">compare_cluster_2_0</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_EC_model_ranks20_contig_x00</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">residual_activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.compare_cluster_2_0" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.cell_by_cell_variance_values">
+<span class="sig-name descname"><span class="pre">cell_by_cell_variance_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.cell_by_cell_variance_values" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.sum_ec_then_get_var">
+<span class="sig-name descname"><span class="pre">sum_ec_then_get_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">activity_dict_EC</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.sum_ec_then_get_var" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="SliceTCA_example.plot_cluster_frequency_by_animal">
+<span class="sig-name descname"><span class="pre">plot_cluster_frequency_by_animal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_NDNF_overall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_argmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'NDNF'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#SliceTCA_example.plot_cluster_frequency_by_animal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">plot_cluster_frequency_by_animal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clusters_dict_NDNF_overall</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_argmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'NDNF'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#id2" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./autoapi/SliceTCA_example"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../../intro.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">EIANN Documentation</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../finding_weights_over_NDNF_utils/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">finding_weights_over_NDNF_utils</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_synthetic_sliceTCA_ex"><code class="docutils literal notranslate"><span class="pre">plot_synthetic_sliceTCA_ex()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.run_slice_tca_ideal_ex"><code class="docutils literal notranslate"><span class="pre">run_slice_tca_ideal_ex()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_ideal_random_cell"><code class="docutils literal notranslate"><span class="pre">get_ideal_random_cell()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_model_vs_reco"><code class="docutils literal notranslate"><span class="pre">plot_model_vs_reco()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_example_weights_latents_real"><code class="docutils literal notranslate"><span class="pre">plot_example_weights_latents_real()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_real_activity_clusters"><code class="docutils literal notranslate"><span class="pre">plot_real_activity_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_peak_trough_histograms"><code class="docutils literal notranslate"><span class="pre">plot_peak_trough_histograms()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_optimal_num_clusters_histogram"><code class="docutils literal notranslate"><span class="pre">plot_optimal_num_clusters_histogram()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_cluster_expression_probs"><code class="docutils literal notranslate"><span class="pre">plot_cluster_expression_probs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_max_clusters"><code class="docutils literal notranslate"><span class="pre">plot_max_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_indices_dict"><code class="docutils literal notranslate"><span class="pre">get_indices_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_per_cell_clustering_indices"><code class="docutils literal notranslate"><span class="pre">get_per_cell_clustering_indices()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_activity_from_indices"><code class="docutils literal notranslate"><span class="pre">get_activity_from_indices()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_data_by_peak"><code class="docutils literal notranslate"><span class="pre">get_data_by_peak()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.mean_sems_peak_trough"><code class="docutils literal notranslate"><span class="pre">mean_sems_peak_trough()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_means_sems_max_min"><code class="docutils literal notranslate"><span class="pre">plot_means_sems_max_min()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.find_elbow_point"><code class="docutils literal notranslate"><span class="pre">find_elbow_point()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_elbow_cell_example"><code class="docutils literal notranslate"><span class="pre">plot_elbow_cell_example()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id0"><code class="docutils literal notranslate"><span class="pre">plot_synthetic_sliceTCA_ex()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_real_cells_internals"><code class="docutils literal notranslate"><span class="pre">plot_real_cells_internals()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1"><code class="docutils literal notranslate"><span class="pre">plot_real_activity_clusters()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_activity_array"><code class="docutils literal notranslate"><span class="pre">get_activity_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.get_mean_activity_array"><code class="docutils literal notranslate"><span class="pre">get_mean_activity_array()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_pop_stats"><code class="docutils literal notranslate"><span class="pre">plot_pop_stats()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.compare_cluster_2_0"><code class="docutils literal notranslate"><span class="pre">compare_cluster_2_0()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.cell_by_cell_variance_values"><code class="docutils literal notranslate"><span class="pre">cell_by_cell_variance_values()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.sum_ec_then_get_var"><code class="docutils literal notranslate"><span class="pre">sum_ec_then_get_var()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#SliceTCA_example.plot_cluster_frequency_by_animal"><code class="docutils literal notranslate"><span class="pre">plot_cluster_frequency_by_animal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2"><code class="docutils literal notranslate"><span class="pre">plot_cluster_frequency_by_animal()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Michael Finch, Alessandro Galloni and Aaron Milstein
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

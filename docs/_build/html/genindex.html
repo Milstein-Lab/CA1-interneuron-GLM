@@ -1,0 +1,775 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Index &#8212; CA1 Interneuron Model Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="_static/togglebutton.css?v=13237357" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=fd3f3429" />
+    <link rel="stylesheet" type="text/css" href="_static/plot_directive.css" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="_static/togglebutton.js?v=4a39c7ea"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'genindex';</script>
+    <link rel="index" title="Index" href="#" />
+    <link rel="search" title="Search" href="search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search this book..."
+         aria-label="Search this book..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="intro.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">CA1 Interneuron Model Documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="intro.html">
+                    EIANN Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Galloni et al. 2025</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="autoapi/SliceTCA_example/index.html">SliceTCA_example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="autoapi/finding_weights_over_NDNF_utils/index.html">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="autoapi/selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l1"><a class="reference internal" href="autoapi/modelling_multiple_generative_cells_utils/index.html">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="autoapi/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="autoapi/SliceTCA_example/index.html">SliceTCA_example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="autoapi/finding_weights_over_NDNF_utils/index.html">finding_weights_over_NDNF_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="autoapi/selectivity_over_learning_utils/index.html">selectivity_over_learning_utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="autoapi/modelling_multiple_generative_cells_utils/index.html">modelling_multiple_generative_cells_utils</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Milstein-Lab/CA1-interneuron-GLM/Clean_notebooks_to_date/issues/new?title=Issue%20on%20page%20%2Fgenindex.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+
+<h1 id="index">Index</h1>
+
+<div class="genindex-jumpbox">
+ <a href="#C"><strong>C</strong></a>
+ | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
+ | <a href="#G"><strong>G</strong></a>
+ | <a href="#M"><strong>M</strong></a>
+ | <a href="#P"><strong>P</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
+ | <a href="#V"><strong>V</strong></a>
+ | <a href="#W"><strong>W</strong></a>
+ 
+</div>
+<h2 id="C">C</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.cell_by_cell_variance_values">cell_by_cell_variance_values() (in module SliceTCA_example)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.compare_cluster_2_0">compare_cluster_2_0() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.compare_within_subtype">compare_within_subtype() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.extract_weight_lists">extract_weight_lists() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.file_path">file_path (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.find_elbow_point">find_elbow_point() (in module SliceTCA_example)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    finding_weights_over_NDNF_utils
+
+      <ul>
+        <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#module-finding_weights_over_NDNF_utils">module</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.fit_GLM2">fit_GLM2() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="G">G</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.generate_gaussian">generate_gaussian() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.generate_spatial_rate_maps">generate_spatial_rate_maps() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_activity_array">get_activity_array() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_activity_av_all_trials">get_activity_av_all_trials() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_activity_early">get_activity_early() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_activity_from_indices">get_activity_from_indices() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_activity_late">get_activity_late() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_animal_average_selectivity_dict">get_animal_average_selectivity_dict() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_animal_average_selectivity_dict_eml">get_animal_average_selectivity_dict_eml() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_binned_data_for_CDF">get_binned_data_for_CDF() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_CA3_data">get_CA3_data() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_CA3_data_array">get_CA3_data_array() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_cell_array">get_cell_array() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_cells_percents">get_cells_percents() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_clusters_dict">get_clusters_dict() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_clusters_dict_field_type">get_clusters_dict_field_type() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_count">get_count() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_cp_dict">get_cp_dict() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_data_array_learning_split">get_data_array_learning_split() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_data_by_peak">get_data_by_peak() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_early_vs_late_activity">get_early_vs_late_activity() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_EC_data_array">get_EC_data_array() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_field_type_percents2">get_field_type_percents2() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_fixed_model_dict_NDNF_newest">get_fixed_model_dict_NDNF_newest() (in module finding_weights_over_NDNF_utils)</a>
+
+      <ul>
+        <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_fixed_model_dict_NDNF_newest">(in module selectivity_over_learning_utils)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_ideal_random_cell">get_ideal_random_cell() (in module SliceTCA_example)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_indices_dict">get_indices_dict() (in module modelling_multiple_generative_cells_utils)</a>
+
+      <ul>
+        <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_indices_dict">(in module SliceTCA_example)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_indices_TCA">get_indices_TCA() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_mean_activity_array">get_mean_activity_array() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_mean_selelectivity_by_cutpoint">get_mean_selelectivity_by_cutpoint() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_mean_sem_lists">get_mean_sem_lists() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_means_array">get_means_array() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_means_list">get_means_list() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_model_dict">get_model_dict() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype">get_model_dict_early_celltype_late_another_celltype() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_model_dict_early_celltype_late_another_celltype_TA">get_model_dict_early_celltype_late_another_celltype_TA() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_model_dict_split">get_model_dict_split() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_MSE_cell_type">get_MSE_cell_type() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_MSE_cell_type2">get_MSE_cell_type2() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_MSE_cell_type_TA">get_MSE_cell_type_TA() (in module finding_weights_over_NDNF_utils)</a>, <a href="autoapi/finding_weights_over_NDNF_utils/index.html#id1">[1]</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_MSE_lists">get_MSE_lists() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.get_per_cell_clustering_indices">get_per_cell_clustering_indices() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_percentlie_slices">get_percentlie_slices() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_plot_EC">get_plot_EC() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_selectivity_array">get_selectivity_array() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_selectivity_each_trial">get_selectivity_each_trial() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.get_selectivity_each_trial_early_late">get_selectivity_each_trial_early_late() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_SST_data_array">get_SST_data_array() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_synthetic_NDNF">get_synthetic_NDNF() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_trial_indices">get_trial_indices() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.get_velocities">get_velocities() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.get_weighted_activityies_per_cell">get_weighted_activityies_per_cell() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.mean_sems_peak_trough">mean_sems_peak_trough() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.min_max_my_data">min_max_my_data() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li>
+    modelling_multiple_generative_cells_utils
+
+      <ul>
+        <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#module-modelling_multiple_generative_cells_utils">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    module
+
+      <ul>
+        <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#module-finding_weights_over_NDNF_utils">finding_weights_over_NDNF_utils</a>
+</li>
+        <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#module-modelling_multiple_generative_cells_utils">modelling_multiple_generative_cells_utils</a>
+</li>
+        <li><a href="autoapi/selectivity_over_learning_utils/index.html#module-selectivity_over_learning_utils">selectivity_over_learning_utils</a>
+</li>
+        <li><a href="autoapi/SliceTCA_example/index.html#module-SliceTCA_example">SliceTCA_example</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_CA3">plot_CA3() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_cluster_expression_probs">plot_cluster_expression_probs() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_cluster_frequency_by_animal">plot_cluster_frequency_by_animal() (in module SliceTCA_example)</a>, <a href="autoapi/SliceTCA_example/index.html#id2">[1]</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_cluster_peaks">plot_cluster_peaks() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_cluster_peaks2">plot_cluster_peaks2() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_clustered_averages">plot_clustered_averages() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_clustered_averages2">plot_clustered_averages2() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_clustered_averages_deterministic">plot_clustered_averages_deterministic() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_coefficients_all_celltypes_together">plot_coefficients_all_celltypes_together() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_coefficients_cell_type">plot_coefficients_cell_type() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_data">plot_data() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_datar">plot_datar() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_early_late_split_all_input_types">plot_early_late_split_all_input_types() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_elbow_cell_example">plot_elbow_cell_example() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_example_weights_latents_real">plot_example_weights_latents_real() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_generative_model">plot_generative_model() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_max_clusters">plot_max_clusters() (in module SliceTCA_example)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_means_sems_max_min">plot_means_sems_max_min() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_model_vs_reco">plot_model_vs_reco() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_models_trained_early_late">plot_models_trained_early_late() (in module finding_weights_over_NDNF_utils)</a>, <a href="autoapi/finding_weights_over_NDNF_utils/index.html#id0">[1]</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input">plot_MSE_for_NDNF_pred_by_other_celltype_input() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_MSE_for_NDNF_pred_by_other_celltype_input_random">plot_MSE_for_NDNF_pred_by_other_celltype_input_random() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_optimal_num_clusters_histogram">plot_optimal_num_clusters_histogram() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_peak_trough_histograms">plot_peak_trough_histograms() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.plot_per_cell_clustering_internals_single_cluster">plot_per_cell_clustering_internals_single_cluster() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_pop_stats">plot_pop_stats() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_real_activity_clusters">plot_real_activity_clusters() (in module SliceTCA_example)</a>, <a href="autoapi/SliceTCA_example/index.html#id1">[1]</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_real_cells_internals">plot_real_cells_internals() (in module SliceTCA_example)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.plot_selectivity_over_trials">plot_selectivity_over_trials() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.plot_selectivity_seperated_by_learn_stage">plot_selectivity_seperated_by_learn_stage() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.plot_SST_prediction_from_other_celltypes_input_GLM">plot_SST_prediction_from_other_celltypes_input_GLM() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.plot_synthetic_sliceTCA_ex">plot_synthetic_sliceTCA_ex() (in module SliceTCA_example)</a>, <a href="autoapi/SliceTCA_example/index.html#id0">[1]</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.plot_the_CDF">plot_the_CDF() (in module selectivity_over_learning_utils)</a>
+</li>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.plot_the_CDF_early_late">plot_the_CDF_early_late() (in module selectivity_over_learning_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.random_timeseries">random_timeseries() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.random_timeseries2">random_timeseries2() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.randomly_pick_cells">randomly_pick_cells() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters5">reconstruct_activity_from_clusters5() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent">reconstruct_activity_from_clusters_every_cell_diff_latent() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.reconstruct_activity_from_clusters_every_cell_diff_latent_split">reconstruct_activity_from_clusters_every_cell_diff_latent_split() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.remove_all_duplicates">remove_all_duplicates() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.remove_behaviors_GLM">remove_behaviors_GLM() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.remove_duplicate_trials">remove_duplicate_trials() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.reorder_early_late_pairs">reorder_early_late_pairs() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.run_slice_tca_ideal_ex">run_slice_tca_ideal_ex() (in module SliceTCA_example)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    selectivity_over_learning_utils
+
+      <ul>
+        <li><a href="autoapi/selectivity_over_learning_utils/index.html#module-selectivity_over_learning_utils">module</a>
+</li>
+      </ul></li>
+      <li>
+    SliceTCA_example
+
+      <ul>
+        <li><a href="autoapi/SliceTCA_example/index.html#module-SliceTCA_example">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.slot_trials_into_spots">slot_trials_into_spots() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/modelling_multiple_generative_cells_utils/index.html#modelling_multiple_generative_cells_utils.split_data">split_data() (in module modelling_multiple_generative_cells_utils)</a>
+</li>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.subset_factors">subset_factors() (in module finding_weights_over_NDNF_utils)</a>
+
+      <ul>
+        <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.subset_factors">(in module selectivity_over_learning_utils)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/SliceTCA_example/index.html#SliceTCA_example.sum_ec_then_get_var">sum_ec_then_get_var() (in module SliceTCA_example)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/selectivity_over_learning_utils/index.html#selectivity_over_learning_utils.Vinje2000">Vinje2000() (in module selectivity_over_learning_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="W">W</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/finding_weights_over_NDNF_utils/index.html#finding_weights_over_NDNF_utils.wrap_around_and_compress">wrap_around_and_compress() (in module finding_weights_over_NDNF_utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Michael Finch, Alessandro Galloni and Aaron Milstein
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

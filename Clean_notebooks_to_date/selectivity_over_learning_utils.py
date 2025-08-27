@@ -12,6 +12,20 @@ from GLM_regression_plotting import *
 
 from modelling_to_date_utils import *
 
+def get_fixed_model_dict_NDNF_newest(cell_NDNF_model_ranks20_contig_x00):
+    fixed_model_dict_NDNF_newest = {20:{}}
+    for animal in cell_NDNF_model_ranks20_contig_x00[20]:
+        if 17 < animal < 31:
+            fixed_model_dict_NDNF_newest[20][animal-18] = cell_NDNF_model_ranks20_contig_x00[20][animal]
+    return fixed_model_dict_NDNF_newest
+
+def subset_factors(factors_dict_NDNF_newest):
+    fixed_factors_dict_NDNF_newest = {}
+    for idx, animal in enumerate(factors_dict_NDNF_newest):
+        if 17 < idx < 31:
+            fixed_factors_dict_NDNF_newest[f"animal_{idx+1}"] = factors_dict_NDNF_newest[animal]
+
+    return fixed_factors_dict_NDNF_newest
 
 def Vinje2000(tuning_curve, norm='None', negative_selectivity=False):
     if norm == 'min_max':

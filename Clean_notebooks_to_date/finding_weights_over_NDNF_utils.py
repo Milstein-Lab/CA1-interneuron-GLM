@@ -702,8 +702,6 @@ def remove_behaviors_GLM(activity_dict_NDNF, NDNF_GLM_models, design_matrix_dict
   return MSE_list, prediction_list, weights_list
 
 
-
-
 def get_model_dict_split(EC_data_array, fixed_residual_activity_dict_NDNF_newest, start=20, end=30, reg_type="ridge", early=True):
     model_EC = {}
     for animal in fixed_residual_activity_dict_NDNF_newest:
@@ -744,7 +742,7 @@ def get_MSE_cell_type_TA(model_EC_just_SST, fixed_residual_activity_dict_NDNF_ne
             MSE = np.mean(np.square(neuron_predicted_activity - neuron_activity))
             MSE_list.append(MSE) 
             
-    return MSE_list, coefficients_list
+    return MSE_list, coefficients_list, neuron_predicted_activity, neuron_activity
 
 def plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE_list_just_EC, MSE_list_just_CA3, MSE_list_EC_CA3, MSE_list_EC_SST, MSE_list_CA3_SST, MSE_list_EC_CA3_SST, MSE_list_random, inputs_list, output_cell_type="NDNF Output", ymax=0.03):
     df = pd.DataFrame({
@@ -785,7 +783,7 @@ def plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE
     # Step 3: Plot
     plt.figure(figsize=(10, 6))
     sns.violinplot(x="Input", y="MSE", data=df, inner="box", cut=0, palette=custom_palette)
-    plt.title(f"{output_cell_type} Cell MSE by Input Cell Type")
+    plt.title(output_cell_type)
     plt.ylabel("Mean Squared Error")
     plt.xlabel("Input Type")
     plt.xticks(rotation=20)
@@ -793,48 +791,6 @@ def plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE
     plt.tight_layout()
     plt.show()
 
-def plot_NDNF_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ymax=0.10):
-    # SST_data_array_late = get_activity_late(activity_dict_SST, start=40, end=60)
-    SST_data_array_TA = get_activity_av_all_trials(activity_dict_SST)
-
-    # EC_data_array_late = get_activity_late(activity_dict_EC, start=30, end=50)
-    EC_data_array_TA = get_activity_av_all_trials(activity_dict_EC)
-
-    # NDNF_data_array_late = get_activity_late(fixed_activity_dict_NDNF_newest, start=40, end=60)
-    NDNF_data_array_TA = get_activity_av_all_trials(fixed_activity_dict_NDNF_newest)
-
-    EC_CA3_data_array_TA = np.concatenate([EC_data_array_TA, ca3_vs_position_all_cells_array], axis=0)
-    EC_SST_data_array_TA = np.concatenate([EC_data_array_TA, SST_data_array_TA], axis=0)
-    CA3_SST_data_array_TA = np.concatenate([ca3_vs_position_all_cells_array, SST_data_array_TA], axis=0)
-    EC_CA3_SST_data_array_TA = np.concatenate([EC_data_array_TA, ca3_vs_position_all_cells_array, SST_data_array_TA], axis=0)
-
-    rand_tens = np.random.rand(792, 58, 50)
-    rand_tens_TA = np.mean(rand_tens, axis=1)
-
-    model_just_CA3 = get_model_dict_split(ca3_vs_position_all_cells_array, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-    model_just_SST = get_model_dict_split(SST_data_array_TA, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-    model_just_EC = get_model_dict_split(EC_data_array_TA, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-
-    model_EC_CA3 = get_model_dict_split(EC_CA3_data_array_TA, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-    model_EC_SST = get_model_dict_split(EC_SST_data_array_TA, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-    model_CA3_SST = get_model_dict_split(CA3_SST_data_array_TA, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-    model_EC_CA3_SST = get_model_dict_split(EC_CA3_SST_data_array_TA, fixed_residual_activity_dict_NDNF_newest, start=20, end=58, reg_type="ridge", early=True)
-
-    model_random = get_model_dict_split(rand_tens_TA, activity_dict_SST, start=20, end=58, reg_type="ridge", early=True)
-
-    MSE_list_just_SST, coefficients_list_just_SST = get_MSE_cell_type_TA(model_just_SST, fixed_residual_activity_dict_NDNF_newest, SST_data_array_TA)
-    MSE_list_just_EC, coefficients_list_just_EC = get_MSE_cell_type_TA(model_just_EC, fixed_residual_activity_dict_NDNF_newest, EC_data_array_TA)
-    MSE_list_just_CA3, coefficients_list_just_CA3 = get_MSE_cell_type_TA(model_just_CA3, fixed_residual_activity_dict_NDNF_newest, ca3_vs_position_all_cells_array)
-
-    MSE_list_EC_CA3, coefficients_list_EC_CA3 = get_MSE_cell_type_TA(model_EC_CA3, fixed_residual_activity_dict_NDNF_newest, EC_CA3_data_array_TA)
-    MSE_list_EC_SST, coefficients_list_EC_SST = get_MSE_cell_type_TA(model_EC_SST, fixed_residual_activity_dict_NDNF_newest, EC_SST_data_array_TA)
-    MSE_list_CA3_SST, coefficients_list_CA3_SST = get_MSE_cell_type_TA(model_CA3_SST, fixed_residual_activity_dict_NDNF_newest, CA3_SST_data_array_TA)
-    MSE_list_EC_CA3_SST, coefficients_list_CA3_SST = get_MSE_cell_type_TA(model_EC_CA3_SST, fixed_residual_activity_dict_NDNF_newest, EC_CA3_SST_data_array_TA)
-    MSE_list_random_TA, coefficients_list_random = get_MSE_cell_type_TA(model_random, activity_dict_SST, rand_tens_TA)
-
-    inputs_list = ["SST", "EC", "CA3", "EC + CA3", "EC + SST", "CA3 + SST", "EC + CA3 + SST", "Random Control"]
-
-    plot_MSE_for_NDNF_pred_by_other_celltype_input_random(MSE_list_just_SST, MSE_list_just_EC, MSE_list_just_CA3, MSE_list_EC_CA3, MSE_list_EC_SST, MSE_list_CA3_SST, MSE_list_EC_CA3_SST, MSE_list_random_TA, inputs_list, output_cell_type="NDNF Output Trial Averaged Input", ymax=ymax)
 
 def plot_SST_prediction_from_other_celltypes_input_GLM(activity_dict_SST, activity_dict_EC, fixed_activity_dict_NDNF_newest, ymax=0.10):
 
@@ -904,7 +860,7 @@ def plot_datar(SST_datas, title="Velocity Across All Animals", color='b'):
     plt.fill_between(range(len(SST_data_mean)), SST_data_mean+SST_data_sem, SST_data_mean - SST_data_sem, alpha=0.2, color=color)
 
     plt.title(title)
-    plt.ylabel("Z-Scored Velocity")
+    plt.ylabel("meters / sec")
     plt.xlabel("Position Bins")
     # plt.ylim(-0.5,0.5)
     plt.show()

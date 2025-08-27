@@ -334,6 +334,8 @@ def plot_peak_trough_histograms(clusters_dict_NDNF_early, use_argmax=True, title
     ax.set_xlabel("Position Bins")
     ax.set_ylim(ylim)
 
+    return all_means_list
+
 
 
 ##################### plotting the optimal number of clusters histogram 
@@ -375,6 +377,8 @@ def plot_cluster_expression_probs(clusters_dict_NDNF_early, residual_activity_di
     ax.set_title(f"Cluster Expression Probability of Clusters Across Trials {title}")
     ax.set_xlabel("Fraction of Total Trials in Cluster")
     ax.set_ylim(ylim)
+
+    return proportion_trials_per_cluster
 
 
 
@@ -586,3 +590,545 @@ def plot_elbow_cell_example(testing_cell_EC_model_ranks20_reassign_regkmean_x00_
     plt.title("SliceTCA Reconstruction MSE vs Raw Data \n Animal#2 Cell#4", fontsize=14)
     plt.legend(fontsize=16)
     plt.show()
+
+def plot_synthetic_sliceTCA_ex(model, ideal_cell):
+    weights = torch.abs(model.vectors[0][0].detach().T).cpu().numpy()
+    print(weights.shape)
+    latents = torch.abs(model.vectors[0][1].detach().T).cpu().numpy()
+    latents = np.squeeze(latents, axis=1)
+    print(latents.shape)
+
+    plt.figure(figsize=(8,4))
+    for i in range(weights.shape[1]):
+        plt.plot(weights[:,i])
+        plt.title("Weights Over Trials")
+    plt.xlabel("Trials")
+    plt.show()
+
+    plt.figure(figsize=(8,4))
+    for i in range(latents.shape[1]):
+        plt.plot(latents[:,i])
+        plt.title("Latents Over Position Bins (Fields)")
+    plt.xlabel("Posiiton Bins")
+    plt.show()
+
+    weight_1 = weights[:,0]
+    weight_2 = weights[:,1]
+
+    # Add jitter to the points for better visualization
+    rng = np.random.default_rng(0)
+    jitter_scale = 0.02  # Adjust as needed
+    weight_1_jitter = weight_1 + rng.normal(scale=jitter_scale, size=weight_1.shape)
+    weight_2_jitter = weight_2 + rng.normal(scale=jitter_scale, size=weight_2.shape)
+
+
+    weights_for_kmeans = np.column_stack([weight_1, weight_2])
+
+    k = 4  
+    kmeans = KMeans(n_clusters=k, n_init=10, random_state=0)
+    labels = kmeans.fit_predict(weights_for_kmeans)
+
+    import matplotlib.patches as mpatches
+
+    # Map each label to a color from tab10, ensuring color order matches cluster label
+    tab10 = plt.cm.get_cmap('tab10')
+    unique_labels = np.unique(labels)
+    label_to_color = {lbl: tab10(int(lbl) % 10) for lbl in unique_labels}
+    point_colors = [label_to_color[lbl] for lbl in labels]
+
+    # Plot, colored by cluster
+    plt.figure(figsize=(6,5))
+    scatter = plt.scatter(weight_1_jitter, weight_2_jitter, c=point_colors, alpha=0.8)
+
+    # Create legend handles for each cluster, matching the scatter colors
+    handles = [mpatches.Patch(color=label_to_color[lbl], label=f'Cluster {lbl}') for lbl in unique_labels]
+
+    plt.xlabel("Weight 1 (with jitter)")
+    plt.ylabel("Weight 2 (with jitter)")
+    plt.title("KMeans Clusters in Weight Space")
+    plt.legend(handles=handles, title="Cluster", loc='best')
+    plt.show()
+
+    return labels
+
+
+def plot_real_cells_internals(model_2):
+    model_ex_cell = model_2
+    latents = torch.abs(model_ex_cell.vectors[0][0].detach().T).cpu().numpy()
+    plt.figure(figsize=(10,4))
+
+    plt.plot(latents[:,0], color='b')
+    plt.plot(latents[:,1], color='orange')
+    plt.xlabel("Trials")
+    plt.title("2 Weights (1/Latent) SliceTCA Example EC Cell")
+    plt.show()
+
+    model_ex_cell = model_2
+    latents = torch.abs(model_ex_cell.vectors[0][1].detach().T).cpu().numpy()
+    latent_array = latents.squeeze(axis=1)
+
+    plt.figure(figsize=(10,4))
+    plt.plot(latent_array[:,0], color='b')
+    plt.plot(latent_array[:,1], color='orange')
+    plt.title("2 Latent Factors (Fields)")
+    plt.xlabel("Position Bins")
+    plt.show()
+    
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+
+def plot_real_activity_clusters(testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell,
+                                residual_activity_dict_EC, animal=None, cell=None):
+
+    labels = testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell[20][animal][cell][1][f"cell_{cell}"]["indices_for_cluster_number"]["clusters_chosen_4"]
+    activity = residual_activity_dict_EC[f'animal_{animal+1}'][f'cell_{cell+1}']  # (pos_bins, trials)
+    num_trials = activity.shape[1]
+
+    # ---- make a per-trial label vector (length = num_trials) ----
+    n_clusters = len(labels)
+    trial_labels = np.full(num_trials, fill_value=-1, dtype=int)
+    for k in range(n_clusters):
+        trial_labels[np.array(labels[k], dtype=int)] = k
+
+    # safety: check for unassigned trials
+    if np.any(trial_labels < 0):
+        missing = np.where(trial_labels < 0)[0]
+        print(f"Warning: {len(missing)} trials have no cluster assignment:", missing)
+
+    # ---- quick overview: trial strip like your screenshot ----
+    cmap = plt.get_cmap('tab10')
+    colors = [cmap(k % 10) for k in range(n_clusters)]
+
+    plt.figure(figsize=(9,1.4))
+    for k in range(n_clusters):
+        idx = np.where(trial_labels == k)[0]
+        plt.scatter(idx, np.zeros_like(idx), s=18, color=colors[k])
+    plt.yticks([])
+    plt.ylim(-0.6, 0.6)
+    plt.xlim(-1, num_trials)
+    plt.xlabel("Trial index")
+    plt.title("Trials Labelled by Cluster")
+    # legend
+    handles = [Line2D([0],[0], marker='o', linestyle='',
+                      color=colors[k], label=f"Cluster {k}") for k in range(n_clusters)]
+    # plt.legend(handles=handles, loc='upper right', ncol=min(n_clusters,4), frameon=False)
+    plt.tight_layout()
+    plt.show()
+
+    # ---- cluster-wise plots (heatmap + mean) in a loop to avoid repetition) ----
+    for k in range(n_clusters):
+        grp_idx = np.array(labels[k], dtype=int)
+        grp_act = activity[:, grp_idx]  # (pos_bins, n_trials_in_cluster)
+
+        # mean traces for all clusters on one plot (only once)
+        if k == 0:
+            plt.figure(figsize=(7,4))
+            for j in range(n_clusters):
+                mj_idx = np.array(labels[j], dtype=int)
+                plt.plot(np.mean(activity[:, mj_idx], axis=1), label=f"Cluster {j}", color=colors[j])
+            plt.ylabel("Z-Scored Activity")
+            plt.xlabel("Position Bin")
+            plt.title("Trial-Averaged Activity For Clusters")
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+        # per-cluster heatmap + mean
+        fig, axs = plt.subplots(1, 2, figsize=(9,4))
+        im = axs[0].imshow(grp_act.T, aspect='auto')
+        fig.colorbar(im, ax=axs[0])
+        axs[0].set_title(f"Cluster {k} Activity")
+        axs[0].set_xlabel("Position Bins")
+        axs[0].set_ylabel("Trial")
+
+        axs[1].plot(np.mean(grp_act, axis=1), color=colors[k])
+        axs[1].set_title(f"Trial Av. Activity\n{len(grp_idx)}/{num_trials} trials ({len(grp_idx)/num_trials*100:.1f}%)")
+        axs[1].set_xlabel("Position Bins")
+        axs[1].set_ylabel("Z-Scored Activity")
+        axs[1].set_ylim(-0.5, 4.5)
+
+        plt.tight_layout()
+        plt.show()
+
+    X_trials = activity.T  # shape: (n_trials, n_bins)
+
+    # (optional) if you want to z-score features across trials:
+    # X_trials = (X_trials - X_trials.mean(axis=0)) / (X_trials.std(axis=0) + 1e-8)
+
+    pca = PCA(n_components=2)
+    PCs = pca.fit_transform(X_trials)  # (n_trials, 2)
+
+    plt.figure(figsize=(5.2, 5.2))
+    for k in range(n_clusters):
+        idx = np.where(trial_labels == k)[0]
+        plt.scatter(PCs[idx, 0], PCs[idx, 1], s=35, alpha=0.9, label=f"Cluster {k}", color=colors[k])
+
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    exp = pca.explained_variance_ratio_
+    plt.title("PC1 vs PC2")
+    # legend to match your style
+    handles = [Line2D([0],[0], marker='o', linestyle='', color=colors[k], label=f"Cluster {k}")
+            for k in range(n_clusters)]
+    plt.legend(handles=handles, loc='best', frameon=False)
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+# ---- your helpers (unchanged) ----
+def get_activity_array(activity, ax, i, total_num_trials=None):
+    ax.imshow(activity.T, aspect='auto')
+    ax.set_xlabel("Positon Bins")
+    ax.set_title(f"Example Cell Cluster #{i}")
+    ax.set_ylabel("Trials")
+
+def get_mean_activity_array(activity, ax, i, min=None, max=None, total_num_trials=None):
+    from scipy.stats import sem
+    mean_activity = np.mean(activity, axis=1)
+    sem_activity = sem(activity, axis=1)
+    ax.plot(mean_activity)
+    ax.set_ylim(min, max)
+    ax.set_ylabel("Z-Scored Activity")
+    ax.set_title(f"Example Cell Mean Cluster #{i} \n Fraction of Total Trials = {activity.shape[1]}/{total_num_trials} or {(activity.shape[1]/total_num_trials)*100:.1f}%")
+    ax.set_xlabel("Position Bins")
+    ax.fill_between(range(len(mean_activity)),
+                    mean_activity + sem_activity,
+                    mean_activity - sem_activity,
+                    alpha=0.2)
+
+
+
+
+def plot_pop_stats(clusters_dict_EC_overall, cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, animal=None, cell=None, cell_type="EC", ylim=None):
+
+    fig = plt.figure(figsize=(21, 14), constrained_layout=True)
+
+    indices_dict_EC_overall = get_indices_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, eln="nothing")
+    activity_indices_EC_dict = get_activity_from_indices(residual_activity_dict_EC, indices_dict_EC_overall)
+
+    max=0
+    min=0
+    activity_list = []
+    for i in activity_indices_EC_dict[animal][cell]:
+        activity = activity_indices_EC_dict[animal][cell][i]['activity']
+        activity_list.append(activity)
+        if np.max(activity) > max:
+            max=np.max(activity)
+        if np.min(activity) < min:
+            min=np.min(activity)
+        
+
+    # --- outer grid: make left column wide, shrink vertical gap between rows ---
+    gs = plt.GridSpec(
+        2, 3, figure=fig,
+        width_ratios=[1.6, 1.6, 1.6],
+        height_ratios=[1.0, 1.0]
+    )
+
+    # reduce global paddings/gaps for constrained_layout
+    # (works in recent Matplotlib; fall back to set_constrained_layout_pads if needed)
+    fig.get_layout_engine().set(h_pad=0.03, w_pad=0.01, hspace=0.04, wspace=0.04)
+
+    # --- nested grid in top-left ---
+    subgs = gs[0, 0].subgridspec(4, 2, hspace=0.08, wspace=0.03)
+
+    # make nested axes
+    ax00 = fig.add_subplot(subgs[0, 0]); ax01 = fig.add_subplot(subgs[0, 1])
+    ax10 = fig.add_subplot(subgs[1, 0]); ax11 = fig.add_subplot(subgs[1, 1])
+    ax20 = fig.add_subplot(subgs[2, 0]); ax21 = fig.add_subplot(subgs[2, 1])
+    ax30 = fig.add_subplot(subgs[3, 0]); ax31 = fig.add_subplot(subgs[3, 1])
+
+    # your plotting...
+
+    total_num_trials = np.sum([activity_list[0].shape[1] + activity_list[1].shape[1] + activity_list[2].shape[1] + activity_list[3].shape[1]])
+    print(f"total_num_trials {total_num_trials}")
+
+    get_activity_array(activity_list[0], ax=ax00, i=0, total_num_trials=total_num_trials); get_mean_activity_array(activity_list[0], ax=ax01, i=0, min=min, max=max, total_num_trials=total_num_trials)
+    get_activity_array(activity_list[1], ax=ax10, i=1, total_num_trials=total_num_trials); get_mean_activity_array(activity_list[1], ax=ax11, i=1, min=min, max=max, total_num_trials=total_num_trials)
+    get_activity_array(activity_list[2], ax=ax20, i=2, total_num_trials=total_num_trials); get_mean_activity_array(activity_list[2], ax=ax21, i=2, min=min, max=max, total_num_trials=total_num_trials)
+    get_activity_array(activity_list[3], ax=ax30, i=3, total_num_trials=total_num_trials); get_mean_activity_array(activity_list[3], ax=ax31, i=3, min=min, max=max, total_num_trials=total_num_trials)
+
+    # ---- tidy nested labels to save vertical space ----
+    for ax in [ax00, ax10, ax20]:           # hide repeated x labels on upper rows
+        ax.set_xlabel("")
+        ax.tick_params(labelbottom=False)
+    for ax in [ax01, ax11, ax21]:
+        ax.set_xlabel("")
+        ax.tick_params(labelbottom=False)
+
+    # shrink title/label padding inside the nested block
+    for ax in [ax00, ax01, ax10, ax11, ax20, ax21, ax30, ax31]:
+        ax.set_title(ax.get_title(), fontsize=11, pad=2)
+        ax.xaxis.labelpad = 2
+        ax.yaxis.labelpad = 2
+        ax.tick_params(labelsize=8, pad=1)
+
+    # --- rest of the outer axes ---
+    ax_big_01 = fig.add_subplot(gs[0, 1])
+    ax_big_02 = fig.add_subplot(gs[0, 2])
+    ax_big_10 = fig.add_subplot(gs[1, 0])
+    ax_big_11 = fig.add_subplot(gs[1, 1])
+    ax_big_12 = fig.add_subplot(gs[1, 2])
+
+    plot_optimal_num_clusters_histogram(clusters_dict_EC_overall, title=cell_type, ylim=None, ax=ax_big_01)
+    proportion_trials_per_cluster = plot_cluster_expression_probs(clusters_dict_EC_overall, residual_activity_dict_EC, title=cell_type, ylim=None, ax=ax_big_02)
+    all_means_list_peak = plot_peak_trough_histograms(clusters_dict_EC_overall, use_argmax=True,  title=cell_type, ylim=ylim, ax=ax_big_10)
+    all_means_list_trough = plot_peak_trough_histograms(clusters_dict_EC_overall, use_argmax=False, title=cell_type, ylim=ylim, ax=ax_big_11)
+    plot_means_sems_max_min(activity_indices_EC_dict, ax=ax_big_12)
+
+    # slightly tighten title pads on the outer plots too
+    for ax in [ax_big_01, ax_big_02, ax_big_10, ax_big_11, ax_big_12]:
+        ax.set_title(ax.get_title(), pad=6)
+
+    plt.show()
+
+    return all_means_list_peak, all_means_list_trough, proportion_trials_per_cluster
+
+def compare_cluster_2_0(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC):
+    indices_dict_EC_overall = get_indices_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, eln="nothing")
+    activity_indices_EC_dict = get_activity_from_indices(residual_activity_dict_EC, indices_dict_EC_overall)
+
+    cluster2_data = activity_indices_EC_dict['animal_2']['cell_4'][2]["activity"]
+    cluster0_data = activity_indices_EC_dict['animal_2']['cell_4'][0]["activity"]
+
+    fig, axs = plt.subplots(2,3, figsize=(16,6))
+
+    im=axs[0,0].imshow(cluster2_data.T, aspect='auto')
+    axs[0,0].set_title("Cluster 2 Example Cell")
+    fig.colorbar(im, ax=axs[0,0], label="Z-Scored Activity")
+    axs[1,0].set_ylabel("Trials")
+    axs[1,0].set_xlabel("Position Bins")
+
+    for i in range(cluster2_data.shape[1]):
+        axs[1,0].plot(cluster2_data[:,i])
+        axs[1,0].set_title("Mean Activity Per Trial Cluster 2")
+        axs[1,0].set_ylabel("Z-Scored DF/F")
+        axs[1,0].set_xlabel("Position Bins")
+
+    im=axs[0,1].imshow(cluster0_data.T, aspect='auto')
+    axs[0,1].set_title("Cluster 0 Example Cell")
+    fig.colorbar(im, ax=axs[0,1], label="Z-Scored Activity")
+    axs[0,1].set_ylabel("Trials")
+    axs[0,1].set_xlabel("Position Bins")
+
+    for i in range(cluster0_data.shape[1]):
+        axs[1,1].plot(cluster0_data[:,i])
+        axs[1,1].set_title("Mean Activity Per Trial Cluster 2")
+        axs[1,1].set_ylabel("Z-Scored DF/F")
+        axs[1,1].set_xlabel("Position Bins")
+
+    trials_of_interest = [4, 6, 7, 23,45, 48]
+
+    for i in trials_of_interest:
+        axs[1,2].plot(cluster0_data[:,i], label=f'Trial {i}')
+        axs[1,2].set_title("Mean Activity Per Trial Cluster 2")
+        axs[1,2].set_ylabel("Z-Scored DF/F")
+        axs[1,2].set_xlabel("Position Bins")
+        axs[1,2].legend(fontsize=8)
+
+    im=axs[0,2].imshow(cluster0_data.T[trials_of_interest, :], aspect='auto')
+    axs[0,2].set_title("Cluster 0 Select Trials")
+    fig.colorbar(im, ax=axs[0,2], label="Z-Scored Activity")
+    axs[0,2].set_ylabel("Trials")
+    axs[0,2].set_xlabel("Position Bins")
+
+
+    plt.tight_layout()
+    plt.show()
+
+
+    plt.figure(figsize=(10,6))
+    trials_of_interest = [4, 6, 7, 23, 45, 48]
+    for i in trials_of_interest:
+        plt.plot(cluster0_data[:,i], color='r', alpha=0.5)
+    for i in range(cluster2_data.shape[1]):
+        plt.plot(cluster2_data[:,i], color='k', alpha=0.5)
+    plt.ylabel("Z-Scored DF/F")
+    plt.xlabel("Position Bins")
+    plt.title("Black=Cluster 2, Red=Select Cluster 0")
+    plt.show()
+
+def cell_by_cell_variance_values(activity_dict_EC):
+    list_cells = []
+
+    for animal in activity_dict_EC:
+        for cell in activity_dict_EC[animal]:
+            variance = np.var(activity_dict_EC[animal][cell], axis=1)
+            list_cells.append(variance)
+
+    array_cells = np.array(list_cells)
+    sum_var = np.sum(array_cells, axis=0)
+    plt.title("Summed Trial Variance Across EC Cells")
+    plt.ylabel("Sum Variance over Cells")
+    plt.xlabel("Position Bins")
+    plt.bar(range(len(sum_var)), sum_var)
+    plt.show()
+
+    mean_var = np.mean(array_cells, axis=0)
+    sem_var = sem(array_cells, axis=0)
+    plt.title('Mean Trial Variance Across EC Cells')
+    plt.ylabel("Mean +- SEM Variance over Cells")
+    plt.xlabel("Position Bins")
+    plt.bar(range(len(mean_var)), mean_var, yerr=sem_var)
+    plt.show()
+
+def sum_ec_then_get_var(activity_dict_EC):
+    list_cells_min_max = []
+
+    for animal in activity_dict_EC:
+        for cell in activity_dict_EC[animal]:
+            activity_trunc = activity_dict_EC[animal][cell][:,:58]
+            activity_trunc_norm = ((activity_trunc - np.min(activity_trunc)) / (np.max(activity_trunc) - np.min(activity_trunc)))
+            list_cells_min_max.append(activity_trunc_norm)
+
+    list_cells_min_max_array = np.array(list_cells_min_max)
+    sum_list_cells_min_max_array = np.sum(list_cells_min_max_array, axis=0)
+
+    plt.imshow(sum_list_cells_min_max_array.T, aspect='auto')
+    plt.title("Sum of Min/Max EC Activity")
+    plt.colorbar()
+    plt.show()
+
+    var_trials = np.var(sum_list_cells_min_max_array, axis=1)
+    print(var_trials.shape)
+    # sem_var_trials = sem(sum_list_cells_min_max_array, axis=1)
+
+    x = np.arange(len(var_trials)) 
+    fig, ax = plt.subplots(figsize=(6,4))
+
+    ax.bar(x, var_trials)
+    ax.set_ylabel("Variance")
+    ax.set_xlabel("Position Bins")
+    ax.set_title("Variance Across Trials of Summed Normalized EC Activity")
+    plt.tight_layout()
+    plt.show()
+
+
+
+def plot_cluster_frequency_by_animal(clusters_dict_NDNF_overall, use_argmax=False, title="NDNF"):
+    
+    per_animal_positions = defaultdict(list)
+    n_pos = None
+
+    for animal in clusters_dict_NDNF_overall:
+        for cell in clusters_dict_NDNF_overall[animal]:
+            for i in range(len(clusters_dict_NDNF_overall[animal][cell])):
+                data = clusters_dict_NDNF_overall[animal][cell][i]  
+                mean_data = np.mean(data, axis=0)
+                if n_pos is None:
+                    n_pos = mean_data.size
+                pos = np.argmax(mean_data) if use_argmax else np.argmin(mean_data)
+                per_animal_positions[animal].append(pos)
+
+    if n_pos is None:
+        raise ValueError("No data found.")
+
+    bins = np.arange(n_pos + 1) - 0.5
+    bin_centers = np.arange(n_pos)
+
+    animal_names = sorted(per_animal_positions.keys())
+    counts_per_animal = []
+    for animal in animal_names:
+        counts, _ = np.histogram(per_animal_positions[animal], bins=bins)
+        counts_per_animal.append(counts)
+    counts_per_animal = np.vstack(counts_per_animal) 
+
+    total_counts = counts_per_animal.sum(axis=0)
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+    bottom = np.zeros(n_pos)
+
+    # palette & style to match your look
+    palette = plt.cm.tab20(np.linspace(0, 1, max(20, len(animal_names))))[:len(animal_names)]
+
+    for idx, animal in enumerate(animal_names):
+        ax.bar(
+            bin_centers, counts_per_animal[idx],
+            bottom=bottom, width=0.95,
+            edgecolor='k', linewidth=0.4, color=palette[idx],
+            label=str(animal)
+        )
+        bottom += counts_per_animal[idx]
+
+    # optional: thin outline of total bar tops to mimic single-color hist edges
+    ax.step(bin_centers, total_counts, where='mid', linewidth=0.8, color='k', alpha=0.6)
+
+    ax.set_xlim(-0.5, n_pos - 0.5)
+    ax.set_xlabel("Position Bins")
+    ax.set_ylabel("Number of Clusters")
+    ax.set_title(f"Position of {'Peak' if use_argmax else 'Trough'} Mean Activity in Cluster {title}")
+
+    # lighter legend outside
+    ax.legend(title="Animal", bbox_to_anchor=(1.02, 1), loc="upper left", frameon=False, ncol=1)
+    plt.tight_layout()
+    plt.show()
+
+    return per_animal_positions, counts_per_animal, total_counts
+
+
+
+def plot_cluster_frequency_by_animal(clusters_dict_NDNF_overall, use_argmax=False, title="NDNF"):
+    
+    per_animal_positions = defaultdict(list)
+    n_pos = None
+
+    for animal in clusters_dict_NDNF_overall:
+        for cell in clusters_dict_NDNF_overall[animal]:
+            for i in range(len(clusters_dict_NDNF_overall[animal][cell])):
+                data = clusters_dict_NDNF_overall[animal][cell][i]  
+                mean_data = np.mean(data, axis=0)
+                if n_pos is None:
+                    n_pos = mean_data.size
+                pos = np.argmax(mean_data) if use_argmax else np.argmin(mean_data)
+                per_animal_positions[animal].append(pos)
+
+    if n_pos is None:
+        raise ValueError("No data found.")
+
+    bins = np.arange(n_pos + 1) - 0.5
+    bin_centers = np.arange(n_pos)
+
+    animal_names = sorted(per_animal_positions.keys())
+    counts_per_animal = []
+    for animal in animal_names:
+        counts, _ = np.histogram(per_animal_positions[animal], bins=bins)
+        counts_per_animal.append(counts)
+    counts_per_animal = np.vstack(counts_per_animal) 
+
+    total_counts = counts_per_animal.sum(axis=0)
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+    bottom = np.zeros(n_pos)
+
+    # palette & style to match your look
+    palette = plt.cm.tab20(np.linspace(0, 1, max(20, len(animal_names))))[:len(animal_names)]
+
+    for idx, animal in enumerate(animal_names):
+        ax.bar(
+            bin_centers, counts_per_animal[idx],
+            bottom=bottom, width=0.95,
+            edgecolor='k', linewidth=0.4, color=palette[idx],
+            label=str(animal)
+        )
+        bottom += counts_per_animal[idx]
+
+    # optional: thin outline of total bar tops to mimic single-color hist edges
+    ax.step(bin_centers, total_counts, where='mid', linewidth=0.8, color='k', alpha=0.6)
+
+    ax.set_xlim(-0.5, n_pos - 0.5)
+    ax.set_xlabel("Position Bins")
+    ax.set_ylabel("Number of Clusters")
+    ax.set_title(f"Position of {'Peak' if use_argmax else 'Trough'} Mean Activity in Cluster {title}")
+
+    # lighter legend outside
+    ax.legend(title="Animal", bbox_to_anchor=(1.02, 1), loc="upper left", frameon=False, ncol=1)
+    plt.tight_layout()
+    plt.show()
+
+    return per_animal_positions, counts_per_animal, total_counts
+
+
