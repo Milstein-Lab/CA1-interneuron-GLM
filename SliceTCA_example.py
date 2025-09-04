@@ -309,30 +309,32 @@ def plot_real_activity_clusters(testing_cell_EC_model_ranks20_reassign_regkmean_
 
 
 ###### every cell will have multiple clusters and the number of those clusters will be chosen by the elbow method -- we take all those and put them togther here, average across trials in each cluster and then plot the means 
-def plot_peak_trough_histograms(clusters_dict_NDNF_early, use_argmax=True, title=None, ylim=None, ax=None):
+def plot_peak_trough_histograms(clusters_dict_NDNF_early, use_argmax=True, title=None, ylim=None, ax=None, color=None, alpha=None):
     all_means_list = []
 
     for animal in clusters_dict_NDNF_early:
         for cell in clusters_dict_NDNF_early[animal]:
             for i in range(len(clusters_dict_NDNF_early[animal][cell])):
                 data = clusters_dict_NDNF_early[animal][cell][i]
+                # if np.mean(data != 0):
                 mean_data = np.mean(data, axis=0)
                 if use_argmax:
                     all_means_list.append(np.argmax(mean_data))
-                    ax.set_title(f"Position of Peak Mean Activity in Cluster {title}")
+                    ax.set_title(f"Position of Peak Mean Activity in Cluster {title}", fontsize=10)
                 else:
                     all_means_list.append(np.argmin(mean_data))
-                    ax.set_title(f"Position of Trough Mean Activity in Cluster {title}")
+                    ax.set_title(f"Position of Trough Mean Activity in Cluster {title}", fontsize=10)
 
     if use_argmax:
         color='forestgreen'
     else:
         color='darkred'
-    ax.hist(all_means_list, bins=50, edgecolor='k', color=color)
+
+    ax.hist(all_means_list, bins=50, alpha=alpha, color=color)
     ax.set_ylabel("Number of Clusters")
 
     ax.set_xlabel("Position Bins")
-    ax.set_ylim(ylim)
+    ax.set_ylim(0,ylim)
 
     return all_means_list
 
@@ -345,7 +347,11 @@ def plot_optimal_num_clusters_histogram(clusters_dict_NDNF_early, title=None, yl
 
     for animal in clusters_dict_NDNF_early:
         for cell in clusters_dict_NDNF_early[animal]:
-            all_means_num_clusters.append(len(clusters_dict_NDNF_early[animal][cell]))
+            valid_length=0
+            for i in range(len(clusters_dict_NDNF_early[animal][cell])):
+                # if np.mean(clusters_dict_NDNF_early[animal][cell][i] !=0):
+                valid_length+=1
+            all_means_num_clusters.append(valid_length)
 
     data_labels=np.unique(all_means_num_clusters)
                
@@ -368,6 +374,7 @@ def plot_cluster_expression_probs(clusters_dict_NDNF_early, residual_activity_di
             total_num_trials = residual_activity_dict_NDNF_newest[animal][cell].shape[1]
             for i in range(len(clusters_dict_NDNF_early[animal][cell])):
                 data = clusters_dict_NDNF_early[animal][cell][i]
+                # if np.mean(data) !=0:
                 num_trials = data.shape[0]
                 proportion_trials_per_cluster.append(num_trials/total_num_trials)
 
@@ -403,7 +410,7 @@ def plot_max_clusters(testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, 
 
 
 
-def get_indices_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, eln="nothing"):
+def get_indices_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, split_learn=None, eln="nothing"):
 
     """
     - takes in the contiguous cutpoints slice TCA model and the K-Means slice TCA model
@@ -428,7 +435,7 @@ def get_indices_dict(cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ran
                 continue
 
             clusters = elbow_kmeans + 1
-            indices_dict = get_per_cell_clustering_indices(cell_EC_model_ranks20_contig_x00, residual_activity_dict_EC, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, animal_id=animal_num, cell_id=cell_num, num_clusters=clusters, split_learn=False, early_late_nothing=eln)
+            indices_dict = get_per_cell_clustering_indices(cell_EC_model_ranks20_contig_x00, residual_activity_dict_EC, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, animal_id=animal_num, cell_id=cell_num, num_clusters=clusters, split_learn=split_learn, early_late_nothing=eln)
 
             indices_cell_EC[cell] = indices_dict
 
@@ -441,26 +448,24 @@ def get_per_cell_clustering_indices(cell_EC_model_ranks20_contig_x00, residual_a
     
     indices_dict = cell_NDNF_model_ranks20_kmeans_reassign_umap_x00[20][animal_id][cell_id][1][f"cell_{cell_id}"]["indices_for_cluster_number"][f"clusters_chosen_{num_clusters}"]
 
-
     if split_learn:
-        indices_dict={}
+        indices_dict_new={}
         animal_first_changepoints_list, fraction_first_changepoints_list, animal_second_changepoints_list, fraction_second_changepoints_list = get_changepoints(cell_EC_model_ranks20_contig_x00, residual_activity_dict_NDNF, animal_TCA=False)
         for n in range(num_clusters):
             indices = indices_dict[n]
 
-            if early_late_nothing == "nothing":
-                indices_list = indices
-            elif early_late_nothing == "early":
+            if early_late_nothing == "early":
                 indices_list = [i for i in indices if i < animal_first_changepoints_list[animal_id][cell_id]]
-                indices_dict[n] = indices_list
+                indices_dict_new[n] = indices_list
             elif early_late_nothing == "late":
                 indices_list = [i for i in indices if i > animal_second_changepoints_list[animal_id][cell_id]]
-                indices_dict[n] = indices_list
+                indices_dict_new[n] = indices_list
             else:
                 raise ValueError(f"Invalid value for early_late_nothing: {early_late_nothing}")
+        return indices_dict_new
+    else:
+        return indices_dict
 
-
-    return indices_dict
 
 def get_activity_from_indices(residual_activity_dict_EC, indices_dict_EC_overall):
     animal_dict = {}
@@ -520,8 +525,8 @@ def mean_sems_peak_trough(mean_data_by_peak, max_bin, use_peak=True):
             else:
                 peak_data_array = np.min(list_data[j])
                 peak_per_cluster_list.append(peak_data_array)
-
-        per_pos_bin_dict[i] = {"mean":np.mean(peak_per_cluster_list),
+        if np.mean(peak_per_cluster_list) !=0:
+            per_pos_bin_dict[i] = {"mean":np.mean(peak_per_cluster_list),
                             "sem": sem(peak_per_cluster_list)}
 
     # Plot mean and SEM per position bin as dots with error bars (with ticks)
@@ -800,7 +805,52 @@ def get_mean_activity_array(activity, ax, i, min=None, max=None, total_num_trial
                     mean_activity - sem_activity,
                     alpha=0.2)
 
+def plot_peak_trough_histograms_wrap(clusters_dict_NDNF_early, use_argmax=True, title=None, ylim=None, ax=None, color=None, alpha=None):
+    all_means_list = []
 
+    for animal in clusters_dict_NDNF_early:
+        for cell in clusters_dict_NDNF_early[animal]:
+            for i in range(len(clusters_dict_NDNF_early[animal][cell])):
+                data = clusters_dict_NDNF_early[animal][cell][i]
+                # if np.mean(data != 0):
+                mean_data = np.mean(data, axis=0)
+                if use_argmax:
+                    all_means_list.append(np.argmax(mean_data))
+                    ax.set_title(f"Position of Peak Mean Activity in Cluster {title}", fontsize=10)
+                else:
+                    all_means_list.append(np.argmin(mean_data))
+                    ax.set_title(f"Position of Trough Mean Activity in Cluster {title}", fontsize=10)
+
+    wrap_count = 0
+    else_count = 0
+    
+    for i in range(len(all_means_list)-1):
+        if all_means_list[i] > 45 and all_means_list[i+1] < 45:
+            wrap_count+=1
+            early_peak = all_means_list[i] 
+            late_peak = all_means_list[i+1] 
+            if np.random.rand() > 0.5:
+                all_means_list[i] = late_peak
+            else:
+                all_means_list[i] = early_peak
+            all_means_list[i+1] = np.nan
+        else:
+            else_count+=1
+
+    print(f"wrap_count {wrap_count}, else_count, {else_count}")
+    
+    if use_argmax:
+        color='forestgreen'
+    else:
+        color='darkred'
+
+    ax.hist(all_means_list, bins=50, alpha=alpha, color=color)
+    ax.set_ylabel("Number of Clusters")
+
+    ax.set_xlabel("Position Bins")
+    ax.set_ylim(0,ylim)
+
+    return all_means_list
 
 
 def plot_pop_stats(clusters_dict_EC_overall, cell_EC_model_ranks20_contig_x00, testing_cell_EC_model_ranks20_reassign_regkmean_x00_cell, residual_activity_dict_EC, animal=None, cell=None, cell_type="EC", ylim=None):
@@ -876,8 +926,8 @@ def plot_pop_stats(clusters_dict_EC_overall, cell_EC_model_ranks20_contig_x00, t
 
     plot_optimal_num_clusters_histogram(clusters_dict_EC_overall, title=cell_type, ylim=None, ax=ax_big_01)
     proportion_trials_per_cluster = plot_cluster_expression_probs(clusters_dict_EC_overall, residual_activity_dict_EC, title=cell_type, ylim=None, ax=ax_big_02)
-    all_means_list_peak = plot_peak_trough_histograms(clusters_dict_EC_overall, use_argmax=True,  title=cell_type, ylim=ylim, ax=ax_big_10)
-    all_means_list_trough = plot_peak_trough_histograms(clusters_dict_EC_overall, use_argmax=False, title=cell_type, ylim=ylim, ax=ax_big_11)
+    all_means_list_peak = plot_peak_trough_histograms_wrap(clusters_dict_EC_overall, use_argmax=True,  title=cell_type, ylim=ylim, ax=ax_big_10)
+    all_means_list_trough = plot_peak_trough_histograms_wrap(clusters_dict_EC_overall, use_argmax=False, title=cell_type, ylim=ylim, ax=ax_big_11)
     plot_means_sems_max_min(activity_indices_EC_dict, ax=ax_big_12)
 
     # slightly tighten title pads on the outer plots too
