@@ -277,6 +277,106 @@ def get_activity_multidendrite2(animal_velocity, activity_EC, activity_NDNF, act
     return plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, plateau_start_times_list_mega_list, num_plateaus_per_dend_list, dend_activity, padded_warped_activity_list
     
 
+
+
+
+def get_dend_vm_from_cells_multi(cells_dict, Vrest=-60.0, epsp_sf=0.1):
+    """
+    Build dendritic Vm for a *single animal* given per-cell EPSPs/spike trains.
+
+    Parameters
+    ----------
+    cells_dict : dict
+        {cell: {"epsps": {trial_id: 1D array}, "spike_train": {trial_id: 1D array}}}
+    Vrest : float
+        Resting potential (mV).
+    epsp_sf : float
+        Scale factor for EPSP sum → Vm.
+
+    Returns
+    -------
+    dend_Vm : (n_trials, T) float32
+        Vrest + epsp_sf * (sum across cells, per-trial centered).
+    sum_epsp_centered : (n_trials, T) float32
+        Summed EPSPs across cells (masked by NaN) and centered per trial.
+    spikes_per_cell : {cell: (n_trials, T_spk) float32}
+        Spike trains per cell, aligned & padded across trials (NaN for padding).
+    trial_ids : list
+        The trial order used for rows in the outputs.
+    """
+
+    def _trial_sort_key(x):
+        # ints first in numeric order, then strings
+        try:
+            return (0, int(x))
+        except (ValueError, TypeError):
+            return (1, str(x))
+
+    if not cells_dict:
+        return (np.zeros((0, 0), dtype=np.float32),
+                np.zeros((0, 0), dtype=np.float32),
+                {},
+                [])
+
+    # ---- discover global trial set and global time lengths
+    trial_ids = set()
+    global_T_epsp = 0
+    global_T_spk  = 0
+    for cell, payload in cells_dict.items():
+        ceps = payload["epsps"]
+        cspk = payload["spike_train"]
+        trial_ids.update(ceps.keys())
+        for v in ceps.values():
+            global_T_epsp = max(global_T_epsp, len(v))
+        for v in cspk.values():
+            global_T_spk = max(global_T_spk, len(v))
+
+    trial_ids = sorted(trial_ids, key=_trial_sort_key)
+    n_trials = len(trial_ids)
+
+    # ---- build (n_trials, T) per-cell EPSP and spike matrices (padded with NaN)
+    cell_epsp_mats = []
+    spikes_per_cell = {}
+    for cell, payload in cells_dict.items():
+        ceps = payload["epsps"]
+        cspk = payload["spike_train"]
+
+        epsp_rows, spk_rows = [], []
+        for tid in trial_ids:
+            ev = np.asarray(ceps.get(tid, []), dtype=np.float32)
+            sv = np.asarray(cspk.get(tid, []), dtype=np.float32)
+
+            if ev.size < global_T_epsp:
+                ev = np.pad(ev, (0, global_T_epsp - ev.size), constant_values=np.nan)
+            if sv.size < global_T_spk:
+                sv = np.pad(sv, (0, global_T_spk - sv.size), constant_values=np.nan)
+
+            epsp_rows.append(ev)
+            spk_rows.append(sv)
+
+        epsp_mat = np.vstack(epsp_rows).astype(np.float32, copy=False)  # (n_trials, global_T_epsp)
+        spk_mat  = np.vstack(spk_rows).astype(np.float32, copy=False)   # (n_trials, global_T_spk)
+
+        cell_epsp_mats.append(epsp_mat)
+        spikes_per_cell[cell] = spk_mat
+
+    # ---- stack cells -> (n_cells, n_trials, T) and masked-sum across cells
+    epsp_stack = np.stack(cell_epsp_mats, axis=0)           # (n_cells, n_trials, global_T_epsp)
+    valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)    # (n_trials, T)
+    sum_epsp = np.nansum(epsp_stack, axis=0)                # (n_trials, T)
+    sum_epsp[valid_counts == 0] = np.nan                    # keep NaN where no cell contributed
+
+    # ---- per-trial centering (across time)
+    trial_means = np.nanmean(sum_epsp, axis=1, keepdims=True)  # (n_trials, 1)
+    sum_epsp_centered = sum_epsp - trial_means
+
+    # ---- dendritic Vm
+    dend_Vm = Vrest + epsp_sf * sum_epsp_centered
+
+    return dend_Vm, epsp_stack, spikes_per_cell
+
+
+
 def _broadcast_to_shape(x, target_shape, name):
     if np.isscalar(x):
         return np.full(target_shape, float(x), dtype=float)
@@ -455,7 +555,24 @@ def activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1,
     dend_Vm = Vrest + vm_scale * A_centered
     return dend_Vm.astype(dtype), A_centered.astype(dtype), (mu if np.isscalar(mu) else mu.astype(dtype))
 
+def sample_weights(distribution, mask, rng, mean=0.1, std=0.5):
+    weights = np.zeros_like(mask, dtype=float)
+    n_samples = np.sum(mask)
 
+    if distribution == "Uniform":
+        samples = rng.uniform(low=mean - std, high=mean + std, size=n_samples)
+    elif distribution == "Normal":
+        samples = rng.normal(loc=mean, scale=std, size=n_samples)
+        samples = np.clip(samples, 0, None)
+    elif distribution == "Lognormal":
+        samples = rng.lognormal(mean=np.log(mean), sigma=std, size=n_samples)
+    elif distribution == "Equal":
+        samples = np.full(n_samples, mean, dtype=float)
+    else:
+        raise ValueError("Invalid distribution")
+
+    weights[mask] = samples
+    return weights
 
 
 def get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=None, amp=None, seed=None):
@@ -525,8 +642,17 @@ def get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=None, amp=None, seed
     return animal_dict, kernel
 
 
+def get_dendrite_activity_multi(weights, EC_input_matrix, n_dendrites, n_EC):
+            
+            print(f"EC_input_matrix.shape {EC_input_matrix.shape}")
+            E, T, N = EC_input_matrix.shape
+            EC_flat = EC_input_matrix.reshape(E, T*N)      # row-major: blocks of N per time bin
+            dendrite_flat = weights @ EC_flat              # (D, T*N)
+            return dendrite_flat.reshape(n_dendrites, T, N)
+
+
     
-def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt, padded_warped_activity_list, an_velocity, dend_activity, dend_threshold, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,  plateau_start_times_list_mega_list, dist, num_plateaus_per_dend_list, example_cell=1, include_inhibition=None, NDNF_contribution_sum=None, SST_contribution_sum=None):
+def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt, padded_warped_activity_list, an_velocity, dend_activity, dend_threshold, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,  plateau_start_times_list_mega_list, dist, num_plateaus_per_dend_list, animal, example_cell=1, include_inhibition=None, NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=False):
     
     if include_inhibition == 'both':
         # dend_activity = activity_EC - (activity_NDNF*NDNF_sf_opt + activity_SST*SST_sf_opt)
@@ -947,11 +1073,12 @@ def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, ac
 
 
     else:
-        # dend_activity = activity_EC 
-
-        # dend_activity = zscore_2d(dend_activity, axis=None, eps=1e-12)
+        
 
         fig, axs = plt.subplots(4,4, figsize=(25,20))
+
+        if animal_by_animal:
+            fig.suptitle(f"Animal: {animal}")
 
         print(f"activity_EC.shape {activity_EC.shape}")
 
@@ -969,7 +1096,8 @@ def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, ac
         axs[0, 0].set_title("EC Input To Each Dendrite")
         axs[0, 0].set_ylabel("Summed Z-Scored Activity")
         axs[0, 0].set_xlabel("time (ms)")
-        axs[0, 0].set_xlim(0, 6000)            # show full 0..6000 ms even if data ends earlier
+        if not animal_by_animal:
+            axs[0, 0].set_xlim(0, 6000)            # show full 0..6000 ms even if data ends earlier
 
         # activity_EC_trial_av = np.mean(activity_EC, axis=1)
         # # mean_activity_EC_trial_av = np.nanmean(activity_EC_trial_av, axis=0)
@@ -1042,7 +1170,8 @@ def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, ac
         axs[1,0].set_title("Mean Over Dendrites")
         axs[1,0].set_ylabel("Trials")
         axs[1,0].set_xlabel("Position Bins")
-        axs[1,0].set_xlim(0, 6000)
+        if not animal_by_animal:
+            axs[1,0].set_xlim(0, 6000)
         fig.colorbar(im4, ax=axs[1,0])
 
         num_plateaus_per_trial_list_across_dends = []
@@ -1069,11 +1198,15 @@ def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, ac
         # padded_warped_activity_array, key_list, max_len = pad_stack_same_trials_ragged(padded_warped_activity_dict, n_trials_expected=58)
 
         for i in range(mean_pad.shape[1]):
-            axs[1,1].plot(t_ms, mean_pad[:,i])
+            if not animal_by_animal:
+                axs[1,1].plot(t_ms, mean_pad[:,i])
+            else:
+                axs[1,1].plot(mean_pad[:,i])
         axs[1,1].set_ylabel("Summed Z-Scored Activity")
         axs[1,1].set_title("Mean of Dendrites and Trials")
         axs[1,1].set_xlabel("Time (ms)")
-        axs[1,1].set_xlim(0, 6000) 
+        if not animal_by_animal:
+            axs[1,1].set_xlim(0, 6000) 
 
         axs[2,2].bar(range(len(plateau_positions_counter)), plateau_positions_counter)
         axs[2,2].set_title(f"Plateau Time Across All Dendrites")
@@ -1115,8 +1248,8 @@ def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, ac
             
 
         total_plateaus = np.sum(summed_plateaus)
-        fraction_plateaus = summed_plateaus / total_plateaus
-        axs[3,3].plot(fraction_plateaus*100, marker='o', color='k', markersize=7)
+        fraction_plateaus = (summed_plateaus / total_plateaus)*100
+        axs[3,3].plot(fraction_plateaus, marker='o', color='k', markersize=7)
         axs[3,3].set_title("% of Plateaus in Grouped Position Bin")
         axs[3,3].set_xlabel("Grouped Position Bins")
         axs[3,3].set_ylabel("% of Total Plateaus")
@@ -1147,7 +1280,7 @@ def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, ac
         plt.tight_layout()
         plt.show()
 
-        return mean_pad
+        return mean_plateaus_all_dends, fraction_plateaus
 
 
 

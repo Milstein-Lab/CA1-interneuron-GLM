@@ -252,9 +252,12 @@ def add_vel_contribution_to_residuals(scaled_data_Hz_dict, GLM_params, animal_ve
 
 def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50.0, eps=1e-12):
     out = {}
+    num_cells_per_animal = {}
     for animal in activity_dict_EC:
+        counter=0
         per_cell = {}
         for cell, A in activity_dict_EC[animal].items():
+            counter+=1
             A = np.asarray(A[:, :58], dtype=float)  # (n_pos, 58)
             B = np.empty_like(A, dtype=float)
             for i in range(A.shape[1]):
@@ -262,8 +265,9 @@ def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50.0, eps=1e-12):
                 denom = max(np.nanmax(x) - np.nanmin(x), eps)
                 B[:, i] = ((x - np.nanmin(x)) / denom) * Hz_SF
             per_cell[cell] = B
+        num_cells_per_animal[animal] = counter
         out[animal] = per_cell
-    return out
+    return out, num_cells_per_animal
 
 
 # def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50):

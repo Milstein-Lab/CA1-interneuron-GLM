@@ -53,228 +53,270 @@ class SpikingModel:
             if 17 < idx < 31:
                 fixed_filtered_factors_dict_NDNF_newest[f"animal_{idx+1}"] = filtered_factors_dict_NDNF_newest[animal]
 
-        self.data.update(dict(activity_dict_EC=activity_dict_EC, residual_activity_dict_EC=residual_activity_dict_EC, factors_dict_EC=factors_dict_EC, factors_dict_SST=factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest=fixed_filtered_factors_dict_NDNF_newest, GLM_params_EC=GLM_params_EC))
+
+        fixed_residual_activity_dict_NDNF_newest = {}
+        for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
+            if 17 < idx < 31:
+                fixed_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
+
+        self.data.update(dict(activity_dict_EC=activity_dict_EC, residual_activity_dict_EC=residual_activity_dict_EC, factors_dict_EC=factors_dict_EC, factors_dict_SST=factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest=fixed_filtered_factors_dict_NDNF_newest, GLM_params_EC=GLM_params_EC, residual_activity_dict_SST=residual_activity_dict_SST, fixed_residual_activity_dict_NDNF_newest=fixed_residual_activity_dict_NDNF_newest))
 
 
-    def prepare_inputs(self, animal_by_animal: bool = False) -> None:
+    def prepare_inputs(self, animal_by_animal: bool = False, seed_override = float) -> None:
 
         activity_dict_EC = self.data["activity_dict_EC"]
         factors_dict_EC  = self.data["factors_dict_EC"]
         factors_dict_SST = self.data["factors_dict_SST"]
         fixed_NDNF       = self.data["fixed_filtered_factors_dict_NDNF_newest"]
         residual_activity_dict_EC = self.data["residual_activity_dict_EC"]
+        residual_activity_dict_SST = self.data["residual_activity_dict_SST"]
+        fixed_residual_activity_dict_NDNF_newest = self.data["fixed_residual_activity_dict_NDNF_newest"]
         GLM_params_EC = self.data["GLM_params_EC"]
-
-        dist = self.cfg.dist
-
-        print(f"dist {dist}")
-
-        SEED = 42
-        np.random.seed(SEED)
-        random.seed(SEED)
-        rng = np.random.default_rng(SEED)
-
-        n_EC = 792
-        n_SST = 75
-        n_NDNF = 115
-        n_dendrites=100
-
-        def get_dendrite_list(scaled_data_Hz_dict):
-            data_list = []
-            for animal in scaled_data_Hz_dict:
-                for cell in scaled_data_Hz_dict[animal]:
-                    data_list.append(scaled_data_Hz_dict[animal][cell])
-
-            return data_list
-        
-        def sample_weights(distribution, mask, rng, mean=0.1, std=0.5):
-            weights = np.zeros_like(mask, dtype=float)
-            n_samples = np.sum(mask)
-
-            if distribution == "Uniform":
-                samples = rng.uniform(low=mean - std, high=mean + std, size=n_samples)
-            elif distribution == "Normal":
-                samples = rng.normal(loc=mean, scale=std, size=n_samples)
-                samples = np.clip(samples, 0, None)
-            elif distribution == "Lognormal":
-                samples = rng.lognormal(mean=np.log(mean), sigma=std, size=n_samples)
-            elif distribution == "Equal":
-                samples = np.full(n_samples, mean, dtype=float)
-            else:
-                raise ValueError("Invalid distribution")
-
-            weights[mask] = samples
-            return weights
-
-
-        # def get_dendrite_activity(weights, EC_input_matrix, n_dendrites, n_EC):
-        #     EC_flat = EC_input_matrix.reshape(n_EC, -1)
-        #     dendrite_flat = weights @ EC_flat
-        #     return dendrite_flat.reshape(n_dendrites, EC_input_matrix.shape[2], EC_input_matrix.shape[1])
-
-        def get_dendrite_activity_multi(weights, EC_input_matrix, n_dendrites, n_EC):
-            E, T, N = EC_input_matrix.shape
-            EC_flat = EC_input_matrix.reshape(E, T*N)      # row-major: blocks of N per time bin
-            dendrite_flat = weights @ EC_flat              # (D, T*N)
-            return dendrite_flat.reshape(n_dendrites, T, N)
-
-                
-
-
-
-        an_velocity = get_velocity_array(factors_dict_EC, factors_dict_SST, fixed_NDNF, which_type="EC_animal_average")
-
-        
-        
-
-
-        an_velocity_dict = get_velocity_array_every_animal(factors_dict_EC, n_trials=58)
-        scaled_data_Hz_dict_resid = get_scaled_data_Hz_dict(residual_activity_dict_EC, Hz_SF=50)
-        # scaled_data_Hz_dict = add_vel_contribution_to_residuals(scaled_data_Hz_dict_resid, GLM_params_EC, an_velocity_dict)
-        scaled_data_Hz_dict = add_vel_contribution_to_residuals_strict(scaled_data_Hz_dict_resid, GLM_params_EC, an_velocity_dict)
-
-        padded_warped_activity_dict, an_velocity = do_the_interpolation(scaled_data_Hz_dict, an_velocity=an_velocity)
-
-        
-        # dend_Vm_dict: Dict[int, np.ndarray] = {}
-
-        # # fix this ##-- seeds 
-        # # for i in range(2):
-        i=0
-        # epsp_dict, kernel = get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=self.cfg.tau_ms, amp=1., seed=i)
-
-        # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/epsp_dict.pkl"
-
-        # important_dict = {"activity_EC":activity_EC, 
-        #                   "weights_EC":weights_EC}
-
-        # with open(save_path, 'wb') as f:
-        #     pickle.dump(epsp_dict, f)
-        #     print(f"pickle saved to {save_path}")
-
-        # for animal in epsp_dict:
-        #     for cell in epsp_dict[animal]:
-        #         padded_warped_length_0 = len(epsp_dict[animal][cell]["epsps"][0])
-        #         padded_warped_length_1 = len(epsp_dict[animal][cell]["epsps"][1])
-        #         padded_warped_length_2 = len(epsp_dict[animal][cell]["epsps"][2])
-        #         print(f"epsp_length {padded_warped_length_0} {padded_warped_length_1} {padded_warped_length_2}")
-
-        save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/epsp_dict.pkl"
-
-        with open(save_path, 'rb') as f:
-            epsp_dict = pickle.load(f)
-            print(f"pickle loaded from {save_path}")
-
-
-        _, epsp_input_matrix, spike_list = get_dend_vm(epsp_dict, Vrest=self.cfg.vrest, epsp_sf=self.cfg.epsp_sf)
-        epsp_input_matrix = np.transpose(epsp_input_matrix, (0, 2, 1)) 
-        print(f"epsp_input_matrix shape {epsp_input_matrix.shape}")
-
-        # T, N = epsp_input_matrix.shape[1], epsp_input_matrix.shape[2]
-        # dt = 0.001  # s per bin, set to your dt_constant
-        # plt.imshow(
-        #     epsp_input_matrix[0].T,           # (N, T): trials x time
-        #     aspect='auto',
-        #     origin='lower',
-        #     interpolation='nearest',
-        #     extent=[0, T*dt*1000, 0, N]       # x in ms
-        # )
-        # plt.xlabel('time (ms)')
-        # plt.ylabel('trial')
-        # plt.title("First EC Cell's EPSPs (trial × time)")
-        # plt.show()
-
-        
-
-        # ########## old version for comparison#########
-        # dend_list_EC = get_dendrite_list(scaled_data_Hz_dict)
-        # EC_input_matrix = np.stack(dend_list_EC[:n_EC], axis=0)
-        # print(f"EC_input_matrix.shape {EC_input_matrix.shape}")
-
-        connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
-        weights_EC = sample_weights(dist, connection_mask_EC, rng=rng, mean=10.0, std=0.5)
-
-        activity_EC = get_dendrite_activity_multi(weights_EC, epsp_input_matrix, n_dendrites, n_EC)
-
-        # D, T, N = activity_EC.shape  # should be (n_dendrites, T, N)
-        # dt = 0.001  # s
-        # plt.imshow(activity_EC[0].T, aspect='auto', origin='lower',
-        #         interpolation='nearest', extent=[0, T*dt*1000, 0, N])
-        # plt.xlabel('time (ms)')
-        # plt.ylabel('trial')
-        # plt.title('First Dendrite Activity (trial × time)')
-        # plt.show()
-
-
- 
-        # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/activity_EC.pkl"
-
-        # important_dict = {"activity_EC":activity_EC, 
-        #                   "weights_EC":weights_EC}
-
-        # with open(save_path, 'wb') as f:
-        #     pickle.dump(important_dict, f)
-        #     print(f"pickle saved to {save_path}")
-
-
-        # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/activity_EC.pkl"
-
-        # with open(save_path, 'rb') as f:
-        #     important_dict = pickle.load(f)
-        #     print(f"pickle loaded from {save_path}")
-
-
-        # activity_EC = important_dict["activity_EC"]
-        # weights_EC = important_dict["weights_EC"]
-
-        # print(f"activity_EC.shape {activity_EC.shape}")
-
-        # activity_EC: (n_dendrites, T, 58)
-        dend_Vm, activity_centered, trial_means = activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1, center_across="time_trials")
-
-        dend_Vm = np.transpose(dend_Vm, (0, 2, 1)) 
-
-        plt.imshow(dend_Vm[0,:,:].T, aspect='auto')
-        plt.title("Dend Vm")
-        plt.show()
-
-
-        summed_dendrite = get_summed_dendrite_EC_DFF(self.data["residual_activity_dict_EC"])
+        tau = self.cfg.tau_ms
 
         dend_threshold = self.cfg.dend_threshold
 
-
         activity_NDNF=0
         activity_SST=0
-        NDNF_sf_opt=0
-        SST_sf_opt=0
+        NDNF_sf_opt = 0
+        SST_sf_opt = 0
+        weights_SST = 0
+        weights_NDNF = 0
 
-        weights_SST=0
-        weights_NDNF=0
+        if animal_by_animal:
+            print("MADE IT TO ANIMAL / ANIMAL")
 
-        print(f"self.cfg.dend_threshold {self.cfg.dend_threshold}")
+            dist = self.cfg.dist
+            print(f"dist {dist}")
 
-        plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, plateau_start_times_list_mega_list, num_plateaus_per_dend_list, dend_activity, padded_warped_activity_list = get_activity_multidendrite2(an_velocity, dend_Vm, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, self.cfg.dt_constant, self.cfg.dx, dend_threshold=self.cfg.dend_threshold, vel_applied="real", example_cell=15, include_inhibition=True, use_model_EC=False)
+            SEED = 42
+            np.random.seed(SEED)
+            random.seed(SEED)
+            rng = np.random.default_rng(SEED)
+
+            # n_EC = 792
+            n_SST = 75
+            n_NDNF = 115
+            n_dendrites=100
 
 
-        # dend_Vm_dict: Dict[int, np.ndarray] = {}
-        # seeds = [1,2]
-        # # seeds = [seed_override] if seed_override is not None else list(range(self.cfg.num_seeds))
-        # for i in seeds:
-        #     epsp_dict, kernel = get_epsp_dict(self.results["padded_warped_activity_dict"], tau_ms=tau, amp=1., seed=i)
-        #     dend_Vm, epsp_list, spike_list = get_dend_vm(epsp_dict, Vrest=self.cfg.vrest, epsp_sf=self.cfg.epsp_sf)
-        #     dend_Vm_dict[i] = dend_Vm
-        # # print(f"[seed {i}] dend_vm OK   shape={dend_Vm.shape}")
-    
+            scaled_data_Hz_dict, cells_per_animal_dict = get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=self.cfg.hz_sf)
 
-        mean_pad = plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, dend_Vm, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt, padded_warped_activity_list, an_velocity, dend_activity, dend_threshold, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,  plateau_start_times_list_mega_list, dist, num_plateaus_per_dend_list, example_cell=1, include_inhibition="neither", NDNF_contribution_sum=None, SST_contribution_sum=None)
+            an_velocity_by_animal = get_velocity_array_every_animal(factors_dict_EC, n_trials=58)
+
+            # Interpolate/warp per animal
+            padded_warped_by_animal = {}
+            for animal in scaled_data_Hz_dict:
+                pwa_cell_dict, _ = do_the_interpolation_an(
+                    scaled_data_Hz_dict[animal],      # {cell: (n_pos, n_trials)}
+                    an_velocity_by_animal[animal],    # (n_pos, n_trials)
+                    dt_constant=self.cfg.dt_constant
+                )
+                padded_warped_by_animal[animal] = pwa_cell_dict
+
+
+            dend_vm_per_animal_dict = {}
+
+            for animal in padded_warped_by_animal:
+
+                seeds = [seed_override] if seed_override is not None else list(range(self.cfg.num_seeds))
+
+                dend_vm_per_seed_dict = {}
+
+                for i in seeds:
+
+                    epsp_cells, kernel = get_epsp_dict_animal(padded_warped_by_animal[animal], tau_ms=tau, amp=1., seed=i)
+                    dend_Vm, epsp_input_matrix, spike_mats = get_dend_vm_from_cells_multi(epsp_cells, Vrest=self.cfg.vrest, epsp_sf=self.cfg.epsp_sf)
+
+                    print(f"epsp_input_matrix.shape {epsp_input_matrix.shape}")
+
+                    n_EC = cells_per_animal_dict[animal]
+                    connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
+                    weights_EC = sample_weights(dist, connection_mask_EC, rng=rng, mean=10.0, std=0.5)
+
+
+                    activity_EC = get_dendrite_activity_multi(weights_EC, epsp_input_matrix, n_dendrites, n_EC)
+
+                    dend_Vm, activity_centered, trial_means = activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1, center_across="time_trials")
+
+                    dend_vm_per_seed_dict[i] = dend_Vm
+                    # dend_Vm = np.transpose(dend_Vm, (0, 2, 1)) 
+
+
+
+
+
+                plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, plateau_start_times_list_mega_list, num_plateaus_per_dend_list, dend_activity, padded_warped_activity_list = get_activity_multidendrite2(an_velocity_by_animal, dend_vm_per_animal_dict, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, self.cfg.dt_constant, self.cfg.dx, dend_threshold, vel_applied="real", example_cell=15, include_inhibition=True, use_model_EC=False)
+            
+
+                cumulative_plateau_counts, plateau_fraction_by_pos_bin  = plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, dend_vm_per_animal_dict, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt, padded_warped_activity_list, an_velocity_by_animal, dend_activity, dend_threshold, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,  plateau_start_times_list_mega_list, dist, num_plateaus_per_dend_list, animal, example_cell=1, include_inhibition="neither", NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=True)
+                
+                optimal_total_cumulative_plateau_counts = n_dendrites/2
+
+                MSE_total_plateau_counts = np.mean(np.square)
+
+                optimal_fraction_plateaus_array = np.array([5,5,5,5,20,20,10,10,7,5])
+
+                mse_plateau_fraction = np.mean(np.square(plateau_fraction_by_pos_bin - optimal_fraction_plateaus_array))
+
         
-        plt.figure(figsize=(16,4))
-        for i in range(mean_pad.shape[0]):
-            plt.plot(mean_pad[i,:])
-        plt.show()
+        else:
 
-        #### what to do with the plateau dict 
+            dist = self.cfg.dist
+
+            print(f"dist {dist}")
+
+            SEED = 42
+            np.random.seed(SEED)
+            random.seed(SEED)
+            rng = np.random.default_rng(SEED)
+
+            n_EC = 792
+            n_SST = 75
+            n_NDNF = 115
+            n_dendrites=100
+
+
+            an_velocity = get_velocity_array(factors_dict_EC, factors_dict_SST, fixed_NDNF, which_type="EC_animal_average")
+
+            
+            an_velocity_dict = get_velocity_array_every_animal(factors_dict_EC, n_trials=58)
+            scaled_data_Hz_dict_resid_EC = get_scaled_data_Hz_dict(residual_activity_dict_EC, Hz_SF=50)
+            scaled_data_Hz_dict_EC = add_vel_contribution_to_residuals_strict(scaled_data_Hz_dict_resid_EC, GLM_params_EC, an_velocity_dict)
+
+            scaled_data_Hz_dict_resid_SST = get_scaled_data_Hz_dict(residual_activity_dict_SST, Hz_SF=50)
+            scaled_data_Hz_dict_SST = add_vel_contribution_to_residuals_strict(scaled_data_Hz_dict_resid_SST, GLM_params_EC, an_velocity_dict)
+
+            scaled_data_Hz_dict_resid_NDNF = get_scaled_data_Hz_dict(residual_activity_dict_SST, Hz_SF=50)
+            scaled_data_Hz_dict_NDNF = add_vel_contribution_to_residuals_strict(scaled_data_Hz_dict_resid_NDNF, GLM_params_EC, an_velocity_dict)
+
+
+
+            padded_warped_activity_dict, an_velocity = do_the_interpolation(scaled_data_Hz_dict_EC, an_velocity=an_velocity)
+
+            
+            i=0
+            epsp_dict, kernel = get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=tau, amp=1., seed=i)
+
+            save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/epsp_dict.pkl"
+
+            important_dict = {"activity_EC":activity_EC, 
+                            "weights_EC":weights_EC}
+
+            with open(save_path, 'wb') as f:
+                pickle.dump(epsp_dict, f)
+                print(f"pickle saved to {save_path}")
+
+            for animal in epsp_dict:
+                for cell in epsp_dict[animal]:
+                    padded_warped_length_0 = len(epsp_dict[animal][cell]["epsps"][0])
+                    padded_warped_length_1 = len(epsp_dict[animal][cell]["epsps"][1])
+                    padded_warped_length_2 = len(epsp_dict[animal][cell]["epsps"][2])
+                    print(f"epsp_length {padded_warped_length_0} {padded_warped_length_1} {padded_warped_length_2}")
+
+            save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/epsp_dict.pkl"
+
+            with open(save_path, 'rb') as f:
+                epsp_dict = pickle.load(f)
+                print(f"pickle loaded from {save_path}")
+
+
+            _, epsp_input_matrix, spike_list = get_dend_vm(epsp_dict, Vrest=self.cfg.vrest, epsp_sf=self.cfg.epsp_sf)
+            epsp_input_matrix = np.transpose(epsp_input_matrix, (0, 2, 1)) 
+            print(f"epsp_input_matrix shape {epsp_input_matrix.shape}")
+
+        
+
+            # T, N = epsp_input_matrix.shape[1], epsp_input_matrix.shape[2]
+            # dt = 0.001  # s per bin, set to your dt_constant
+            # plt.imshow(
+            #     epsp_input_matrix[0].T,           # (N, T): trials x time
+            #     aspect='auto',
+            #     origin='lower',
+            #     interpolation='nearest',
+            #     extent=[0, T*dt*1000, 0, N]       # x in ms
+            # )
+            # plt.xlabel('time (ms)')
+            # plt.ylabel('trial')
+            # plt.title("First EC Cell's EPSPs (trial × time)")
+            # plt.show()
+
+            
+
+            # ########## old version for comparison#########
+            # dend_list_EC = get_dendrite_list(scaled_data_Hz_dict)
+            # EC_input_matrix = np.stack(dend_list_EC[:n_EC], axis=0)
+            # print(f"EC_input_matrix.shape {EC_input_matrix.shape}")
+
+            connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
+            weights_EC = sample_weights(dist, connection_mask_EC, rng=rng, mean=10.0, std=0.5)
+
+            activity_EC = get_dendrite_activity_multi(weights_EC, epsp_input_matrix, n_dendrites, n_EC)
+
+            # D, T, N = activity_EC.shape  # should be (n_dendrites, T, N)
+            # dt = 0.001  # s
+            # plt.imshow(activity_EC[0].T, aspect='auto', origin='lower',
+            #         interpolation='nearest', extent=[0, T*dt*1000, 0, N])
+            # plt.xlabel('time (ms)')
+            # plt.ylabel('trial')
+            # plt.title('First Dendrite Activity (trial × time)')
+            # plt.show()
+
+
+    
+            # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/activity_EC.pkl"
+
+            # important_dict = {"activity_EC":activity_EC, 
+            #                   "weights_EC":weights_EC}
+
+            # with open(save_path, 'wb') as f:
+            #     pickle.dump(important_dict, f)
+            #     print(f"pickle saved to {save_path}")
+
+
+            # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/activity_EC.pkl"
+
+            # with open(save_path, 'rb') as f:
+            #     important_dict = pickle.load(f)
+            #     print(f"pickle loaded from {save_path}")
+
+
+            # activity_EC = important_dict["activity_EC"]
+            # weights_EC = important_dict["weights_EC"]
+
+            # print(f"activity_EC.shape {activity_EC.shape}")
+
+            # activity_EC: (n_dendrites, T, 58)
+            dend_Vm, activity_centered, trial_means = activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1, center_across="time_trials")
+
+            dend_Vm = np.transpose(dend_Vm, (0, 2, 1)) 
+
+            plt.imshow(dend_Vm[0,:,:].T, aspect='auto')
+            plt.title("Dend Vm")
+            plt.show()
+
+
+            summed_dendrite = get_summed_dendrite_EC_DFF(self.data["residual_activity_dict_EC"])
+
+            dend_threshold = self.cfg.dend_threshold
+
+
+            activity_NDNF=0
+            activity_SST=0
+            NDNF_sf_opt=0
+            SST_sf_opt=0
+
+            weights_SST=0
+            weights_NDNF=0
+
+            print(f"self.cfg.dend_threshold {self.cfg.dend_threshold}")
+
+            plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, plateau_start_times_list_mega_list, num_plateaus_per_dend_list, dend_activity, padded_warped_activity_list = get_activity_multidendrite2(an_velocity, dend_Vm, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, self.cfg.dt_constant, self.cfg.dx, dend_threshold=self.cfg.dend_threshold, vel_applied="real", example_cell=15, include_inhibition=True, use_model_EC=False)
+        
+
+            cumulative_plateau_counts, plateau_fraction_by_pos_bin = plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, dend_Vm, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt, padded_warped_activity_list, an_velocity, dend_activity, dend_threshold, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,  plateau_start_times_list_mega_list, dist, num_plateaus_per_dend_list, example_cell=1, include_inhibition="neither", NDNF_contribution_sum=None, SST_contribution_sum=None)
+            
+            print(f"np.max(cumulative_plateau_counts) {np.max(cumulative_plateau_counts)}")
 
         self.results["animal_by_animal"] = bool(animal_by_animal)
 
