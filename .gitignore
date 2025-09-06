@@ -7,3 +7,21 @@ __pycache__/*
 ..gitignore.un~
 *.pth
 *.png
+
+
+# Binary/data artifacts
+*.pkl
+*.pickle
+*.npz
+*.npy
+*.h5
+*.pt
+*.pth
+
+# Recommended general ignores
+__pycache__/
+*.py[cod]
+.DS_Store
+.ipynb_checkpoints/
+.idea/
+
