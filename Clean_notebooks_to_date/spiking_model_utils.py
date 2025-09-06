@@ -1,11 +1,11 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import torch
 import slicetca
 import mat73
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LinearRegression
 import h5py
+import matplotlib.pyplot as plt
 
 # import utils as ut
 # import plot as pt
@@ -250,22 +250,38 @@ def add_vel_contribution_to_residuals(scaled_data_Hz_dict, GLM_params, animal_ve
 
     return animal_dict
 
-def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50):
-    scaled_data_Hz_dict={}
+def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50.0, eps=1e-12):
+    out = {}
     for animal in activity_dict_EC:
-        scaled_data_Hz_dict_cell = {}
-        for cell in activity_dict_EC[animal]:
-            activity = activity_dict_EC[animal][cell][:,:58]
-            min_max_actiivty_list = []
-            for i in range(activity.shape[1]):
-                trial_activity = activity[:, i]
-                min_max_actiivty = (trial_activity - (np.min(trial_activity))) / (np.max(trial_activity) - (np.min(trial_activity)))
-                scaled_data_Hz = min_max_actiivty * Hz_SF
-                min_max_actiivty_list.append(scaled_data_Hz)
-            min_max_actiivty_array = np.array(min_max_actiivty_list)
-            scaled_data_Hz_dict_cell[cell] = min_max_actiivty_array.T
-        scaled_data_Hz_dict[animal] = scaled_data_Hz_dict_cell
-    return scaled_data_Hz_dict
+        per_cell = {}
+        for cell, A in activity_dict_EC[animal].items():
+            A = np.asarray(A[:, :58], dtype=float)  # (n_pos, 58)
+            B = np.empty_like(A, dtype=float)
+            for i in range(A.shape[1]):
+                x = A[:, i]
+                denom = max(np.nanmax(x) - np.nanmin(x), eps)
+                B[:, i] = ((x - np.nanmin(x)) / denom) * Hz_SF
+            per_cell[cell] = B
+        out[animal] = per_cell
+    return out
+
+
+# def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50):
+#     scaled_data_Hz_dict={}
+#     for animal in activity_dict_EC:
+#         scaled_data_Hz_dict_cell = {}
+#         for cell in activity_dict_EC[animal]:
+#             activity = activity_dict_EC[animal][cell][:,:58]
+#             min_max_actiivty_list = []
+#             for i in range(activity.shape[1]):
+#                 trial_activity = activity[:, i]
+#                 min_max_actiivty = (trial_activity - (np.min(trial_activity))) / (np.max(trial_activity) - (np.min(trial_activity)))
+#                 scaled_data_Hz = min_max_actiivty * Hz_SF
+#                 min_max_actiivty_list.append(scaled_data_Hz)
+#             min_max_actiivty_array = np.array(min_max_actiivty_list)
+#             scaled_data_Hz_dict_cell[cell] = min_max_actiivty_array.T
+#         scaled_data_Hz_dict[animal] = scaled_data_Hz_dict_cell
+#     return scaled_data_Hz_dict
 
 # def do_the_interpolation(scaled_data_Hz_dict, an_velocity=None):
 #     padded_warped_activity_dict = {}
@@ -395,7 +411,6 @@ def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50):
 #     return padded_warped_activity_dict, an_velocity
 
 
-import numpy as np
 
 def do_the_interpolation(
     scaled_data_Hz_dict,
@@ -406,7 +421,7 @@ def do_the_interpolation(
     verbose=True,
     log_limit=30,
     fallback_mode="zero"    # "zero" | "first" | "nan"
-):
+    ):
     """
     Returns:
         padded_warped_activity_dict[animal][cell] -> list of length n_trials (each 1D float32)
@@ -728,73 +743,73 @@ def get_epsp_dict(padded_warped_activity_dict, tau_ms=None, amp=None, seed=None)
 
     return animal_dict, kernel
 
-# def get_dend_vm(epsp_dict, Vrest=-60.0, epsp_sf=0.1):
-#     cell_epsp_mats = []
-#     cell_spike_mats = []
+def get_dend_vm(epsp_dict, Vrest=-60.0, epsp_sf=0.1):
+    cell_epsp_mats = []
+    cell_spike_mats = []
 
-#     # --- per cell: build (n_trials, T_cell) as float so we can NaN-pad ---
-#     for animal in epsp_dict:
-#         for cell in epsp_dict[animal]:
-#             epsp = epsp_dict[animal][cell]["epsps"]         # dict: trial -> 1D array (float)
-#             spik = epsp_dict[animal][cell]["spike_train"]   # dict: trial -> 1D array (uint8)
+    # --- per cell: build (n_trials, T_cell) as float so we can NaN-pad ---
+    for animal in epsp_dict:
+        for cell in epsp_dict[animal]:
+            epsp = epsp_dict[animal][cell]["epsps"]         # dict: trial -> 1D array (float)
+            spik = epsp_dict[animal][cell]["spike_train"]   # dict: trial -> 1D array (uint8)
 
-#             if not epsp:  # skip truly empty cells
-#                 continue
+            if not epsp:  # skip truly empty cells
+                continue
 
-#             # Per-cell max lengths (time)
-#             max_len_epsp = max(len(epsp[t]) for t in epsp)
-#             max_len_spik = max(len(spik[t]) for t in spik)
+            # Per-cell max lengths (time)
+            max_len_epsp = max(len(epsp[t]) for t in epsp)
+            max_len_spik = max(len(spik[t]) for t in spik)
 
-#             # EPSPs -> (n_trials, max_len_epsp), float with NaN padding
-#             epsp_trials = []
-#             for t in range(len(epsp)):
-#                 v = np.asarray(epsp[t], dtype=np.float32)
-#                 if v.size < max_len_epsp:
-#                     v = np.pad(v, (0, max_len_epsp - v.size), mode="constant", constant_values=np.nan)
-#                 epsp_trials.append(v)
-#             epsp_mat = np.vstack(epsp_trials).astype(np.float32, copy=False)
-#             cell_epsp_mats.append(epsp_mat)
+            # EPSPs -> (n_trials, max_len_epsp), float with NaN padding
+            epsp_trials = []
+            for t in range(len(epsp)):
+                v = np.asarray(epsp[t], dtype=np.float32)
+                if v.size < max_len_epsp:
+                    v = np.pad(v, (0, max_len_epsp - v.size), mode="constant", constant_values=np.nan)
+                epsp_trials.append(v)
+            epsp_mat = np.vstack(epsp_trials).astype(np.float32, copy=False)
+            cell_epsp_mats.append(epsp_mat)
 
-#             # Spikes -> (n_trials, max_len_spik), cast to float before NaN padding
-#             spk_trials = []
-#             for t in range(len(spik)):
-#                 v = np.asarray(spik[t], dtype=np.float32)  # cast BEFORE padding so NaN is valid
-#                 if v.size < max_len_spik:
-#                     v = np.pad(v, (0, max_len_spik - v.size), mode="constant", constant_values=np.nan)
-#                 spk_trials.append(v)
-#             spk_mat = np.vstack(spk_trials).astype(np.float32, copy=False)
-#             cell_spike_mats.append(spk_mat)
+            # Spikes -> (n_trials, max_len_spik), cast to float before NaN padding
+            spk_trials = []
+            for t in range(len(spik)):
+                v = np.asarray(spik[t], dtype=np.float32)  # cast BEFORE padding so NaN is valid
+                if v.size < max_len_spik:
+                    v = np.pad(v, (0, max_len_spik - v.size), mode="constant", constant_values=np.nan)
+                spk_trials.append(v)
+            spk_mat = np.vstack(spk_trials).astype(np.float32, copy=False)
+            cell_spike_mats.append(spk_mat)
 
-#     if not cell_epsp_mats:
-#         raise ValueError("No EPSP matrices were built (empty epsp_dict?).")
+    if not cell_epsp_mats:
+        raise ValueError("No EPSP matrices were built (empty epsp_dict?).")
 
-#     # --- across cells: pad to GLOBAL (n_trials, T) so we can stack cleanly ---
-#     global_T = max(m.shape[1] for m in cell_epsp_mats)
-#     global_N = max(m.shape[0] for m in cell_epsp_mats)
+    # --- across cells: pad to GLOBAL (n_trials, T) so we can stack cleanly ---
+    global_T = max(m.shape[1] for m in cell_epsp_mats)
+    global_N = max(m.shape[0] for m in cell_epsp_mats)
 
-#     def pad_to_global(mat):
-#         n, t = mat.shape
-#         dn = global_N - n
-#         dt = global_T - t
-#         if dn > 0 or dt > 0:
-#             mat = np.pad(mat, ((0, max(dn,0)), (0, max(dt,0))),
-#                          mode="constant", constant_values=np.nan)
-#         return mat.astype(np.float32, copy=False)
+    def pad_to_global(mat):
+        n, t = mat.shape
+        dn = global_N - n
+        dt = global_T - t
+        if dn > 0 or dt > 0:
+            mat = np.pad(mat, ((0, max(dn,0)), (0, max(dt,0))),
+                         mode="constant", constant_values=np.nan)
+        return mat.astype(np.float32, copy=False)
 
-#     epsp_stack = np.stack([pad_to_global(m) for m in cell_epsp_mats], axis=0)  # (n_cells, N, T)
+    epsp_stack = np.stack([pad_to_global(m) for m in cell_epsp_mats], axis=0)  # (n_cells, N, T)
 
-#     # --- masked SUM across cells, keeping NaN where no data exists ---
-#     valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)   # (N, T)
-#     summed = np.nansum(epsp_stack, axis=0)                 # (N, T)
-#     summed[valid_counts == 0] = np.nan
+    # --- masked SUM across cells, keeping NaN where no data exists ---
+    valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)   # (N, T)
+    summed = np.nansum(epsp_stack, axis=0)                 # (N, T)
+    summed[valid_counts == 0] = np.nan
 
-#     # center per trial using nanmean
-#     trial_means = np.nanmean(summed, axis=1, keepdims=True)  # (N, 1)
-#     summed_centered = summed - trial_means
+    # center per trial using nanmean
+    trial_means = np.nanmean(summed, axis=1, keepdims=True)  # (N, 1)
+    summed_centered = summed - trial_means
 
-#     dend_Vm = Vrest + epsp_sf * summed_centered  # (N, T)
+    dend_Vm = Vrest + epsp_sf * summed_centered  # (N, T)
 
-#     return dend_Vm, epsp_stack, cell_spike_mats
+    return dend_Vm, epsp_stack, cell_spike_mats
 
 
 def plot_dend_vm_example(dend_Vm, epsp_list, spike_list, residual_activity_dict_EC, an_velocity):
@@ -1948,68 +1963,6 @@ def plot_dendrite_spikes_multiple_seeds(dend_Vm_dict, an_velocity, residual_acti
     plt.tight_layout()
     plt.show()
 
-def get_dend_vm(epsp_dict, Vrest=-60.0, epsp_sf=0.1):
-    cell_epsp_mats = []
-    cell_spike_mats = []
-
-    # --- per cell: pad trials to that cell's max trial length ---
-    for animal in epsp_dict:
-        for cell in epsp_dict[animal]:
-            epsp = epsp_dict[animal][cell]["epsps"]         # dict: trial -> 1D array
-            spik = epsp_dict[animal][cell]["spike_train"]   # dict: trial -> 1D array
-
-            # Per-cell max lengths
-            max_len_epsp = max(len(epsp[t]) for t in epsp)
-            max_len_spik = max(len(spik[t]) for t in spik)
-
-            # EPSPs -> (n_trials, max_len_epsp)
-            epsp_trials = []
-            for t in range(len(epsp)):
-                v = epsp[t]
-                if len(v) < max_len_epsp:
-                    v = np.pad(v, (0, max_len_epsp - len(v)), constant_values=np.nan)
-                epsp_trials.append(v.astype(np.float32, copy=False))
-            epsp_mat = np.vstack(epsp_trials)  # (n_trials, max_len_epsp)
-            cell_epsp_mats.append(epsp_mat)
-
-            # Spikes -> (n_trials, max_len_spik)
-            spk_trials = []
-            for t in range(len(spik)):
-                v = spik[t]
-                if len(v) < max_len_spik:
-                    v = np.pad(v, (0, max_len_spik - len(v)), constant_values=np.nan)
-                spk_trials.append(v.astype(np.float32, copy=False))
-            spk_mat = np.vstack(spk_trials)
-            cell_spike_mats.append(spk_mat)
-
-    # --- across cells: pad to GLOBAL max length so we can stack cleanly ---
-    # (trials can differ across cells; we’ll align by time axis length only)
-
-    global_T = max(m.shape[1] for m in cell_epsp_mats)
-    epsp_stack = []
-    for m in cell_epsp_mats:
-        if m.shape[1] < global_T:
-            m = np.pad(m, ((0,0),(0, global_T - m.shape[1])), constant_values=np.nan)
-            
-        epsp_stack.append(m)
-    # shape: (n_cells, n_trials, T) after stacking along a new axis
-    epsp_stack = np.stack(epsp_stack, axis=0)
-
-    # --- masked SUM across cells, keeping NaN where no data exists ---
-    # count how many non-NaN cells contribute at each (trial, time) bin
-    valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)       # (n_trials, T)
-    summed = np.nansum(epsp_stack, axis=0)                     # (n_trials, T)
-    # where count == 0, set to NaN (instead of 0 from nansum)
-    summed[valid_counts == 0] = np.nan
-
-    # center per trial using nanmean (does not turn NaNs into zeros)
-    trial_means = np.nanmean(summed, axis=1, keepdims=True)    # (n_trials, 1)
-    summed_centered = summed - trial_means                     # (n_trials, T)
-
-    # dendritic Vm (same shape)
-    dend_Vm = Vrest + epsp_sf * summed_centered
-
-    return dend_Vm, epsp_stack, cell_spike_mats
 
  
 # def plot_dendrite_spikes_multiple_seeds(dend_Vm_dict, an_velocity, residual_activity_dict_EC, padded_warped_activity_EC, summed_dendrite, just_plateau_starts_sums_dict, plateau_array_dict, dend_threshold=None, tau=None, num_seeds=None):
