@@ -25,3 +25,10 @@ __pycache__/
 .ipynb_checkpoints/
 .idea/
 
+
+# ignore DBs
+*.db
+optuna_param_pickles/
+logs/
+results/
+untitled folder/
