@@ -74,7 +74,7 @@ class SpikingModel:
             if 17 < idx < 31:
                 fixed_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
 
-        self.data.update(dict(activity_dict_EC=activity_dict_EC, residual_activity_dict_EC=residual_activity_dict_EC, factors_dict_EC=factors_dict_EC, factors_dict_SST=factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest=fixed_filtered_factors_dict_NDNF_newest, GLM_params_EC=GLM_params_EC, residual_activity_dict_SST=residual_activity_dict_SST, fixed_residual_activity_dict_NDNF_newest=fixed_residual_activity_dict_NDNF_newest))
+        self.data.update(dict(activity_dict_EC=activity_dict_EC, residual_activity_dict_EC=residual_activity_dict_EC, factors_dict_EC=factors_dict_EC, factors_dict_SST=factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest=fixed_filtered_factors_dict_NDNF_newest, GLM_params_EC=GLM_params_EC, GLM_params_SST=GLM_params_SST, GLM_params_NDNF=GLM_params_NDNF_newest, residual_activity_dict_SST=residual_activity_dict_SST, fixed_residual_activity_dict_NDNF_newest=fixed_residual_activity_dict_NDNF_newest))
 
     def optimize_params_for_animal(
         self,
@@ -410,7 +410,6 @@ class SpikingModel:
             print(f"epsp_input_matrix shape {epsp_input_matrix.shape}")
 
     
-
             connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
             weights_EC = sample_weights(dist, connection_mask_EC, rng=rng, mean=10.0, std=0.5)
 

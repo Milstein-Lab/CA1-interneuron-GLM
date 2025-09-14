@@ -455,7 +455,7 @@ def do_the_interpolation(
 
             for t in range(n_trials):
                 firing = firing_mat[:, t].astype(np.float64, copy=False)
-                vel_cm = (an_velocity[:, t] * 100.0).astype(np.float64, copy=False)  # cm/s
+                vel_cm = (an_velocity[:, t]).astype(np.float64, copy=False)  # cm/s
 
                 # (A) Velocity checks (you said no NaNs/zeros; still guard & clamp tiny)
                 vel_bad = (~np.isfinite(vel_cm)) | (vel_cm <= 0)

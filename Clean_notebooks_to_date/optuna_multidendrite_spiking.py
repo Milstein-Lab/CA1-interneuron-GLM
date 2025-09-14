@@ -122,38 +122,102 @@ def evaluate_params_for_seeds(params, static, seeds):
     target_total = 0.30 * n_dendrites * 1.5
     target_frac  = np.array([5,5,5,5,20,20,10,10,7,5], float); target_frac /= target_frac.sum()
 
-    def _eval_one_seed(s):
-        epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=int(s))
-        _, epsp_eTN, _ = get_dend_vm_from_cells_multi(epsp_cells, Vrest=static["vrest"], epsp_sf=static["epsp_sf"])
+    # def _eval_one_seed(s):
+    #     epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=int(s))
+    #     _, epsp_eTN, _ = get_dend_vm_from_cells_multi(epsp_cells, Vrest=static["vrest"], epsp_sf=static["epsp_sf"])
+    #     if epsp_eTN.shape[1] != animal_velocity.shape[1]:
+    #         epsp_eTN = np.transpose(epsp_eTN, (0, 2, 1))
+
+    #     rng = np.random.default_rng(12345 + int(s))
+    #     connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
+    #     weights_EC = sample_weights(static["dist"], connection_mask_EC, rng=rng,
+    #                                 mean=weights_mean, std=weights_std)
+
+    #     activity_EC = get_dendrite_activity_multi(weights_EC, epsp_eTN, n_dendrites, n_EC)
+    #     dend_Vm, _, _ = activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1, center_across="time_trials")
+
+    #     (_pos_cnt,
+    #      start_pos_cnt50,
+    #      _plateau_arr_list,
+    #      _mask,
+    #      _starts_list,
+    #      num_plateaus_per_dend_list,
+    #      _,
+    #      _) = get_activity_multidendrite2(
+    #         animal_velocity, dend_Vm,
+    #         activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
+    #         dt_constant=static["dt_constant"], dx=static["dx"], dend_threshold=dend_threshold,
+    #         vel_applied="real", example_cell=15, include_inhibition=True, use_model_EC=False
+    #     )
+
+    #     num_per_dend = np.asarray(num_plateaus_per_dend_list, float)
+    #     total_starts = float(np.sum(start_pos_cnt50))
+    #     frac10 = ten_bin_fraction_from_counter(np.asarray(start_pos_cnt50, float))
+    #     return total_starts, frac10, num_per_dend
+
+    def _eval_one_seed(params, seed, static):
+        tau_ms         = float(params["tau_ms"])
+        weights_mean   = float(params["weights_mean"])
+        weights_std    = float(params["weights_std"])
+        dend_threshold = float(params["dend_threshold"])
+
+        n_dendrites     = int(static["n_dendrites"])
+        n_EC            = int(static["n_EC"])
+        animal_velocity = np.asarray(static["animal_velocity"], dtype=np.float32, order="C")
+        pwa_cell_dict   = static["pwa_cell_dict"]
+
+        # --- EPSPs (ensure float32 path) ---
+        epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=int(seed))
+        _, epsp_eTN, _ = get_dend_vm_from_cells_multi(
+            epsp_cells, Vrest=np.float32(static["vrest"]), epsp_sf=np.float32(static["epsp_sf"])
+        )
+        # want (E, T, N)
         if epsp_eTN.shape[1] != animal_velocity.shape[1]:
             epsp_eTN = np.transpose(epsp_eTN, (0, 2, 1))
+        epsp_eTN = np.ascontiguousarray(epsp_eTN, dtype=np.float32)
 
-        rng = np.random.default_rng(12345 + int(s))
-        connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
-        weights_EC = sample_weights(static["dist"], connection_mask_EC, rng=rng,
-                                    mean=weights_mean, std=weights_std)
+        # --- Weights (float32) ---
+        rng = np.random.default_rng(12345 + int(seed))
+        connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=np.bool_)
+        weights_EC = sample_weights(
+            static["dist"], connection_mask_EC, rng=rng,
+            mean=weights_mean, std=weights_std
+        ).astype(np.float32, copy=False)
 
+        # --- EC activity -> dendritic Vm (float32, contiguous) ---
         activity_EC = get_dendrite_activity_multi(weights_EC, epsp_eTN, n_dendrites, n_EC)
-        dend_Vm, _, _ = activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1, center_across="time_trials")
-
-        (_pos_cnt,
-         start_pos_cnt50,
-         _plateau_arr_list,
-         _mask,
-         _starts_list,
-         num_plateaus_per_dend_list,
-         _,
-         _) = get_activity_multidendrite2(
-            animal_velocity, dend_Vm,
-            activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
-            dt_constant=static["dt_constant"], dx=static["dx"], dend_threshold=dend_threshold,
-            vel_applied="real", example_cell=15, include_inhibition=True, use_model_EC=False
+        activity_EC = np.asarray(activity_EC, dtype=np.float32, order="C")
+        dend_Vm, _, _ = activity_to_dend_vm(
+            activity_EC, Vrest=np.float32(-70.0), vm_scale=np.float32(0.1), center_across="time_trials"
         )
 
-        num_per_dend = np.asarray(num_plateaus_per_dend_list, float)
-        total_starts = float(np.sum(start_pos_cnt50))
-        frac10 = ten_bin_fraction_from_counter(np.asarray(start_pos_cnt50, float))
-        return total_starts, frac10, num_per_dend
+        # --- Plateaus: ask NOT to build/store huge arrays ---
+        res = get_activity_multidendrite2(
+            animal_velocity, dend_Vm,
+            activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
+            dt_constant=static["dt_constant"], dx=static["dx"], dend_threshold=np.float32(dend_threshold),
+            vel_applied="real", example_cell=15, include_inhibition=None, use_model_EC=False,
+            store_arrays=False,  # <---- IMPORTANT
+        )
+        # Pull only what you need
+        start_pos_cnt50 = res[1]                      # (50,) int counts
+        num_plateaus_per_dend_list = res[5]           # list/array per dendrite
+
+        # --- runtime hygiene: drop big temps immediately ---
+        try: del epsp_cells
+        except NameError: pass
+        try: del epsp_eTN
+        except NameError: pass
+        try: del weights_EC
+        except NameError: pass
+        try: del activity_EC
+        except NameError: pass
+        try: del dend_Vm
+        except NameError: pass
+        # Optional: import gc; gc.collect()
+
+        return start_pos_cnt50, np.asarray(num_plateaus_per_dend_list, dtype=np.float32)
+
 
     # run serially here for a deterministic replay; or use Parallel(..., prefer="threads")
     outs = [_eval_one_seed(s) for s in seeds]
@@ -424,31 +488,6 @@ def load_plot_pickled_params_by_seeds(save_path, static, seeds, animal, plot=Tru
 
     if not plot:
         return loss, metrics
-
-
-    # dend_Vm comes from activity_to_dend_vm(...)
-# Ensure dend_Vm is (n_dendrites, trials, time) for the multi-seed aggregator
-   
-
-    # # --- build cross-seed tensors for your plotting util (no re-simulation) ---
-    # (_pos_cnt,
-    #  start_pos_cnt50,
-    #  _plateau_arr_list,
-    #  _mask,
-    #  _starts_list,
-    #  num_plateaus_per_dend_list,
-    #  dend_activity,
-    #  padded_warped_activity_list) = get_activity_multidendrite2_multiple_seeds(
-    #     animal_velocity, dend_vm_per_seed_dict,
-    #     activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
-    #     dt_constant=static["dt_constant"], dx=static["dx"],
-    #     dend_threshold=params["dend_threshold"], vel_applied="real",
-    #     example_cell=15, include_inhibition=True, use_model_EC=False
-    # )
-    # print("[dbg] start_pos_cnt50 sum:", float(np.sum(start_pos_cnt50)))
-    # print("[dbg] mean num_plateaus_per_dend:", float(np.mean(num_plateaus_per_dend_list)))
-    # print("[dbg] any dend_activity nonzero:", bool(np.any(dend_activity)))
-
 
     _ = plot_multidendrite_EC_err_across_seeds(pickle_params["tau_ms"], seeds,last_EPSP,
         last_weights_EC, 0, 0,
