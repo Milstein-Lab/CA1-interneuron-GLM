@@ -389,8 +389,6 @@ def load_plot_pickled_params_by_seeds(save_path, static, seeds, animal, plot=Tru
     padded_warped_activity_list_dict = {}
     last_EPSP = None
 
-
-
     for s in seeds:
         epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=params["tau_ms"], amp=1., seed=int(s))
         _, epsp_eTN, _ = get_dend_vm_from_cells_multi(epsp_cells, Vrest=static["vrest"], epsp_sf=static["epsp_sf"])
@@ -584,8 +582,9 @@ def priority_loss_single_animal(params, static, seed_list, return_metrics: bool 
             epsp_eTN = np.transpose(epsp_eTN, (0, 2, 1))
 
         rng = np.random.default_rng(12345 + int(s))
+        # rng = np.random.default_rng((int(s), 0))
         connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=bool)
-        weights_EC = sample_weights(static["dist"], connection_mask_EC, rng=rng,mean=weights_mean, std=weights_std)
+        weights_EC = sample_weights(static["dist"], connection_mask_EC, rng=rng, mean=weights_mean, std=weights_std)
 
         activity_EC = get_dendrite_activity_multi(weights_EC, epsp_eTN, n_dendrites, n_EC)
         dend_Vm, _, _ = activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1, center_across="time_trials")

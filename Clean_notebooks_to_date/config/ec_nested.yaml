@@ -1,6 +1,3 @@
-# scontrol show job 34792125 | egrep 'StdOut=|StdErr=|WorkDir='
-# tail -f
-
 bounds:
   tau_ms:
    - 5.0
@@ -21,11 +18,40 @@ kwargs:
   weight_dist: Lognormal
   inner_jobs: 1
   network_start_seed: 0
-  num_network_seeds: 5
-  ec_animal_average: False
+  network_end_seed: 2
+  ec_animal_average: True
+  vel_applied: real
+  dend_threshold: -65.
+  use_averaged_velocity: 'actual_velocity' #"cell_type_av" 
+  dist: 'Lognormal'
+  add_inh: 'neither'
+  make_it_spike: True
+  SST_bias_multi: 1.4
+  real_vel: True
+  constant_vel: False
+  use_model_EC: False
+  SST_bias_factor: 2.0
+  dt_constant : 0.0001
+  tau_ms : 5.0
+  dt_constant: 0.001
+  dx: 3.6         
+  store: mean    
+  debug: false
+  spikes: false
+  epsps: true
+  warp_axes: true
+  seed_start: 0
+  export: true
+  save_path: /Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/saved_pkl_nested.pkl
+  plot: true
+  animal_by_animal: false 
+  input_animal: 'animal_1'
+  include_beta: true
+  flat_input: true
+
 
 stages:
-  - source: ec_nested_stage_ec_average
+  - source: ec_nested_stage
     get_args_static: get_args
     compute_features: compute_features
     filter_features: filter_features
@@ -38,29 +64,3 @@ x0:
   dend_threshold: -50.0
   weights_mean: 0.5
   weights_std: 0.5
-
-# feature_names:
-#   - mean_total
-#   - violations
-#   - frac_active
-#   - f12_active
-#   - mse_total
-#   - mse_frac
-#   - pen_sparsity
-#   - pen_12only
-#   - total_error
-
-# objective_names:
-#   - total_error
-
-# objective_names:
-#   - total_error
-
-
-# tell nested which class and where to import it from
-
-# imports:
-#   - nested.optimize_utils
-#   - ec_nested_stage
-
-

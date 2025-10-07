@@ -133,21 +133,10 @@ class SpikingModel:
             return
 
         # Regular (global) path
-        padded_warped_activity_dict, an_velocity = do_the_interpolation(
-            scaled_data_Hz_dict, an_velocity=an_velocity
-        )
+        padded_warped_activity_dict, an_velocity = do_the_interpolation(scaled_data_Hz_dict, an_velocity=an_velocity)
+        
         summed_dendrite = get_summed_dendrite_EC_DFF(self.data["residual_activity_dict_EC"])
-        (
-            padded_warped_activity_EC,
-            _,
-            cumulative_plateau_counts,
-        ) = get_internals_summed_dendrite(
-            an_velocity,
-            summed_dendrite,
-            dt_constant=self.cfg.dt_constant,
-            dend_threshold=self.cfg.dend_threshold,
-            vel_applied="real",
-        )
+        padded_warped_activity_EC, _, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=self.cfg.dt_constant, dend_threshold=self.cfg.dend_threshold, vel_applied="real")
 
         self.results.update(
             dict(
@@ -155,7 +144,7 @@ class SpikingModel:
                 an_velocity=an_velocity,
                 padded_warped_activity_dict=padded_warped_activity_dict,
                 summed_dendrite=summed_dendrite,
-                padded_warped_activity_EC=padded_warped_activity_EC,
+                padded_warped_activity_EC=padded_warped_activity_dict,
                 cumulative_plateau_counts=cumulative_plateau_counts,
             )
         )
@@ -347,12 +336,15 @@ class SpikingModel:
             # residual_activity_dict_EC = self.data["residual_activity_dict_EC"]
             residual_activity_dict_EC = self.data.get("residual_activity_dict_EC", None)
 
+            animal_by_animal = True
+
             try:
                 plot_dendrite_spikes_multiple_seeds(
                     seed_vm_dict,
                     animal_vel,
                     residual_activity_dict_EC,
                     animal,
+                    animal_by_animal=animal_by_animal,
                     dend_threshold=self.cfg.dend_threshold,
                     tau=self.cfg.tau_ms,
                     num_seeds=self.cfg.num_seeds,

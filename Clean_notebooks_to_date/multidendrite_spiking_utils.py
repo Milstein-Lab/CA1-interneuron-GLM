@@ -539,6 +539,118 @@ def get_activity_multidendrite2(
 
 
 
+def get_dend_vm(epsp_dict, Vrest=-60.0, epsp_sf=0.1, return_spikes=False):
+    cell_epsp_mats = []
+    cell_spike_mats = [] if return_spikes else None
+
+    for animal in epsp_dict:
+        for cell, payload in epsp_dict[animal].items():
+            epsp = payload["epsps"]                      # dict: trial -> 1D float
+            spik = payload.get("spike_train") if return_spikes else None
+
+            if not epsp:
+                continue
+
+            max_len_epsp = max(len(epsp[t]) for t in epsp)
+            epsp_trials = []
+            for t in range(len(epsp)):
+                v = np.asarray(epsp[t], dtype=np.float32, order="C")
+                if v.size < max_len_epsp:
+                    v = np.pad(v, (0, max_len_epsp - v.size), mode="constant", constant_values=np.nan)
+                epsp_trials.append(v)
+            epsp_mat = np.vstack(epsp_trials).astype(np.float32, copy=False)
+            cell_epsp_mats.append(epsp_mat)
+
+            if return_spikes:
+                max_len_spk = max(len(spik[t]) for t in spik) if spik else 0
+                spk_trials = []
+                for t in range(len(epsp)):  # keys align by construction
+                    v = np.asarray((spik or {}).get(t, []), dtype=np.float32)
+                    if v.size < max_len_spk:
+                        v = np.pad(v, (0, max_len_spk - v.size), mode="constant", constant_values=np.nan)
+                    spk_trials.append(v)
+                spk_mat = np.vstack(spk_trials).astype(np.float32, copy=False) if spk_trials else np.zeros((0,0), np.float32)
+                cell_spike_mats.append(spk_mat)
+
+    if not cell_epsp_mats:
+        raise ValueError("No EPSP matrices were built.")
+
+    global_T = max(m.shape[1] for m in cell_epsp_mats)
+    global_N = max(m.shape[0] for m in cell_epsp_mats)
+
+    def pad_to_global(mat):
+        n, t = mat.shape
+        dn, dt = global_N - n, global_T - t
+        if dn > 0 or dt > 0:
+            mat = np.pad(mat, ((0, max(dn,0)), (0, max(dt,0))),
+                         mode="constant", constant_values=np.nan)
+        return mat.astype(np.float32, copy=False)
+
+    epsp_stack = np.stack([pad_to_global(m) for m in cell_epsp_mats], axis=0)  # (cells, N, T)
+
+    valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)   # (N, T)
+    summed = np.nansum(epsp_stack, axis=0)                 # (N, T)
+    summed[valid_counts == 0] = np.nan
+
+    trial_means = np.nanmean(summed, axis=1, keepdims=True).astype(np.float32, copy=False)
+    summed_centered = (summed - trial_means).astype(np.float32, copy=False)
+    dend_Vm = np.float32(Vrest) + np.float32(epsp_sf) * summed_centered
+
+    return dend_Vm, epsp_stack, (cell_spike_mats if return_spikes else None)
+
+def get_dend_vm_from_cells_multi(cells_dict, Vrest=-60.0, epsp_sf=0.1, return_spikes=False):
+    if not cells_dict:
+        z = np.zeros((0, 0), dtype=np.float32)
+        return z, z, ({} if return_spikes else None)
+
+    # collect trials and global lengths from EPSPs
+    trial_ids = sorted({tid for p in cells_dict.values() for tid in p["epsps"].keys()},
+                       key=lambda x: (0, int(x)) if str(x).isdigit() else (1, str(x)))
+    n_trials = len(trial_ids)
+    global_T_epsp = 0
+    if n_trials:
+        for payload in cells_dict.values():
+            for v in payload["epsps"].values():
+                global_T_epsp = max(global_T_epsp, len(v))
+
+    cell_epsp_mats = []
+    spikes_per_cell = {} if return_spikes else None
+
+    for cell, payload in cells_dict.items():
+        ceps = payload["epsps"]
+        epsp_rows = []
+        for tid in trial_ids:
+            ev = np.asarray(ceps.get(tid, []), dtype=np.float32)
+            if ev.size < global_T_epsp:
+                ev = np.pad(ev, (0, global_T_epsp - ev.size), constant_values=np.float32(np.nan))
+            epsp_rows.append(ev)
+        epsp_mat = np.vstack(epsp_rows).astype(np.float32, copy=False)
+        cell_epsp_mats.append(epsp_mat)
+
+        if return_spikes:
+            cspk = payload.get("spike_train", {})
+            global_T_spk = 0
+            for v in cspk.values():
+                global_T_spk = max(global_T_spk, len(v))
+            spk_rows = []
+            for tid in trial_ids:
+                sv = np.asarray(cspk.get(tid, []), dtype=np.float32)
+                if sv.size < global_T_spk:
+                    sv = np.pad(sv, (0, global_T_spk - sv.size), constant_values=np.float32(np.nan))
+                spk_rows.append(sv)
+            spikes_per_cell[cell] = np.vstack(spk_rows).astype(np.float32, copy=False)
+
+    epsp_stack = np.stack(cell_epsp_mats, axis=0).astype(np.float32, copy=False)
+    valid_counts = np.sum(~np.isnan(epsp_stack), axis=0).astype(np.int32, copy=False)
+    sum_epsp = np.nansum(epsp_stack, axis=0).astype(np.float32, copy=False)
+    sum_epsp[valid_counts == 0] = np.float32(np.nan)
+
+    trial_means = np.nanmean(sum_epsp, axis=1, keepdims=True).astype(np.float32, copy=False)
+    sum_epsp_centered = (sum_epsp - trial_means).astype(np.float32, copy=False)
+    dend_Vm = np.float32(Vrest) + np.float32(epsp_sf) * sum_epsp_centered
+
+    return dend_Vm, epsp_stack, (spikes_per_cell if return_spikes else None)
+
 
 def get_activity_multidendrite2_multiple_seeds(animal_velocity, activity_EC, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, dt_constant, dx, dend_threshold=20, vel_applied="real", example_cell=15, include_inhibition=None, use_model_EC=False):
 
@@ -1119,70 +1231,172 @@ def activity_to_dend_vm(activity_EC, Vrest=-70.0, vm_scale=0.1,
     dend_Vm = np.float32(Vrest) + np.float32(vm_scale) * A_centered
     return dend_Vm, A_centered, (mu if np.isscalar(mu) else mu.astype(np.float32, copy=False))
 
+def _epsp_matrix_for_trial(epsp_cells, t, animal_average):
+    """
+    Build an (E, N_t) float32 matrix for trial t, zero-padding each cell's EPSP to N_t.
+    Returns: epsp_E_N (E, N_t), cell_keys (list for stable cell order)
+    """
+    if animal_average:
+        # epsp_cells[animal][cell]["epsps"][t] -> 1D array
+        cell_keys = [(a, c) for a in epsp_cells for c in epsp_cells[a]]
+        # max length across all cells for this trial
+        N_t = 0
+        lengths = []
+        for a, c in cell_keys:
+            v = epsp_cells[a][c]["epsps"].get(t, [])
+            L = 0 if v is None else len(v)
+            lengths.append(L); N_t = max(N_t, L)
+        E = len(cell_keys)
+        if N_t == 0 or E == 0:
+            return np.zeros((0, 0), dtype=np.float32), cell_keys
+        M = np.zeros((E, N_t), dtype=np.float32)
+        for e, (a, c) in enumerate(cell_keys):
+            v = np.asarray(epsp_cells[a][c]["epsps"].get(t, []), dtype=np.float32)
+            if v.size:
+                M[e, :v.size] = v
+        return M, cell_keys
+    else:
+        # epsp_cells[cell]["epsps"][t] -> 1D array
+        cell_keys = list(epsp_cells.keys())
+        N_t = 0
+        lengths = []
+        for c in cell_keys:
+            v = epsp_cells[c]["epsps"].get(t, [])
+            L = 0 if v is None else len(v)
+            lengths.append(L); N_t = max(N_t, L)
+        E = len(cell_keys)
+        if N_t == 0 or E == 0:
+            return np.zeros((0, 0), dtype=np.float32), cell_keys
+        M = np.zeros((E, N_t), dtype=np.float32)
+        for e, c in enumerate(cell_keys):
+            v = np.asarray(epsp_cells[c]["epsps"].get(t, []), dtype=np.float32)
+            if v.size:
+                M[e, :v.size] = v
+        return M, cell_keys
 
 
-def get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=None, amp=None, seed=None):
+# def get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=None, amp=None, seed=None):
 
+#     dt_constant = 0.001
+
+#     dt_ms = dt_constant * 1000.0      # 1 ms
+
+#     tau_ms  = tau_ms
+#     dt_ms   = dt_constant * 1000.0      # 1 ms
+#     AMP     = amp                      # mV
+#     MODE    = "peak"                    # "area" or "peak"
+#     kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
+
+#     rng = np.random.default_rng(seed)
+
+
+#     animal_dict = {}
+#     for animal in padded_warped_activity_dict:
+#         cell_dict = {}
+#         for cell in padded_warped_activity_dict[animal]:
+#             epsps_dict= {}
+#             spike_times_dict = {}
+#             spike_train_dict = {}
+
+#             padded_warped_activity = padded_warped_activity_dict[animal][cell]
+
+#             for trial in range(len(padded_warped_activity)):
+                
+#                 example_padded_warped_activity = padded_warped_activity[trial]
+#                 if trial > 0:
+#                     example_previous_pad = padded_warped_activity[trial-1]
+#                 else:
+#                     example_previous_pad = padded_warped_activity[trial+1]
+
+#                 L_prev = example_previous_pad.shape[0]
+#                 L_curr = example_padded_warped_activity.shape[0]
+
+#                 two_track_length = np.concatenate([example_previous_pad, example_padded_warped_activity], axis=0)
+#                 t_ms = np.arange(two_track_length.shape[0]) * dt_ms
+
+#                 spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
+#                 st_curr = spike_times[spike_times >= L_prev] - L_prev
+#                 spike_times_dict[trial] = st_curr
+
+#                 spike_train = np.zeros(two_track_length.shape, dtype=np.uint8)
+#                 spike_train[spike_times] = 1
+#                 spike_train_curr = spike_train[L_prev : L_prev + L_curr]
+#                 spike_train_dict[trial] = spike_train_curr
+
+#                 epsps = np.convolve(spike_train, kernel, mode='full')[:len(spike_train)]
+#                 epsps_curr = epsps[L_prev : L_prev + L_curr]
+#                 epsps_dict[trial] = epsps_curr
+#                 # epsps_scaled = epsps-60
+#                 # dendrite.append(epsps_scaled)
+            
+
+
+#             cell_dict[cell] = {"epsps":epsps_dict,
+#                                 "spike_times":spike_times_dict,
+#                                 "spike_train":spike_train_dict}
+#         animal_dict[animal] = cell_dict
+
+#     return animal_dict, kernel
+
+def get_epsp_dict_multi(padded_warped_activity_dict, tau_ms=None, amp=None, seed=None, store_aux=False):
     dt_constant = 0.001
-
-    dt_ms = dt_constant * 1000.0      # 1 ms
-
-    tau_ms  = tau_ms
-    dt_ms   = dt_constant * 1000.0      # 1 ms
-    AMP     = amp                      # mV
-    MODE    = "peak"                    # "area" or "peak"
-    kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
-
-    rng = np.random.default_rng(seed)
-
+    dt_ms  = dt_constant * 1000.0
+    AMP    = amp
+    MODE   = "peak"
+    kernel = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
+    rng    = np.random.default_rng(seed)
 
     animal_dict = {}
     for animal in padded_warped_activity_dict:
         cell_dict = {}
         for cell in padded_warped_activity_dict[animal]:
-            epsps_dict= {}
-            spike_times_dict = {}
-            spike_train_dict = {}
+            epsps_dict = {}
+            # Only allocate when asked
+            if store_aux:
+                spike_times_dict = {}
+                spike_train_dict = {}
 
             padded_warped_activity = padded_warped_activity_dict[animal][cell]
+            ntr = len(padded_warped_activity)
 
-            for trial in range(len(padded_warped_activity)):
-                
-                example_padded_warped_activity = padded_warped_activity[trial]
-                if trial > 0:
-                    example_previous_pad = padded_warped_activity[trial-1]
-                else:
-                    example_previous_pad = padded_warped_activity[trial+1]
+            for trial in range(ntr):
+                curr = padded_warped_activity[trial]
+                prev = padded_warped_activity[trial-1] if trial > 0 else padded_warped_activity[trial+1]
 
-                L_prev = example_previous_pad.shape[0]
-                L_curr = example_padded_warped_activity.shape[0]
+                L_prev = prev.shape[0]
+                L_curr = curr.shape[0]
 
-                two_track_length = np.concatenate([example_previous_pad, example_padded_warped_activity], axis=0)
-                t_ms = np.arange(two_track_length.shape[0]) * dt_ms
+                two_track = np.concatenate([prev, curr], axis=0)
+                t_ms = np.arange(two_track.shape[0]) * dt_ms
 
-                spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
+                spike_times = get_inhom_poisson_spike_times_by_thinning(two_track, t_ms, dt=dt_ms,
+                                                                        refractory=3., generator=None, rng=rng).astype(int)
                 st_curr = spike_times[spike_times >= L_prev] - L_prev
-                spike_times_dict[trial] = st_curr
+                if store_aux:
+                    spike_times_dict[trial] = st_curr
 
-                spike_train = np.zeros(two_track_length.shape, dtype=np.uint8)
+                # build only a temp spike_train (don’t store unless asked)
+                spike_train = np.zeros(two_track.shape, dtype=np.uint8)
                 spike_train[spike_times] = 1
-                spike_train_curr = spike_train[L_prev : L_prev + L_curr]
-                spike_train_dict[trial] = spike_train_curr
+                if store_aux:
+                    spike_train_dict[trial] = spike_train[L_prev:L_prev+L_curr]
 
                 epsps = np.convolve(spike_train, kernel, mode='full')[:len(spike_train)]
-                epsps_curr = epsps[L_prev : L_prev + L_curr]
-                epsps_dict[trial] = epsps_curr
-                # epsps_scaled = epsps-60
-                # dendrite.append(epsps_scaled)
-            
+                epsps_dict[trial] = epsps[L_prev:L_prev+L_curr].astype(np.float32, copy=False)
 
+                # drop the temps early
+                del spike_train, epsps, two_track, t_ms
 
-            cell_dict[cell] = {"epsps":epsps_dict,
-                                "spike_times":spike_times_dict,
-                                "spike_train":spike_train_dict}
+            payload = {"epsps": epsps_dict}
+            if store_aux:
+                payload["spike_times"] = spike_times_dict
+                payload["spike_train"] = spike_train_dict
+            cell_dict[cell] = payload
+
         animal_dict[animal] = cell_dict
 
     return animal_dict, kernel
+
 
 
 # def get_dendrite_activity_multi(weights, EC_input_matrix, n_dendrites, n_EC):
@@ -1407,106 +1621,445 @@ def _build_static_inputs_animal_av(spike_model: "SpikingModel", animal_average=F
         dist=cfg.dist,  # will overwrite below
     )
 
-def _eval_one_seed(params, seed, static, animal_average=False):
-    import os
-    import numpy as np
+# def _eval_one_seed(params, seed, static, animal_average=False):
+#     import os
+#     import numpy as np
+#     try:
+#         # Linux: ru_maxrss in KB; divide by 1024 → MB
+#         import resource
+#         def _rss_mb():
+#             return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+#     except Exception:
+#         def _rss_mb():
+#             return float("nan")
+#     try:
+#         from mpi4py import MPI
+#         _rank = MPI.COMM_WORLD.Get_rank()
+#     except Exception:
+#         _rank = -1  # not under MPI
+
+#     tau_ms         = float(params["tau_ms"])
+#     weights_mean   = float(params["weights_mean"])
+#     weights_std    = float(params["weights_std"])
+#     dend_threshold = float(params["dend_threshold"])
+
+#     n_dendrites     = int(static["n_dendrites"])
+#     n_EC            = int(static["n_EC"])
+#     animal_velocity = np.asarray(static["animal_velocity"], dtype=np.float32, order="C")
+#     pwa_cell_dict   = static["pwa_cell_dict"]
+
+#     # --- EPSPs (ensure float32 path) ---
+#     if animal_average:
+#         epsp_cells, _ = get_epsp_dict_multi(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=seed)
+#         _, epsp_input_matrix, _ = get_dend_vm(epsp_cells, Vrest=np.float32(static["vrest"]), epsp_sf=np.float32(static["epsp_sf"]))
+#         epsp_eTN = np.transpose(epsp_input_matrix, (0, 2, 1)) 
+#     else:
+#         epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=int(seed))
+#         _, epsp_eTN, _ = get_dend_vm_from_cells_multi(epsp_cells, Vrest=np.float32(static["vrest"]), epsp_sf=np.float32(static["epsp_sf"]))
+
+#     # want (E, T, N)
+#     if epsp_eTN.shape[1] != animal_velocity.shape[1]:
+#         epsp_eTN = np.transpose(epsp_eTN, (0, 2, 1))
+#     epsp_eTN = np.ascontiguousarray(epsp_eTN, dtype=np.float32)
+
+#     # --- Weights (float32) ---
+#     rng = np.random.default_rng(12345 + int(seed))
+#     connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=np.bool_)
+#     weights_EC = sample_weights(
+#         static["dist"], connection_mask_EC, rng=rng,
+#         mean=weights_mean, std=weights_std
+#     ).astype(np.float32, copy=False)
+
+#     # --- EC activity -> dendritic Vm (float32, contiguous) ---
+#     activity_EC = get_dendrite_activity_multi(weights_EC, epsp_eTN, n_dendrites, n_EC)
+#     activity_EC = np.asarray(activity_EC, dtype=np.float32, order="C")
+#     dend_Vm, _, _ = activity_to_dend_vm(
+#         activity_EC, Vrest=np.float32(-70.0), vm_scale=np.float32(0.1), center_across="time_trials"
+#     )
+
+#     # --- Plateaus: ask NOT to build/store huge arrays ---
+#     res = get_activity_multidendrite2(
+#         animal_velocity, dend_Vm,
+#         activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
+#         dt_constant=static["dt_constant"], dx=static["dx"], dend_threshold=np.float32(dend_threshold),
+#         vel_applied="real", example_cell=15, include_inhibition=None, use_model_EC=False,
+#         store_arrays=False,  # <---- IMPORTANT
+#     )
+#     # Pull only what you need
+#     start_pos_cnt50 = res[1]                      # (50,) int counts
+#     num_plateaus_per_dend_list = res[5]           # list/array per dendrite
+
+#     # --- instrumentation: memory + shapes (before freeing) ---
+#     def _mb(x):
+#         try:
+#             return x.nbytes / 1e6
+#         except Exception:
+#             return 0.0
+#     print(
+#         f"animal_average={animal_average}",
+#         f"[SEED] rank={_rank} pid={os.getpid()} seed={int(seed)} "
+#         f"RSS={_rss_mb():.1f}MB | "
+#         f"epsp_eTN(shape={tuple(epsp_eTN.shape)}, { _mb(epsp_eTN):.1f}MB) "
+#         f"W({ _mb(weights_EC):.1f}MB) "
+#         f"actEC(shape={tuple(activity_EC.shape)}, { _mb(activity_EC):.1f}MB) "
+#         f"Vm(shape={tuple(dend_Vm.shape)}, { _mb(dend_Vm):.1f}MB) "
+#         f"n_dendrites={n_dendrites} n_EC={n_EC}",
+#         flush=True
+#     )
+
+#     # --- runtime hygiene: drop big temps immediately ---
+#     try: del epsp_cells
+#     except NameError: pass
+#     try: del epsp_eTN
+#     except NameError: pass
+#     try: del weights_EC
+#     except NameError: pass
+#     try: del activity_EC
+#     except NameError: pass
+#     try: del dend_Vm
+#     except NameError: pass
+#     # Optional: import gc; gc.collect()
+
+#     return start_pos_cnt50, np.asarray(num_plateaus_per_dend_list, dtype=np.float32)
+
+import os, sys, resource
+def rss_now_mb():
     try:
-        # Linux: ru_maxrss in KB; divide by 1024 → MB
-        import resource
-        def _rss_mb():
-            return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+        r = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform == "darwin":   # macOS reports bytes
+            return r / (1024**2)
+        else:                          # Linux reports KiB
+            return r / 1024.0
     except Exception:
-        def _rss_mb():
-            return float("nan")
+        return float("nan")
+
+def peak_rss_mb():
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmHWM:"):
+                    return int(line.split()[1]) / 1024.0  # KiB→MB
+    except FileNotFoundError:
+        pass
+    return float("nan")
+
+
+def sizeof_pwa_bytes(obj, _seen=None):
+    if _seen is None:
+        _seen = set()
+    oid = id(obj)
+    if oid in _seen:
+        return 0
+    _seen.add(oid)
+
+    if isinstance(obj, np.ndarray):
+        return obj.nbytes
+    elif isinstance(obj, dict):
+        return sum(sizeof_pwa_bytes(k, _seen)+sizeof_pwa_bytes(v, _seen)
+                   for k,v in obj.items())
+    elif isinstance(obj, (list, tuple, set)):
+        return sum(sizeof_pwa_bytes(x, _seen) for x in obj)
+    elif isinstance(obj, (str, bytes, bytearray)):
+        return sys.getsizeof(obj)
+    else:
+        return sys.getsizeof(obj)
+
+def _precompute_spike_trains_multi(pwa_cell_dict, dt_ms=1.0, seed=12345):
+    """animal→cell→trial→uint8[time]; no EPSPs here."""
+    rng = np.random.default_rng(seed)
+    out = {}
+    for animal, cell_map in pwa_cell_dict.items():
+        om = {}
+        for cell, trials in cell_map.items():
+            tm = {}
+            for t in range(len(trials)):
+                curr = np.asarray(trials[t], dtype=np.float64)
+                prev = np.asarray(trials[t-1] if t > 0 else trials[t+1], dtype=np.float64)
+                two  = np.concatenate([prev, curr], axis=0)
+                t_ms = np.arange(two.shape[0]) * dt_ms
+                spikes = get_inhom_poisson_spike_times_by_thinning(
+                    two, t_ms, dt=dt_ms, refractory=3., rng=rng
+                ).astype(np.int64)
+                s = spikes[spikes >= prev.shape[0]] - prev.shape[0]
+                st = np.zeros(curr.shape[0], dtype=np.uint8)
+                st[s] = 1
+                tm[t] = st
+            om[cell] = tm
+        out[animal] = om
+    return out
+
+def _precompute_spike_trains_animal(pwa_cell_dict_animal, dt_ms=1.0, seed=12345):
+    """cell→trial→uint8[time] for single-animal mode."""
+    rng = np.random.default_rng(seed)
+    out = {}
+    for cell, trials in pwa_cell_dict_animal.items():
+        tm = {}
+        for t in range(len(trials)):
+            curr = np.asarray(trials[t], dtype=np.float64)
+            prev = np.asarray(trials[t-1] if t > 0 else trials[t+1], dtype=np.float64)
+            two  = np.concatenate([prev, curr], axis=0)
+            t_ms = np.arange(two.shape[0]) * dt_ms
+            spikes = get_inhom_poisson_spike_times_by_thinning(
+                two, t_ms, dt=dt_ms, refractory=3., rng=rng
+            ).astype(np.int64)
+            s = spikes[spikes >= prev.shape[0]] - prev.shape[0]
+            st = np.zeros(curr.shape[0], dtype=np.uint8)
+            st[s] = 1
+            tm[t] = st
+        out[cell] = tm
+    return out
+
+def _eval_one_seed(params, seed, static, animal_average=False, ec_chunk=None):
+    """
+    Fast path:
+      - spike trains are precomputed once into static["spike_trains"]
+      - per trial: FFT-convolve (batched over EC, chunked) → EPSP(E,N_t)
+      - one GEMM per trial: (D,E) @ (E,N_t)
+      - immediate reduction into plateau metrics (no large temporaries kept)
+
+    ec_chunk: rows of EC to process per FFT batch (memory knob). Set None/0 to do all at once.
+    """
+   
     try:
         from mpi4py import MPI
         _rank = MPI.COMM_WORLD.Get_rank()
     except Exception:
-        _rank = -1  # not under MPI
+        _rank = -1
 
+    # kernel builder (fallback if not importable elsewhere)
+    try:
+        from multidendrite_spiking_utils import exp_kernel
+    except Exception:
+        def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
+            # simple single-exponential fallback
+            L = int(np.ceil(10.0 * tau_ms / max(dt_ms, 1e-6)))
+            t = np.arange(max(L, 1), dtype=np.float32) * np.float32(dt_ms)
+            k = np.exp(-t / np.float32(tau_ms)).astype(np.float32, copy=False)
+            if norm == "peak":
+                m = float(k.max()) if k.size else 1.0
+                k = (np.float32(target) * k) / np.float32(max(m, 1e-12))
+            elif norm == "area":
+                area = float(k.sum()) * (dt_ms / 1000.0)
+                k = (np.float32(target) * k) / np.float32(max(area, 1e-12))
+            return k
+
+    # ---- unpack params/static ----
     tau_ms         = float(params["tau_ms"])
     weights_mean   = float(params["weights_mean"])
     weights_std    = float(params["weights_std"])
     dend_threshold = float(params["dend_threshold"])
 
     n_dendrites     = int(static["n_dendrites"])
-    n_EC            = int(static["n_EC"])
-    animal_velocity = np.asarray(static["animal_velocity"], dtype=np.float32, order="C")
-    pwa_cell_dict   = static["pwa_cell_dict"]
+    animal_velocity = np.asarray(static["animal_velocity"], dtype=np.float32, order="C")  # (npos, T)
+    dt_constant     = float(static["dt_constant"])
+    dx              = float(static["dx"])
+    vrest           = np.float32(static.get("vrest", -70.0))
+    epsp_sf         = np.float32(static.get("epsp_sf", 0.1))
+    dist_name       = str(static["dist"])
 
-    # --- EPSPs (ensure float32 path) ---
-    if animal_average:
-        epsp_cells, _ = get_epsp_dict_multi(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=seed)
-        _, epsp_input_matrix, _ = get_dend_vm(epsp_cells, Vrest=np.float32(static["vrest"]), epsp_sf=np.float32(static["epsp_sf"]))
-        epsp_eTN = np.transpose(epsp_input_matrix, (0, 2, 1)) 
-    else:
-        epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=int(seed))
-        _, epsp_eTN, _ = get_dend_vm_from_cells_multi(epsp_cells, Vrest=np.float32(static["vrest"]), epsp_sf=np.float32(static["epsp_sf"]))
+    spike_src = static.get("spike_trains", None)
+    if spike_src is None:
+        raise RuntimeError("static['spike_trains'] is missing. Precompute spike trains in config_worker().")
 
-    # want (E, T, N)
-    if epsp_eTN.shape[1] != animal_velocity.shape[1]:
-        epsp_eTN = np.transpose(epsp_eTN, (0, 2, 1))
-    epsp_eTN = np.ascontiguousarray(epsp_eTN, dtype=np.float32)
+    # kernel for this tau
+    dt_ms = np.float32(dt_constant * 1000.0)
+    kernel = exp_kernel(tau_ms, float(dt_ms), n_taus=5, norm="peak", target=1.0).astype(np.float32, copy=False)
 
-    # --- Weights (float32) ---
-    rng = np.random.default_rng(12345 + int(seed))
-    connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=np.bool_)
-    weights_EC = sample_weights(
-        static["dist"], connection_mask_EC, rng=rng,
-        mean=weights_mean, std=weights_std
-    ).astype(np.float32, copy=False)
+    # helper: build EC×time matrix for a given trial
+    def _spike_matrix_for_trial(spike_trains, t, animal_average):
+        rows = []
+        if animal_average:
+            for a in spike_trains:
+                for c in spike_trains[a]:
+                    rows.append(spike_trains[a][c][t])
+        else:
+            for c in spike_trains:
+                rows.append(spike_trains[c][t])
+        if not rows:
+            return np.zeros((0, 0), dtype=np.float32)
+        # rows are uint8 vectors; cast to float32 once
+        return np.stack(rows, axis=0).astype(np.float32, copy=False)  # (E, N_t)
 
-    # --- EC activity -> dendritic Vm (float32, contiguous) ---
-    activity_EC = get_dendrite_activity_multi(weights_EC, epsp_eTN, n_dendrites, n_EC)
-    activity_EC = np.asarray(activity_EC, dtype=np.float32, order="C")
-    dend_Vm, _, _ = activity_to_dend_vm(
-        activity_EC, Vrest=np.float32(-70.0), vm_scale=np.float32(0.1), center_across="time_trials"
-    )
+    # helper: chunked FFT conv across EC rows
+    def _fft_conv_rows_chunked(X, kernel, chunk):
+        E, N = X.shape
+        if E == 0 or N == 0:
+            return np.zeros((E, N), dtype=np.float32)
+        K = int(kernel.size)
+        n_fft = 1 << (N + K - 1).bit_length()  # next pow2
+        Fk = np.fft.rfft(kernel, n=n_fft)      # (F,)
+        Y = np.empty((E, N), dtype=np.float32)
+        step = E if (not chunk or chunk <= 0) else int(chunk)
+        for i0 in range(0, E, step):
+            i1 = min(i0 + step, E)
+            Xi = X[i0:i1]                                       # (e, N)
+            Fxi = np.fft.rfft(Xi, n=n_fft, axis=1)              # (e, F)
+            Yi_full = np.fft.irfft(Fxi * Fk[None, :], n=n_fft, axis=1)  # (e, n_fft)
+            Y[i0:i1] = Yi_full[:, :N]
+            # free chunk temps
+            del Xi, Fxi, Yi_full
+        return Y
 
-    # --- Plateaus: ask NOT to build/store huge arrays ---
-    res = get_activity_multidendrite2(
-        animal_velocity, dend_Vm,
-        activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
-        dt_constant=static["dt_constant"], dx=static["dx"], dend_threshold=np.float32(dend_threshold),
-        vel_applied="real", example_cell=15, include_inhibition=None, use_model_EC=False,
-        store_arrays=False,  # <---- IMPORTANT
-    )
-    # Pull only what you need
-    start_pos_cnt50 = res[1]                      # (50,) int counts
-    num_plateaus_per_dend_list = res[5]           # list/array per dendrite
+    # --- weights (sample once we know E) ---
+    W = None  # (D, E) to be allocated once on first non-empty trial
 
-    # --- instrumentation: memory + shapes (before freeing) ---
-    def _mb(x):
-        try:
-            return x.nbytes / 1e6
-        except Exception:
-            return 0.0
-    print(
-        f"animal_average={animal_average}",
-        f"[SEED] rank={_rank} pid={os.getpid()} seed={int(seed)} "
-        f"RSS={_rss_mb():.1f}MB | "
-        f"epsp_eTN(shape={tuple(epsp_eTN.shape)}, { _mb(epsp_eTN):.1f}MB) "
-        f"W({ _mb(weights_EC):.1f}MB) "
-        f"actEC(shape={tuple(activity_EC.shape)}, { _mb(activity_EC):.1f}MB) "
-        f"Vm(shape={tuple(dend_Vm.shape)}, { _mb(dend_Vm):.1f}MB) "
-        f"n_dendrites={n_dendrites} n_EC={n_EC}",
-        flush=True
-    )
+    # --- accumulators ---
+    start_pos_cnt50 = np.zeros(50, dtype=np.int64)
+    num_plateaus_per_dend = np.zeros(n_dendrites, dtype=np.float32)
 
-    # --- runtime hygiene: drop big temps immediately ---
-    try: del epsp_cells
-    except NameError: pass
-    try: del epsp_eTN
-    except NameError: pass
-    try: del weights_EC
-    except NameError: pass
-    try: del activity_EC
-    except NameError: pass
-    try: del dend_Vm
-    except NameError: pass
-    # Optional: import gc; gc.collect()
+    T = int(animal_velocity.shape[1])
 
-    return start_pos_cnt50, np.asarray(num_plateaus_per_dend_list, dtype=np.float32)
+    # main loop over trials
+    for t in range(T):
+        spk_E_N = _spike_matrix_for_trial(spike_src, t, animal_average)  # (E, N_t)
+        E = int(spk_E_N.shape[0])
+        if E == 0 or spk_E_N.shape[1] == 0:
+            continue
+
+        # init weights when E is known
+        if W is None:
+            # sample_weights(dist: str, mask: bool[D,E], mean, std, rng)
+            rng = np.random.default_rng(12345 + int(seed))
+            connection_mask_EC = np.ones((n_dendrites, E), dtype=np.bool_)
+            W = sample_weights(dist_name, connection_mask_EC, rng=rng,
+                               mean=weights_mean, std=weights_std).astype(np.float32, copy=False)
+
+        # EPSP via chunked batched FFT
+        epsp_E_N = _fft_conv_rows_chunked(spk_E_N, kernel, ec_chunk)     # (E, N_t)
+
+        # GEMM
+        actEC = W @ epsp_E_N                                             # (D, N_t)
+
+        # center per dendrite within this trial
+        mean_d = actEC.mean(axis=1, keepdims=True, dtype=np.float32)
+        vm_trial = vrest + epsp_sf * (actEC - mean_d)                    # (D, N_t)
+
+        # plateaus for this trial only
+        vm_trial_3d = vm_trial[:, None, :]                               # (D, 1, N_t)
+        vel_slice   = animal_velocity[:, t:t+1]                          # (npos, 1)
+
+        res = get_activity_multidendrite2(
+            vel_slice, vm_trial_3d,
+            activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
+            dt_constant=dt_constant, dx=dx, dend_threshold=np.float32(dend_threshold),
+            vel_applied="real", example_cell=15, include_inhibition=None, use_model_EC=False,
+            store_arrays=False
+        )
+        start_pos_cnt50 += np.asarray(res[1], dtype=np.int64)
+        num_plateaus_per_dend += np.asarray(res[5], dtype=np.float32)
+
+        # free per-trial temps
+        del spk_E_N, epsp_E_N, actEC, vm_trial, vm_trial_3d, vel_slice, res
+
+    # free weights
+    if W is not None:
+        del W
+
+    return start_pos_cnt50, num_plateaus_per_dend
+
+
+
+
+# def _eval_one_seed(params, seed, static, animal_average=False):
+#     try:
+#         from mpi4py import MPI
+#         _rank = MPI.COMM_WORLD.Get_rank()
+#     except Exception:
+#         _rank = -1
+
+#     tau_ms         = float(params["tau_ms"])
+#     weights_mean   = float(params["weights_mean"])
+#     weights_std    = float(params["weights_std"])
+#     dend_threshold = float(params["dend_threshold"])
+
+#     n_dendrites     = int(static["n_dendrites"])
+#     n_EC            = int(static["n_EC"])
+#     animal_velocity = np.asarray(static["animal_velocity"], dtype=np.float32, order="C")  # (npos, T)
+#     dt_constant     = float(static["dt_constant"])
+#     dx              = float(static["dx"])
+#     vrest           = np.float32(static.get("vrest", -70.0))
+#     epsp_sf         = np.float32(static.get("epsp_sf", 0.1))
+
+#     pwa_cell_dict = static["pwa_cell_dict"]
+
+#     # # --- EPSPs via your existing functions (convolution kernel path) ---
+#     # if animal_average:
+#     #     epsp_cells, _ = get_epsp_dict_multi(static["pwa_cell_dict"], tau_ms=tau_ms, amp=1., seed=int(seed))
+#     # else:
+#     #     epsp_cells, _ = get_epsp_dict_animal(static["pwa_cell_dict"], tau_ms=tau_ms, amp=1., seed=int(seed))
+
+
+#     if animal_average:
+#         epsp_cells, _ = get_epsp_dict_multi(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=seed, store_aux=False)
+#         _, epsp_input_matrix, _ = get_dend_vm(epsp_cells, Vrest=np.float32(static["vrest"]),
+#                                             epsp_sf=np.float32(static["epsp_sf"]), return_spikes=False)
+#         epsp_eTN = np.transpose(epsp_input_matrix, (0, 2, 1))
+#     else:
+#         epsp_cells, _ = get_epsp_dict_animal(pwa_cell_dict, tau_ms=tau_ms, amp=1., seed=int(seed), store_aux=False)
+#         _, epsp_eTN, _ = get_dend_vm_from_cells_multi(epsp_cells, Vrest=np.float32(static["vrest"]),
+#                                                     epsp_sf=np.float32(static["epsp_sf"]), return_spikes=False)
+
+
+#     # --- Weights ---
+#     rng = np.random.default_rng(12345 + int(seed))
+#     connection_mask_EC = np.ones((n_dendrites, n_EC), dtype=np.bool_)
+#     W = sample_weights(static["dist"], connection_mask_EC, rng=rng,
+#                        mean=weights_mean, std=weights_std).astype(np.float32, copy=False)  # (D, E)
+
+#     # --- Accumulators (small) ---
+#     start_pos_cnt50 = np.zeros(50, dtype=np.int64)
+#     num_plateaus_per_dend = np.zeros(n_dendrites, dtype=np.float32)
+
+#     T = animal_velocity.shape[1]
+#     # Optional: exact per-trial centering → 2-pass inside the trial
+#     two_pass_centering = False  # set True if you need exact equivalence to center_across="time_trials"
+
+#     for t in range(T):
+#         # 1) Assemble (E, N_t) for trial t (no T anywhere)
+#         epsp_E_N, _ = _epsp_matrix_for_trial(epsp_cells, t, animal_average)
+#         if epsp_E_N.size == 0:
+#             continue
+
+#         # 2) Dendrite activity for this trial: (D, N_t) = (D,E) @ (E,N_t)
+#         # This is the heavy op; BLAS will multithread.
+#         actEC = W @ epsp_E_N
+
+#         if two_pass_centering:
+#             # pass A: compute per-dend mean across the *full* trial
+#             mean_d = actEC.mean(axis=1, keepdims=True, dtype=np.float32)
+#             # pass B: center and continue
+#             vm_trial = vrest + epsp_sf * (actEC - mean_d)
+#         else:
+#             # fast: per-trial centering using one pass (close enough for most runs)
+#             mean_d = actEC.mean(axis=1, keepdims=True, dtype=np.float32)
+#             vm_trial = vrest + epsp_sf * (actEC - mean_d)
+
+#         # 3) Plateaus on this trial only; give shape (D, 1, N_t) and vel (npos, 1)
+#         vm_trial_3d = vm_trial[:, None, :]
+#         vel_slice = animal_velocity[:, t:t+1]
+
+#         res = get_activity_multidendrite2(
+#             vel_slice, vm_trial_3d,
+#             activity_NDNF=0, activity_SST=0, NDNF_sf_opt=0, SST_sf_opt=0,
+#             dt_constant=dt_constant, dx=dx, dend_threshold=np.float32(dend_threshold),
+#             vel_applied="real", example_cell=15, include_inhibition=None, use_model_EC=False,
+#             store_arrays=False
+#         )
+#         start_pos_cnt50 += np.asarray(res[1], dtype=np.int64)
+#         num_plateaus_per_dend += np.asarray(res[5], dtype=np.float32)
+
+#         # free temps now
+#         del epsp_E_N, actEC, vm_trial, vm_trial_3d, vel_slice, res
+
+#     # free big sources ASAP
+#     del epsp_cells, W
+
+#     print(f"[SEED] rank={_rank} pid={os.getpid()} seed={int(seed)} "
+#           f"RSS={_rss_mb():.1f}MB | per-trial GEMM; no E×T×N tensors",
+#           flush=True)
+
+#     return start_pos_cnt50, num_plateaus_per_dend
+
 
 
 

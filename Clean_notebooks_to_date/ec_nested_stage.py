@@ -1,60 +1,83 @@
+# python -m nested.optimize \
+#   --config-file-path=config/ec_nested.yaml \
+#   --framework=serial \
+#   --pop_size=1 --path_length=1 --max_iter=1 \
+#   --num_network_seeds=1 \
+#   --disp --vel_applied='real' --animal_by_animal=True --input_animal='animal_1' --dend_threshold=-69. --network_start_seed=0 --network_end_seed=2
+
+# python -m nested.analyze \
+#   --config-file-path=config/ec_nested.yaml \
+#   --framework=serial \
+#   --num_network_seeds=1 \
+#   --disp --network_start_seed=0 --network_end_seed=2  --animal_by_animal=True --input_animal='animal_2' --plot --model-key=animal_6_precompute_spikes --param-file-path=model_key_yaml_opt.yaml --vel_applied='real'
+
 import nested
-# ec_nested_stage.py
+import optuna
+from optuna.trial import TrialState
 import numpy as np
 from pathlib import Path
 from nested.utils import Context, param_array_to_dict
-from multidendrite_spiking_main import SpikingModel, SpikingModelConfig
-from multidendrite_spiking_utils import (get_velocity_array_every_animal, get_scaled_data_Hz_dict, do_the_interpolation_an, get_epsp_dict_animal, get_dend_vm_from_cells_multi, sample_weights,
-    get_dendrite_activity_multi, activity_to_dend_vm, get_activity_multidendrite2,_eval_one_seed, _ten_bin_fraction_from_counter, _build_static_inputs)
-import optuna
-from optuna.trial import TrialState
+
+from build_a_model_object import (exp_kernel, load_yaml_cfg)
+
+from mpi4py import MPI
+import os, resource, sys
+
+from Fixing_dend_models_presentation import *
+from spiking_model_utils import load_data_regular
+from build_a_model_object_per_animal import *
+
+
+def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
+    # simple single-exponential fallback
+    L = int(np.ceil(10.0 * tau_ms / max(dt_ms, 1e-6)))
+    t = np.arange(max(L, 1), dtype=np.float32) * np.float32(dt_ms)
+    k = np.exp(-t / np.float32(tau_ms)).astype(np.float32, copy=False)
+    if norm == "peak":
+        m = float(k.max()) if k.size else 1.0
+        k = (np.float32(target) * k) / np.float32(max(m, 1e-12))
+    elif norm == "area":
+        area = float(k.sum()) * (dt_ms / 1000.0)
+        k = (np.float32(target) * k) / np.float32(max(area, 1e-12))
+
+    return k
 
 context = Context()
 
 
 def config_worker():
-    """Runs once per process. Load data & set up seeds/static."""
+
+    GLM_params_SST, activity_dict_SST, double_predicted_activity_dict_SST, factors_dict_SST, filtered_factors_dict_SST, residual_activity_dict_SST = load_data_regular(
+        file_path=context.data_root, name="SSTindivsomata_GLM", new_NDNF=False)
+    GLM_params_EC, activity_dict_EC, double_predicted_activity_dict_EC, factors_dict_EC, filtered_factors_dict_EC, residual_activity_dict_EC = load_data_regular(
+        file_path=context.data_root, name="EC_GLM", new_NDNF=False)
+    GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(
+        file_path=context.data_root, name="NDNF_E1A1B", new_NDNF=True)
+
+    fixed_residual_activity_dict_NDNF_newest = {f"animal_{idx+1}": residual_activity_dict_NDNF_newest[animal]
+                                               for idx, animal in enumerate(residual_activity_dict_NDNF_newest)
+                                               if 17 < idx < 31}
+    fixed_filtered_factors_dict_NDNF_newest = {f"animal_{idx+1}": filtered_factors_dict_NDNF_newest[animal]
+                                               for idx, animal in enumerate(filtered_factors_dict_NDNF_newest)
+                                               if 17 < idx < 31}
+
+    tau_ms = float(context.tau_ms)
+
+    dt_ms   = context.dt_constant * 1000.0
+    AMP     = 1.0
+    MODE    = "peak"
+    kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
 
 
-    print("[CTX]", {k: context().get(k) for k in (
-    "animal","animal_key","weight_dist","inner_jobs",
-    "network_start_seed","num_network_seeds","data_root"
-)}, flush=True)
 
-    data_root = str(Path(context.data_root).expanduser().resolve())
-    cfg = SpikingModelConfig(file_path=data_root)
-    sm = SpikingModel(cfg); sm.load()
+    dx=180./50.
 
-    # animal = getattr(context, "animal", None)
-    # if not animal:
-    #     animal = getattr(context, "animal", None)
-    # # guard against accidental booleans like True/False from CLI flags
-    # if not isinstance(animal, str):
-    #     raise ValueError(f"Expected animal string like 'animal_3', got {animal!r} ({type(animal).__name__})")
+    mean_new_average_vel_array = get_real_velocity_array(filtered_factors_dict_EC, filtered_factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest)
 
+    seeds_array = np.arange(int(context.network_start_seed), int(context.network_end_seed))
 
-    static = _build_static_inputs(sm, context.animal)
-    static["inner_jobs"] = int(getattr(context, "inner_jobs", 1))
-    # weight_dist is a string like "Uniform"/"Normal"/"Lognormal"
-    static["dist"] = str(getattr(context, "weight_dist", "Normal")).strip().lower()
-    context.static = static
+    # cfg, flg = load_yaml_cfg("example_config.yaml")
 
-    start = int(getattr(context, "network_start_seed", 0))
-    num   = int(getattr(context, "num_network_seeds", 5))
-    context.seed_range = list(range(start, start + num))
-
-    # >>> Add this for sanity:
-    print(
-        f"[CONFIG] animal={getattr(context,'animal', None)} "
-        f"weight_dist(raw)={getattr(context,'weight_dist', None)} "
-        f"dist(normalized)={static['dist']} "
-        f"seeds={context.seed_range}",
-        flush=True
-    )
-
-    if 'debug' not in context():
-
-        context.debug = False
     context.update(locals())
 
 def get_args():
@@ -66,62 +89,87 @@ def get_args():
     context.seed_range = seed_range
     return [seed_range]
 
-# --- optional helper: lazy init if a process missed config_worker ---
-def _ensure_initialized():
-    if not hasattr(context, "static"):
-        # Minimal, safe init in this process
-        data_root = str(Path(context.data_root).expanduser().resolve())
-        cfg = SpikingModelConfig(file_path=data_root)
-        sm = SpikingModel(cfg); sm.load()
-        static = _build_static_inputs(sm, getattr(context, "animal"))
-        static["inner_jobs"] = int(getattr(context, "inner_jobs", 1))
-        static["dist"] = str(getattr(context, "weight_dist", "Normal")).strip().lower()
-        context.static = static
-
-# --- at the top of compute_features, add: ---
 def compute_features(params, network_seed, model_id=None, export=False, plot=False):
-    _ensure_initialized()
-    """Compute per-seed metrics + a scalar loss called total_error."""
-    paramsdict = param_array_to_dict(params, context.param_names)
-    start_pos_cnt50, num_per_dend = _eval_one_seed(paramsdict, int(network_seed), context.static)
 
-    n_dendrites = int(context.static["n_dendrites"])
-    target_total = 0.30 * n_dendrites * 1.5
-    target_frac  = np.array([5,5,5,5,20,20,10,10,7,5], float); target_frac /= target_frac.sum()
 
-    total_starts = float(np.sum(start_pos_cnt50))
-    frac10 = _ten_bin_fraction_from_counter(np.asarray(start_pos_cnt50, float))
-    violations = float(np.maximum(0.0, num_per_dend - 2.0).sum())
+    cfg = {"dt_constant":context.dt_constant,
+           "dx":context.dx,
+           "store": context.store}
 
-    active_mask = (num_per_dend > 0)
-    frac_active = float(active_mask.mean())
-    f12_active  = float(((num_per_dend == 1) | (num_per_dend == 2))[active_mask].mean()) if active_mask.any() else 0.0
+    flg = {"spikes": context.spikes,
+    "epsps": context.epsps,
+    "warp_axes": context.warp_axes}
 
-    if total_starts < 1.0:
-        loss = 1e7 + (total_starts - target_total) ** 2
-        mse_total = mse_frac = pen_sparsity = pen_12only = None
-    elif violations > 0:
-        loss = float(1e6 * violations)
-        mse_total = mse_frac = pen_sparsity = pen_12only = None
-    else:
-        mse_total = (total_starts - target_total) ** 2
-        mse_frac  = float(np.mean((frac10 - target_frac) ** 2))
-        pen_sparsity = (frac_active - 0.30) ** 2
-        pen_12only   = (1.0 - f12_active) ** 2
-        loss = float(mse_total + mse_frac + 2.0*pen_sparsity + 1.0*pen_12only)
 
-    # Return all useful numbers; nested will average them in filter_features
-    return {
-        "mean_total": float(total_starts),
-        "violations": float(violations),
-        "frac_active": float(frac_active),
-        "f12_active": float(f12_active),
-        "mse_total": None if mse_total is None else float(mse_total),
-        "mse_frac": None if mse_frac is None else float(mse_frac),
-        "pen_sparsity": None if 'pen_sparsity' not in locals() or pen_sparsity is None else float(pen_sparsity),
-        "pen_12only": None if 'pen_12only' not in locals() or pen_12only is None else float(pen_12only),
-        "total_error": float(loss),   # <- scalar objective for this seed
-    }
+    model = SpikeSimModel(kernel=context.kernel,dist_for_weights=context.dist,weights_SST=None, weights_NDNF=None,config=cfg, flags=flg)
+
+    # attach all attributes _simulate_one_seed expects
+    model.residual_activity_dict_EC = context.residual_activity_dict_EC
+    model.fixed_residual_activity_dict_NDNF_newest = context.fixed_residual_activity_dict_NDNF_newest
+    model.residual_activity_dict_SST = context.residual_activity_dict_SST
+    model.factors_dict_EC = context.factors_dict_EC
+    model.factors_dict_SST = context.factors_dict_SST
+    model.factors_dict_NDNF_newest = context.factors_dict_NDNF_newest
+    model.GLM_params_EC = context.GLM_params_EC
+    model.GLM_params_NDNF_newest = context.GLM_params_NDNF_newest
+    model.GLM_params_SST = context.GLM_params_SST
+    model.mean_new_average_vel_array = context.mean_new_average_vel_array
+
+    model.real_vel = (context.vel_applied == "real")
+    model.constant_vel = context.constant_vel
+    model.add_inh = context.add_inh             # ← was bare add_inh
+    model.make_it_spike = context.make_it_spike
+    model.SST_bias_factor = context.SST_bias_multi
+    model.dist = context.dist
+    model.vel_applied = context.vel_applied
+    model.use_averaged_velocity = context.use_averaged_velocity
+    model.use_model_EC = context.use_model_EC
+    model.tau_ms = context.tau_ms
+    model.dend_threshold = context.dend_threshold
+    model.animal_by_animal = context.animal_by_animal
+    model.input_animal = context.input_animal
+    model.kernel = context.kernel
+    model.dt_constant = context.dt_constant
+    model.include_beta = context.include_beta
+    model.flat_input = context.flat_input
+
+
+    important = model.simulate(seeds=context.seeds_array, export=False, plot=False)
+    loss, metrics = model.evaluate(important, seeds=context.seeds_array, dend_threshold=context.dend_threshold)
+
+    if context.export:
+        state = model.__getstate__()
+        state["loss"] = float(loss)
+        state["metrics"] = {k: float(v) if v is not None else None for k, v in metrics.items()}
+
+        with open(context.save_path, "wb") as f:
+            pickle.dump(state, f)
+        click.echo(f"Saved slim model to {context.save_path}")
+
+    if context.plot:
+        state = model.__getstate__()
+        state["loss"] = float(loss)
+        state["metrics"] = {k: float(v) if v is not None else None for k, v in metrics.items()}
+
+        plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp = state["dend_list_EC_interp"], tau_ms = state['tau_ms'],
+        seeds = state["seeds"], last_EPSP = state["last_EPSP_dict"][0], weights_EC = state["weights_EC_dict"][0], weights_SST = state["weights_SST_dict"][0], weights_NDNF = state["weights_NDNF_dict"][0], dend_vm_per_seed_dict = state["dend_vm_per_seed_dict"],
+        activity_EC = state["dend_contribution_EC_dict"][0], activity_SST = state["activity_SST"], activity_NDNF = state["activity_NDNF"], SST_sf_opt = state["SST_sf_opt"], NDNF_sf_opt = state["NDNF_sf_opt"],
+        padded_warped_activity_list = state["padded_warped_activity_list_dict"], an_velocity = state["an_velocity_dict"][0], dend_threshold = state["dend_threshold"],
+        _pos_cnt_dict = state["_pos_cnt_dict"], start_pos_cnt50_dict = state["start_pos_cnt50_dict"], _plateau_arr_list_dict = state["_plateau_arr_list_dict"], _mask_dict = state["_mask_dict"], _starts_list_dict = state["_starts_list_dict"],
+        dist = state["dist"], num_plateaus_per_dend_list = state["num_plateaus_per_dend_list_dict"], animal=state["input_animal"], example_cell=17, include_inhibition=False, #include inhibiiton,
+        NDNF_contribution_sum = None, #state["NDNF_contribution_sum"], 
+        SST_contribution_sum = None, #state["SST_contribution_sum"], 
+        animal_by_animal = state["animal_by_animal"], include_beta = state["include_beta"], flat_input=state["include_beta"], constant_vel=state["constant_vel"]) #state["animal_by_animal"])
+
+
+
+    feats = {"total_error": float(loss)}
+    # for k, v in metrics.items():
+    #     # ensure JSON-serializable
+    #     feats[f"m_{k}"] = float(v) if isinstance(v, (int, float, np.floating)) else v
+    return feats
+
+
 
 def filter_features(features_dict_list, previous_features, model_id=None, export=False, plot=False):
     """Average across seeds (nested calls this once per trial with the list from get_args())."""
@@ -132,16 +180,26 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
         out[k] = float(np.mean(vals)) if vals else 0.0
     return out
 
-def on_trial_end(study: optuna.Study, trial: optuna.trial.FrozenTrial):
-    # Only print when a new best is found
-    if trial.state == TrialState.COMPLETE and study.best_trial.number == trial.number:
-        print(
-            f"[BEST @ trial {trial.number}] "
-            f"value={study.best_value:.6g} "
-            f"params={study.best_trial.params}",
-            flush=True
-        )
+
+def get_objectives_multi(features, model_id=None, export=False, plot=False):
+
+    new_features = dict()
+    objectives = dict()
+
+    for key, value in features.items():
+        if 'residual' in key:
+            objectives[key] = value
+        else:
+            new_features[key] = value
+
+
+    return new_features, objectives
+
 
 def get_objectives(features, model_id=None, export=False, plot=False):
-    """Move the scalar to objectives so Optuna minimizes it."""
-    return features, {"total_error": features["total_error"]}
+
+    features, multi_objectives = get_objectives_multi(features, model_id, export, plot)
+    objectives = {}
+    objectives['total_error'] = np.sum(list(multi_objectives.values()))
+
+    return features, objectives

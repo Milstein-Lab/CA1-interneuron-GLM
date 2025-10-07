@@ -256,18 +256,220 @@ def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50.0, eps=1e-12):
     for animal in activity_dict_EC:
         counter=0
         per_cell = {}
-        for cell, A in activity_dict_EC[animal].items():
+        for cell in activity_dict_EC[animal]:
+            data = activity_dict_EC[animal][cell]
+            normalized_data = (data - np.max(data)) / (np.max(data) - np.min(data))
+            
             counter+=1
-            A = np.asarray(A[:, :58], dtype=float)  # (n_pos, 58)
-            B = np.empty_like(A, dtype=float)
-            for i in range(A.shape[1]):
-                x = A[:, i]
-                denom = max(np.nanmax(x) - np.nanmin(x), eps)
-                B[:, i] = ((x - np.nanmin(x)) / denom) * Hz_SF
-            per_cell[cell] = B
+
+            per_cell[cell] = normalized_data
         num_cells_per_animal[animal] = counter
         out[animal] = per_cell
     return out, num_cells_per_animal
+
+
+
+
+
+
+
+
+
+
+
+    #    if make_it_spike:
+    #             SEED = 42
+    #             np.random.seed(SEED)
+    #             random.seed(SEED)
+    #             rng = np.random.default_rng(SEED)
+    #             n_EC = 792
+    #             weights_EC = sample_weights(dist, n_EC, rng=rng)
+    #             EC_input_matrix = np.stack(dend_list_EC[:n_EC], axis=0)
+    #             L_prev=500
+    #             precomputed_prepend = np.array(random_timeseries(np.mean(EC_input_matrix), np.std(EC_input_matrix), L_prev))
+    #             v_safe   = np.apply_along_axis(_sanitize_velocity_cm_s, 0, an_velocity)
+    #             n_pos = EC_input_matrix.shape[1]
+    #             n_trials = EC_input_matrix.shape[2]
+    #             dx = 180.0 / n_pos  
+    #             dt_s_all = dx / v_safe
+    #             time_points_all = np.cumsum(dt_s_all, axis=0)
+    #             total_time_per_trial = time_points_all[-1, :]                       # (n_trials,)
+    #             T_warp_per_trial = np.floor(total_time_per_trial / dt_constant + 1e-12).astype(int)
+    #             dend_vm_holder = np.zeros((n_trials, 50000))
+
+    #             t_axis_list = [np.arange(T_warp_per_trial[t], dtype=np.float64) * dt_constant for t in range(n_trials)]
+    #             T2_per_trial = L_prev + T_warp_per_trial
+    #             dt_ms = dt_constant * 1000.0
+
+    #             for t in range(n_trials):
+    #                 start_time = time.time()
+    #                 T_warp = int(T_warp_per_trial[t])
+    #                 T2 = int(T2_per_trial[t])
+    #                 t_axis = t_axis_list[t]
+    #                 time_points = time_points_all[:, t]         # precomputed
+    #                 t_ms = np.arange(T2, dtype=np.float32) * dt_ms
+
+    #                 rows = np.zeros((n_EC, T_warp), dtype=np.float32)
+    #                 rate_buf = np.empty(T2, dtype=np.float32)
+    #                 rate_buf[:L_prev] = precomputed_prepend[:L_prev]
+
+    #                 for cell in range(n_EC):
+    #                     firing = EC_input_matrix[cell, :, t]
+    #                     valid  = np.isfinite(firing)
+    #                     if valid.sum() < 2:
+    #                         continue
+    #                     warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+    #                     # guaranteed len(warped) == T_warp because t_axis came from T_warp
+    #                     rate_buf[L_prev:L_prev+T_warp] = warped
+
+    #                     spike_times = get_inhom_poisson_spike_times_by_thinning(rate_buf[:T2], t_ms, dt=dt_ms, refractory=3., rng=rng).astype(int)
+    #                     st_curr = spike_times[spike_times >= L_prev] - L_prev
+    #                     rows[cell, :T_warp] = epsps_event_add(st_curr, T_warp, kernel).astype(np.float32, copy=False)
+    #                 end_time = time.time()
+    #                 print(f"total trial time trial {t} time {end_time-start_time}")
+    #                 dend_vm_over_time = weights_EC @ rows #X_trial
+    #                 dend_vm_holder[t,:len(dend_vm_over_time)] = dend_vm_over_time
+                    
+
+
+
+
+
+
+
+
+
+# SEED = 42
+                # np.random.seed(SEED)
+                # random.seed(SEED)
+                # rng = np.random.default_rng(SEED)
+
+                # n_EC = 792
+                # n_SST = 75
+                # n_NDNF = 115
+                # n_dendrites=100
+
+
+                # EC_input_matrix = np.stack(dend_list_EC[:n_EC], axis=0)
+                # SST_input_matrix = np.stack(dend_list_SST[:n_SST], axis=0)
+                # NDNF_input_matrix = np.stack(dend_list_NDNF[:n_NDNF], axis=0)
+
+            
+                # n_pos = EC_input_matrix.shape[1]
+                # n_trials = EC_input_matrix.shape[2]
+                # dx = 180.0 / n_pos  
+
+                # vel = an_velocity
+                # if vel.shape != (n_pos, n_trials):
+                #     raise ValueError(f"velocity shape {vel.shape} != {(n_pos, n_trials)}")
+
+                # L_prev = 500
+  
+                # precomputed_prepend = random_timeseries(np.mean(EC_input_matrix), np.std(EC_input_matrix) ,L_prev)
+
+                # weights_EC = sample_weights(dist, n_EC, rng=rng)
+                # max_length = 0
+                # dend_vm_list = []  # list of (n_EC, T_fixed)
+
+                # for t in range(EC_input_matrix.shape[2]):
+                #     start_time = time.time()
+                #     v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t])      
+                #     dt_s   = dx / v_cm_s                             
+                #     edges_s = np.concatenate(([0.0], np.cumsum(dt_s)))
+                #     total_time = float(edges_s[-1])
+
+                #     # constant-time axis in seconds
+                #     t_axis = np.arange(0.0, total_time, dt_constant, dtype=np.float64)
+                #     max_time_over_cells = 0
+
+                #     firing_example = EC_input_matrix[0, :, t].astype(np.float64, copy=False)
+                #     valid = np.isfinite(firing_example)
+                #     time_points = np.cumsum(dt_s)
+                #     warped_example = np.interp(t_axis, time_points[valid], firing_example[valid]).astype(np.float32, copy=False)
+
+                #     two_track_length_example = np.concatenate([precomputed_prepend, warped_example], axis=0)
+                #     t_ms = np.arange(two_track_length_example.shape[0]) * dt_ms
+
+
+                #     rows= []
+                #     for cell in range(n_EC):
+                #         firing = EC_input_matrix[cell, :, t].astype(np.float64, copy=False)
+                #         valid = np.isfinite(firing)
+                #         if valid.sum() >= 2:
+                #             time_points = np.cumsum(dt_s)  # length n_pos
+
+                #             # start_time = time.time()
+                #             warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+                #             # end_time = time.time()
+                #             # print(f"interpolation_time = {end_time-start_time} ")
+                #         else:
+                #             warped = np.full(1, np.nan, dtype=np.float32)
+
+                        
+                #         two_track_length = np.concatenate([precomputed_prepend, warped], axis=0)
+                #         spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
+                #         st_curr = spike_times[spike_times >= L_prev] - L_prev
+
+                #         spike_train = np.zeros(warped.shape, dtype=np.uint8)
+                #         spike_train[st_curr] = 1
+
+                #         # start_time = time.time()
+                #         epsps = epsps_event_add(st_curr, warped.shape[0], kernel)
+
+                #         if len(epsps) > max_time_over_cells:
+                #             max_time_over_cells = len(epsps)
+                #             print(f"trial {t} len(epsps) {len(epsps)}")
+                #         rows.append(epsps.astype(np.float32, copy=False))
+
+                #     X_trial = np.stack(rows, axis=0)  # (n_EC, padded time)
+
+                #     dend_vm_over_time = weights_EC @ X_trial
+
+                #     if len(dend_vm_over_time) > max_length:
+                #         max_length = len(dend_vm_over_time)
+
+                #     dend_vm_list.append(dend_vm_over_time)
+                #     end_time = time.time()
+                #     print(f"total time {end_time-start_time}")
+                
+                # dend_vm_padded_list = []
+                # for trial in range(len(dend_vm_list)):
+                #     dend_vm = dend_vm_list[trial]
+                #     if len(dend_vm) < max_length:
+                #         padded_dend = np.pad(dend_vm, np.nan)
+                #         dend_vm_padded_list.append(padded_dend)
+
+                # dend_vm_padded_array = np.array(dend_vm_padded_list)
+
+   
+                # # 1. Pre-allocate the final array with NaNs.
+                # # The shape should be (number of trials, max_length).
+                # num_trials = len(dend_vm_list)
+                # dend_vm_padded_array = np.full((num_trials, max_length), np.nan, dtype=np.float32)
+
+                # # 2. Iterate and copy the data into the pre-allocated array.
+                # for trial_index, dend_vm in enumerate(dend_vm_list):
+                #     current_length = len(dend_vm)
+                #     if current_length <= max_length:
+                #         dend_vm_padded_array[trial_index, :current_length] = dend_vm
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # def get_scaled_data_Hz_dict(activity_dict_EC, Hz_SF=50):
@@ -530,7 +732,6 @@ def do_the_interpolation(
     return padded_warped_activity_dict, an_velocity
 
 
-
 def get_plateau_and_cumulative_ragged(
     padded_warped_activity_dict,
     dend_threshold,
@@ -596,8 +797,6 @@ def get_plateau_and_cumulative_ragged(
         counts_dict_animal[animal] = counts_dict_cell
 
     return plateau_dict_animal, counts_dict_animal
-
-
 
 
 def get_inhom_poisson_spike_times_by_thinning(rate, t, dt=0.02, refractory=3., generator=None, rng=None):
@@ -747,73 +946,73 @@ def get_epsp_dict(padded_warped_activity_dict, tau_ms=None, amp=None, seed=None)
 
     return animal_dict, kernel
 
-def get_dend_vm(epsp_dict, Vrest=-60.0, epsp_sf=0.1):
-    cell_epsp_mats = []
-    cell_spike_mats = []
+# def get_dend_vm(epsp_dict, Vrest=-60.0, epsp_sf=0.1):
+#     cell_epsp_mats = []
+#     cell_spike_mats = []
 
-    # --- per cell: build (n_trials, T_cell) as float so we can NaN-pad ---
-    for animal in epsp_dict:
-        for cell in epsp_dict[animal]:
-            epsp = epsp_dict[animal][cell]["epsps"]         # dict: trial -> 1D array (float)
-            spik = epsp_dict[animal][cell]["spike_train"]   # dict: trial -> 1D array (uint8)
+#     # --- per cell: build (n_trials, T_cell) as float so we can NaN-pad ---
+#     for animal in epsp_dict:
+#         for cell in epsp_dict[animal]:
+#             epsp = epsp_dict[animal][cell]["epsps"]         # dict: trial -> 1D array (float)
+#             spik = epsp_dict[animal][cell]["spike_train"]   # dict: trial -> 1D array (uint8)
 
-            if not epsp:  # skip truly empty cells
-                continue
+#             if not epsp:  # skip truly empty cells
+#                 continue
 
-            # Per-cell max lengths (time)
-            max_len_epsp = max(len(epsp[t]) for t in epsp)
-            max_len_spik = max(len(spik[t]) for t in spik)
+#             # Per-cell max lengths (time)
+#             max_len_epsp = max(len(epsp[t]) for t in epsp)
+#             max_len_spik = max(len(spik[t]) for t in spik)
 
-            # EPSPs -> (n_trials, max_len_epsp), float with NaN padding
-            epsp_trials = []
-            for t in range(len(epsp)):
-                v = np.asarray(epsp[t], dtype=np.float32)
-                if v.size < max_len_epsp:
-                    v = np.pad(v, (0, max_len_epsp - v.size), mode="constant", constant_values=np.nan)
-                epsp_trials.append(v)
-            epsp_mat = np.vstack(epsp_trials).astype(np.float32, copy=False)
-            cell_epsp_mats.append(epsp_mat)
+#             # EPSPs -> (n_trials, max_len_epsp), float with NaN padding
+#             epsp_trials = []
+#             for t in range(len(epsp)):
+#                 v = np.asarray(epsp[t], dtype=np.float32)
+#                 if v.size < max_len_epsp:
+#                     v = np.pad(v, (0, max_len_epsp - v.size), mode="constant", constant_values=np.nan)
+#                 epsp_trials.append(v)
+#             epsp_mat = np.vstack(epsp_trials).astype(np.float32, copy=False)
+#             cell_epsp_mats.append(epsp_mat)
 
-            # Spikes -> (n_trials, max_len_spik), cast to float before NaN padding
-            spk_trials = []
-            for t in range(len(spik)):
-                v = np.asarray(spik[t], dtype=np.float32)  # cast BEFORE padding so NaN is valid
-                if v.size < max_len_spik:
-                    v = np.pad(v, (0, max_len_spik - v.size), mode="constant", constant_values=np.nan)
-                spk_trials.append(v)
-            spk_mat = np.vstack(spk_trials).astype(np.float32, copy=False)
-            cell_spike_mats.append(spk_mat)
+#             # Spikes -> (n_trials, max_len_spik), cast to float before NaN padding
+#             spk_trials = []
+#             for t in range(len(spik)):
+#                 v = np.asarray(spik[t], dtype=np.float32)  # cast BEFORE padding so NaN is valid
+#                 if v.size < max_len_spik:
+#                     v = np.pad(v, (0, max_len_spik - v.size), mode="constant", constant_values=np.nan)
+#                 spk_trials.append(v)
+#             spk_mat = np.vstack(spk_trials).astype(np.float32, copy=False)
+#             cell_spike_mats.append(spk_mat)
 
-    if not cell_epsp_mats:
-        raise ValueError("No EPSP matrices were built (empty epsp_dict?).")
+#     if not cell_epsp_mats:
+#         raise ValueError("No EPSP matrices were built (empty epsp_dict?).")
 
-    # --- across cells: pad to GLOBAL (n_trials, T) so we can stack cleanly ---
-    global_T = max(m.shape[1] for m in cell_epsp_mats)
-    global_N = max(m.shape[0] for m in cell_epsp_mats)
+#     # --- across cells: pad to GLOBAL (n_trials, T) so we can stack cleanly ---
+#     global_T = max(m.shape[1] for m in cell_epsp_mats)
+#     global_N = max(m.shape[0] for m in cell_epsp_mats)
 
-    def pad_to_global(mat):
-        n, t = mat.shape
-        dn = global_N - n
-        dt = global_T - t
-        if dn > 0 or dt > 0:
-            mat = np.pad(mat, ((0, max(dn,0)), (0, max(dt,0))),
-                         mode="constant", constant_values=np.nan)
-        return mat.astype(np.float32, copy=False)
+#     def pad_to_global(mat):
+#         n, t = mat.shape
+#         dn = global_N - n
+#         dt = global_T - t
+#         if dn > 0 or dt > 0:
+#             mat = np.pad(mat, ((0, max(dn,0)), (0, max(dt,0))),
+#                          mode="constant", constant_values=np.nan)
+#         return mat.astype(np.float32, copy=False)
 
-    epsp_stack = np.stack([pad_to_global(m) for m in cell_epsp_mats], axis=0)  # (n_cells, N, T)
+#     epsp_stack = np.stack([pad_to_global(m) for m in cell_epsp_mats], axis=0)  # (n_cells, N, T)
 
-    # --- masked SUM across cells, keeping NaN where no data exists ---
-    valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)   # (N, T)
-    summed = np.nansum(epsp_stack, axis=0)                 # (N, T)
-    summed[valid_counts == 0] = np.nan
+#     # --- masked SUM across cells, keeping NaN where no data exists ---
+#     valid_counts = np.sum(~np.isnan(epsp_stack), axis=0)   # (N, T)
+#     summed = np.nansum(epsp_stack, axis=0)                 # (N, T)
+#     summed[valid_counts == 0] = np.nan
 
-    # center per trial using nanmean
-    trial_means = np.nanmean(summed, axis=1, keepdims=True)  # (N, 1)
-    summed_centered = summed - trial_means
+#     # center per trial using nanmean
+#     trial_means = np.nanmean(summed, axis=1, keepdims=True)  # (N, 1)
+#     summed_centered = summed - trial_means
 
-    dend_Vm = Vrest + epsp_sf * summed_centered  # (N, T)
+#     dend_Vm = Vrest + epsp_sf * summed_centered  # (N, T)
 
-    return dend_Vm, epsp_stack, cell_spike_mats
+#     return dend_Vm, epsp_stack, cell_spike_mats
 
 
 def plot_dend_vm_example(dend_Vm, epsp_list, spike_list, residual_activity_dict_EC, an_velocity):
@@ -1429,71 +1628,121 @@ def do_the_interpolation_an(scaled_data_Hz_dict, an_velocity_dict, dt_constant=0
 
     return padded_warped_activity_dict_cells, an_velocity_dict
 
-def get_epsp_dict_animal(padded_warped_activity_dicts, tau_ms=None, amp=None, seed=None):
+# def get_epsp_dict_animal(padded_warped_activity_dicts, tau_ms=None, amp=None, seed=None):
 
-    dt_constant = 0.001
+#     dt_constant = 0.001
 
-    dt_ms = dt_constant * 1000.0      # 1 ms
+#     dt_ms = dt_constant * 1000.0      # 1 ms
 
-    tau_ms  = tau_ms
-    dt_ms   = dt_constant * 1000.0      # 1 ms
-    AMP     = amp                      # mV
-    MODE    = "peak"                    # "area" or "peak"
-    kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
+#     tau_ms  = tau_ms
+#     dt_ms   = dt_constant * 1000.0      # 1 ms
+#     AMP     = amp                      # mV
+#     MODE    = "peak"                    # "area" or "peak"
+#     kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
 
-    rng = np.random.default_rng(seed)
+#     rng = np.random.default_rng(seed)
 
 
-    # animal_dict = {}
-    # for animal in padded_warped_activity_dict:
+#     # animal_dict = {}
+#     # for animal in padded_warped_activity_dict:
 
     
 
-    cell_dict = {}
-    for cell in padded_warped_activity_dicts:
+#     cell_dict = {}
+#     for cell in padded_warped_activity_dicts:
 
-        trial_count = 0
-        epsps_dict= {}
-        spike_times_dict = {}
-        spike_train_dict = {}
+#         trial_count = 0
+#         epsps_dict= {}
+#         spike_times_dict = {}
+#         spike_train_dict = {}
 
-        padded_warped_activity = padded_warped_activity_dicts[cell]
+#         padded_warped_activity = padded_warped_activity_dicts[cell]
 
-        for trial in range(len(padded_warped_activity)):
+#         for trial in range(len(padded_warped_activity)):
             
-            example_padded_warped_activity = padded_warped_activity[trial]
-            if trial > 0:
-                example_previous_pad = padded_warped_activity[trial-1]
-            else:
-                example_previous_pad = padded_warped_activity[trial+1]
+#             example_padded_warped_activity = padded_warped_activity[trial]
+#             if trial > 0:
+#                 example_previous_pad = padded_warped_activity[trial-1]
+#             else:
+#                 example_previous_pad = padded_warped_activity[trial+1]
 
-            L_prev = example_previous_pad.shape[0]
-            L_curr = example_padded_warped_activity.shape[0]
+#             L_prev = example_previous_pad.shape[0]
+#             L_curr = example_padded_warped_activity.shape[0]
 
-            two_track_length = np.concatenate([example_previous_pad, example_padded_warped_activity], axis=0)
-            t_ms = np.arange(two_track_length.shape[0]) * dt_ms
+#             two_track_length = np.concatenate([example_previous_pad, example_padded_warped_activity], axis=0)
+#             t_ms = np.arange(two_track_length.shape[0]) * dt_ms
 
-            spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
+#             spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
+#             st_curr = spike_times[spike_times >= L_prev] - L_prev
+#             spike_times_dict[trial] = st_curr
+
+#             spike_train = np.zeros(two_track_length.shape, dtype=np.uint8)
+#             spike_train[spike_times] = 1
+#             spike_train_curr = spike_train[L_prev : L_prev + L_curr]
+#             spike_train_dict[trial] = spike_train_curr
+
+#             epsps = np.convolve(spike_train, kernel, mode='full')[:len(spike_train)]
+
+#             epsps_curr = epsps[L_prev : L_prev + L_curr]
+#             epsps_dict[trial] = epsps_curr
+#             # epsps_scaled = epsps-60
+#             # dendrite.append(epsps_scaled)
+#             trial_count+=1
+
+
+#         cell_dict[cell] = {"epsps":epsps_dict,
+#                             "spike_times":spike_times_dict,
+#                             "spike_train":spike_train_dict}
+
+#     return cell_dict, kernel
+
+
+def get_epsp_dict_animal(padded_warped_activity_dicts, tau_ms=None, amp=None, seed=None, store_aux=False):
+    dt_constant = 0.001
+    dt_ms  = dt_constant * 1000.0
+    AMP    = amp
+    MODE   = "peak"
+    kernel = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
+    rng    = np.random.default_rng(seed)
+
+    cell_dict = {}
+    for cell, padded_warped_activity in padded_warped_activity_dicts.items():
+        epsps_dict = {}
+        if store_aux:
+            spike_times_dict = {}
+            spike_train_dict = {}
+
+        ntr = len(padded_warped_activity)
+        for trial in range(ntr):
+            curr = padded_warped_activity[trial]
+            prev = padded_warped_activity[trial-1] if trial > 0 else padded_warped_activity[trial+1]
+
+            L_prev = prev.shape[0]; L_curr = curr.shape[0]
+
+            two_track = np.concatenate([prev, curr], axis=0)
+            t_ms = np.arange(two_track.shape[0]) * dt_ms
+
+            spike_times = get_inhom_poisson_spike_times_by_thinning(two_track, t_ms, dt=dt_ms,
+                                                                    refractory=3., generator=None, rng=rng).astype(int)
             st_curr = spike_times[spike_times >= L_prev] - L_prev
-            spike_times_dict[trial] = st_curr
+            if store_aux:
+                spike_times_dict[trial] = st_curr
 
-            spike_train = np.zeros(two_track_length.shape, dtype=np.uint8)
+            spike_train = np.zeros(two_track.shape, dtype=np.uint8)
             spike_train[spike_times] = 1
-            spike_train_curr = spike_train[L_prev : L_prev + L_curr]
-            spike_train_dict[trial] = spike_train_curr
+            if store_aux:
+                spike_train_dict[trial] = spike_train[L_prev:L_prev+L_curr]
 
             epsps = np.convolve(spike_train, kernel, mode='full')[:len(spike_train)]
+            epsps_dict[trial] = epsps[L_prev:L_prev+L_curr].astype(np.float32, copy=False)
 
-            epsps_curr = epsps[L_prev : L_prev + L_curr]
-            epsps_dict[trial] = epsps_curr
-            # epsps_scaled = epsps-60
-            # dendrite.append(epsps_scaled)
-            trial_count+=1
+            del spike_train, epsps, two_track, t_ms
 
-
-        cell_dict[cell] = {"epsps":epsps_dict,
-                            "spike_times":spike_times_dict,
-                            "spike_train":spike_train_dict}
+        payload = {"epsps": epsps_dict}
+        if store_aux:
+            payload["spike_times"] = spike_times_dict
+            payload["spike_train"] = spike_train_dict
+        cell_dict[cell] = payload
 
     return cell_dict, kernel
 

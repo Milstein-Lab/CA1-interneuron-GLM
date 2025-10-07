@@ -1,34 +1,40 @@
-figures/*
-__pycache__/*
+# --- Project dirs ---
+figures/
+__pycache__/
+.ipynb_checkpoints/
+.idea/
+logs/
+results/
+optuna_param_pickles/
+untitled folder/
 
-.idea
-.ipynb_checkpoints
+# --- OS/editor junk ---
+.DS_Store
 .gitignore~
 ..gitignore.un~
-*.pth
+
+# --- Images / binaries you don't want tracked ---
 *.png
 
-
-# Binary/data artifacts
+# --- Binary/data artifacts ---
 *.pkl
 *.pickle
 *.npz
 *.npy
 *.h5
+*.hdf5
 *.pt
 *.pth
-
-# Recommended general ignores
-__pycache__/
-*.py[cod]
-.DS_Store
-.ipynb_checkpoints/
-.idea/
-
-
-# ignore DBs
 *.db
-optuna_param_pickles/
-logs/
-results/
-untitled folder/
+
+# --- Python bytecode ---
+*.py[cod]
+
+# --- Project-specific: ignore heavy data but keep configs ---
+Clean_notebooks_to_date/data/*.hdf5
+!Clean_notebooks_to_date/data/*.yaml
+
+# (Optional) patterns that often show up
+*nested_optimization_history_*.hdf5
+*optuna*
+
