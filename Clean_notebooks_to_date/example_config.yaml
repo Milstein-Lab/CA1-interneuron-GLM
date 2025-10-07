@@ -1,9 +1,0 @@
-dt_constant: 0.001
-dx: 3.6         # 180/50
-seed: 42
-store: mean     # or "all"
-debug: false
-store_flags:
-  spikes: false
-  epsps: true
-  warp_axes: true

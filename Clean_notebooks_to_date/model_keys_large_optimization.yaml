@@ -1,9 +1,0 @@
-first_run_best_trial:
-  threshold: 0.7029198989572342
-  EC_delta_peak_rate: 39.84036927863548
-  EC_delta_reward_rate: 26.433161666675737
-  SST_scaling_factor: 1.7504501599555697
-  desired_CA1_EC_weight_mean: 1.6622050913853266
-  EC_peak_loc_width: 0.608098483654281
-  SST_reward_disinhibition_factor: 0.14322384694536094
-  EC_to_CA1_weight_variance: 0.3519278501117682

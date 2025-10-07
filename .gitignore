@@ -27,6 +27,7 @@ untitled folder/
 *.pth
 *.db
 
+
 # --- Python bytecode ---
 *.py[cod]
 
