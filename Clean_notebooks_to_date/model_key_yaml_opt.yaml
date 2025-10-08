@@ -1,0 +1,7 @@
+#(ca1_env) michaelfinch@nbp-25-228-133 Clean_notebooks_to_date % mpiexec -n 3 python -i -m mpi4py.futures -m  nested.analyze --config-file-path=config/ec_nested_ec_av.yaml --disp --framework=mpi --plot --model-key=animal_6_precompute_spikes --param-file-path=model_key_yaml_opt.yaml
+
+animal_6_precompute_spikes:
+  tau_ms: 162.53166538052287
+  dend_threshold: -42.896508047551684
+  weights_mean: 0.9314244024691123
+  weights_std: 0.7842371160364618

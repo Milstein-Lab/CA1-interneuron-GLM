@@ -1,0 +1,66 @@
+bounds:
+  tau_ms:
+   - 5.0
+   - 200.0
+  dend_threshold:
+   - -65.0
+   - -25.0
+  weights_mean:
+   - 0.1
+   - 1.0
+  weights_std:
+   - 0.1
+   - 1.0
+
+kwargs:
+  data_root: /Users/michaelfinch/CA1-interneuron-GLM
+  animal: animal_3
+  weight_dist: Lognormal
+  inner_jobs: 1
+  network_start_seed: 0
+  network_end_seed: 2
+  ec_animal_average: True
+  vel_applied: real
+  dend_threshold: -65.
+  use_averaged_velocity: 'actual_velocity' #"cell_type_av" 
+  dist: 'Lognormal'
+  add_inh: 'neither'
+  make_it_spike: True
+  SST_bias_multi: 1.4
+  real_vel: True
+  constant_vel: False
+  use_model_EC: False
+  SST_bias_factor: 2.0
+  dt_constant : 0.0001
+  tau_ms : 5.0
+  dt_constant: 0.001
+  dx: 3.6         
+  store: mean    
+  debug: false
+  spikes: false
+  epsps: true
+  warp_axes: true
+  seed_start: 0
+  export: true
+  save_path: /Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/saved_pkl_nested.pkl
+  plot: true
+  animal_by_animal: false 
+  input_animal: 'animal_1'
+  include_beta: true
+  flat_input: true
+
+
+stages:
+  - source: ec_nested_stage
+    get_args_static: get_args
+    compute_features: compute_features
+    filter_features: filter_features
+    get_objectives: get_objectives
+param_gen: PopulationAnnealing
+param_gen_source: nested.optimize_utils
+optimization_title: EC_multidendrite_pop_anneal
+x0:
+  tau_ms: 50.0
+  dend_threshold: -50.0
+  weights_mean: 0.5
+  weights_std: 0.5
