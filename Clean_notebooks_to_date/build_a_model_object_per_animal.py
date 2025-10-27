@@ -2203,6 +2203,7 @@ class SimConfig:
     debug: bool = False
     dist: str = "Lognormal" # label for weights
 
+
 class SpikeSimModel:
     def __init__(
         self,
@@ -2211,7 +2212,8 @@ class SpikeSimModel:
         weights_SST=None, weights_NDNF=None,
         config: Optional[SimConfig]=None,
         flags: Optional[StoreFlags]=None,):
-        self.kernel = np.asarray(kernel, dtype=np.float32, order="C")
+        
+        self.kernel = kernel
         self.W_dist = dist_for_weights
         self.W_dist_name = dist_for_weights if isinstance(dist_for_weights, str) else getattr(dist_for_weights, "__name__", "weights")
         self.W_SST = weights_SST

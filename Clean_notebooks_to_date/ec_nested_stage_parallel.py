@@ -65,12 +65,11 @@ from pathlib import Path
 from nested.utils import Context, param_array_to_dict
 
 from mpi4py import MPI
-import os, resource, sys, time
+import os, resource, sys, time, gc, psutil
 
 from spiking_model_utils import load_data_regular
 from build_a_model_object_per_animal import *
 
-import os, time, psutil, gc
 
 import pickle
 from types import SimpleNamespace
@@ -90,6 +89,7 @@ def rss_gb():
 
 def log_mem(tag):
     print(f"[{time.time():.3f}] {tag} RSS={rss_gb():.2f} GB", flush=True)
+
 
 def deep_nbytes(obj, seen=None):
     """Crude deep size for numpy/list/tuple/dict (bytes)."""
@@ -175,30 +175,33 @@ def get_args():
     return seed_list
 
 
-def compute_features(params, network_seed, previous_features=None, model_id=None, export=False, plot=False):
+def compute_features(params, network_seed, model_id=None, export=False, plot=False):
 
-  
+    param_dict = param_array_to_dict(params, context.param_names)
 
-    tau_ms = params[0]
-    dend_threshold = params[1]
-    weights_mean = params[2]
-    weights_std  = params[3]
+    tau_ms = param_dict['tau_ms']
+    dend_threshold = param_dict['dend_threshold']
+    weights_mean = param_dict['weights_mean']
+    weights_std  = param_dict['weights_std']
 
     dt_ms   = context.dt_constant * 1000.0
     AMP     = 1.0
     MODE    = "peak"
 
     kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
-
+    
     rank = MPI.COMM_WORLD.Get_rank()
-    if rank == 0:
+    host = MPI.Get_processor_name()
+    pid = os.getpid()
+    
+    if context.debug and rank == 0:
         print("[params from optimizer]", params, flush=True)
         print("[context overrides]",
               {"tau_ms": getattr(context, "tau_ms", None),
                "dend_threshold": getattr(context, "dend_threshold", None)}, flush=True)
 
-    cfg = {"dt_constant":context.dt_constant,
-           "dx":context.dx,
+    cfg = {"dt_constant": context.dt_constant,
+           "dx": context.dx,
            "store": context.store}
 
     flg = {"spikes": context.spikes,
@@ -211,7 +214,8 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
         log_mem("A: before building model")
 
 
-    model = SpikeSimModel(kernel=kernel,dist_for_weights=context.dist,weights_SST=None, weights_NDNF=None,config=cfg, flags=flg)
+    model = SpikeSimModel(kernel=kernel, dist_for_weights=context.dist, weights_SST=None, weights_NDNF=None,
+                          config=cfg, flags=flg)
 
     if debug:
         log_mem("B: after building empty model")
@@ -251,16 +255,10 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
     model.NDNF_sf_opt = 0
     model.SST_sf_opt = 0
 
-
     optimization_time = str_true_false_to_bool(context.optimization_time)
 
     t0 = time.time()
-    rank = MPI.COMM_WORLD.Get_rank()
-    host = MPI.Get_processor_name()
-    pid  = os.getpid()
     
-
-
     model.optimization_time = optimization_time
 
     print(f"model.optimization_time {model.optimization_time}")

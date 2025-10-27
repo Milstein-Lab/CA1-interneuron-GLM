@@ -1,11 +1,4 @@
-# mpiexec -n 4 python -m mpi4py.futures -m nested.optimize \
-#   --config-file-path=config/ec_nested.yaml \
-#   --framework=mpi \
-#   --pop_size=3 --path_length=1 --max_iter=1 \
-#   --num-workers=3 \
-#   --num_network_seeds=3 \
-#   --disp --network_start_seed=0 --network_end_seed=3 --vel_applied='real' --animal_by_animal=False --constant_vel=False --include_beta=False --flat_input=True
-
+# 
 bounds:
   tau_ms:
    - 5.0
