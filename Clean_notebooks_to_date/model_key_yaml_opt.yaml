@@ -1,12 +1,3 @@
-#best model_id: 121
-# /ocean/projects/bio250022p/mfinch/data/20251023_175833_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_142585985436231518059493664533515879390.hdf5
-#total_error: 0.00014660269093680597
-oct21_justec_5seeds_serial_number1_velTbetaFinputT:
-  tau_ms: 6.10131135018831
-  dend_threshold: -57.05704397640961
-  weights_mean: 0.30800001919022635
-  weights_std: 1.149925277460194
-
 # 0.00010320846461145771
 # /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277023735232369394433075510718181459436.hdf5
 #best model_id: 33997
