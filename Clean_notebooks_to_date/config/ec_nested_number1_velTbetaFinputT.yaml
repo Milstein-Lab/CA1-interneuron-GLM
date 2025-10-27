@@ -1,4 +1,5 @@
-#oct24_justec_5seeds_number6_velFbetaTinputF
+
+# oct24_justec_5seeds_number1_velTbetaFinputT
 
 
 bounds:
@@ -15,9 +16,7 @@ bounds:
    - 0.05
    - 3.0
 
-
-
-  kwargs:
+kwargs:
   data_root: /Users/michaelfinch/CA1-interneuron-GLM
   animal: animal_3
   dend_threshold: -65.
@@ -33,9 +32,9 @@ bounds:
   plot: true
   animal_by_animal: false 
   input_animal: 'animal_1'
-  constant_vel: False
-  include_beta: True
-  flat_input: False
+  constant_vel: True
+  include_beta: False
+  flat_input: True
   optimization_time: true
   pkl_name: 'saved_data.pkl'
   load: false
@@ -59,4 +58,26 @@ x0:
   dend_threshold: -60.0
   weights_mean: 0.5
   weights_std: 0.5
+
+
+  # inner_jobs: 7
+  # network_start_seed: 0
+  # ec_animal_average: True
+  # vel_applied: real
+  # use_averaged_velocity: 'actual_velocity' #"cell_type_av" 
+  #  load: false
+  #  use_model_EC: False
+  #  weight_dist: Normal
+  #  SST_bias_factor: 2.0
+    # SST_bias_multi: 1.4
+    #  real_vel: True
+    #  store: mean   
+    #  add_inh: 'neither'
+
+
+  # warp_axes: true
+
+
+
+
 

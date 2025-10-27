@@ -1,6 +1,3 @@
-#oct24_justec_5seeds_number6_velFbetaTinputF
-
-
 bounds:
   tau_ms:
    - 5.0
@@ -16,8 +13,7 @@ bounds:
    - 3.0
 
 
-
-  kwargs:
+kwargs:
   data_root: /Users/michaelfinch/CA1-interneuron-GLM
   animal: animal_3
   dend_threshold: -65.
@@ -33,8 +29,8 @@ bounds:
   plot: true
   animal_by_animal: false 
   input_animal: 'animal_1'
-  constant_vel: False
-  include_beta: True
+  constant_vel: True
+  include_beta: False
   flat_input: False
   optimization_time: true
   pkl_name: 'saved_data.pkl'
@@ -44,6 +40,8 @@ bounds:
   spikes: false
   epsps: true
   warp_axes: true
+
+
 
 stages:
   - source: ec_nested_stage_parallel

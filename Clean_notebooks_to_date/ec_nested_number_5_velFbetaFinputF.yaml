@@ -1,4 +1,4 @@
-#oct24_justec_5seeds_number6_velFbetaTinputF
+#oct24_justec_5seeds_number5_velFbetaFinputF
 
 
 bounds:
@@ -14,8 +14,6 @@ bounds:
   weights_std:
    - 0.05
    - 3.0
-
-
 
   kwargs:
   data_root: /Users/michaelfinch/CA1-interneuron-GLM
@@ -34,7 +32,7 @@ bounds:
   animal_by_animal: false 
   input_animal: 'animal_1'
   constant_vel: False
-  include_beta: True
+  include_beta: False
   flat_input: False
   optimization_time: true
   pkl_name: 'saved_data.pkl'
@@ -44,6 +42,7 @@ bounds:
   spikes: false
   epsps: true
   warp_axes: true
+
 
 stages:
   - source: ec_nested_stage_parallel

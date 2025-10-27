@@ -234,7 +234,7 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
     # model.SST_bias_factor = context.SST_bias_multi
     model.dist = context.dist
     # model.vel_applied = context.vel_applied
-    model.use_averaged_velocity = context.use_averaged_velocity
+    # model.use_averaged_velocity = context.use_averaged_velocity
     # model.use_model_EC = context.use_model_EC
     model.tau_ms = tau_ms #context.tau_ms
     model.dend_threshold = dend_threshold #context.dend_threshold
