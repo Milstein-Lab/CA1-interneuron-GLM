@@ -820,81 +820,7 @@ def to_bool(x):
 
 
 
-def get_dend_contribution(kernel, dt_constant, residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest, residual_activity_dict_SST, factors_dict_EC, factors_dict_SST, factors_dict_NDNF_newest, GLM_params_EC, GLM_params_NDNF_newest, GLM_params_SST, NDNF_sf_opt, SST_sf_opt, dist=None, include_inh=False, constant_vel=None, multiple_dendrites=False, seed=0, make_it_spike=False, animal_by_animal=False, input_animal=None, include_beta=None, flat_input=None, optimization_time=False, debug=False, mean=None, std=None):
-    
-    SEED = seed
-    np.random.seed(SEED)
-    random.seed(SEED)
-    rng = np.random.default_rng(SEED)
 
-    animal_by_animal = to_bool(animal_by_animal)
-    flat_input = to_bool(flat_input)
-    include_beta = to_bool(include_beta)
-
-    # else:
-    if multiple_dendrites:
-
-        animal_by_animal = to_bool(animal_by_animal)
-        include_beta = to_bool(include_beta)
-        flat_input = to_bool(flat_input)
-        constant_vel = to_bool(constant_vel)
-        
-        if animal_by_animal:
-
-            an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=True, animal_used=input_animal)
-
-        else:
-
-            if include_inh:
-                an_velocity_EC, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
-                an_velocity_SST, dend_list_SST = get_dend_VM_cell_type_new(residual_activity_dict_SST, factors_dict_SST, GLM_params_SST, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
-                an_velocity_NDNF, dend_list_NDNF = get_dend_VM_cell_type_new(fixed_residual_activity_dict_NDNF_newest, factors_dict_NDNF_newest, GLM_params_NDNF_newest, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
-
-
-                an_velocity_stack = np.stack([an_velocity_EC, an_velocity_SST, an_velocity_NDNF])
-                an_velocity = np.mean(an_velocity_stack, axis=0)
-
-
-            else:
-                an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
-
-                # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
-                # with open(save_path, 'wb') as f:
-                #     pickle.dump(an_velocity, f)
-        if make_it_spike:
-
-            try:
-                import psutil
-                _PROC = psutil.Process(os.getpid())
-            except Exception:
-                psutil = None
-                _PROC = None
-            
-            if include_inh:
-                
-                dend_vm_list, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list = turn_rates_into_spikes_add_inh(
-                    dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt,
-                    dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean,
-                    std=std)
-                return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list
-            else:
-                
-                activity_NDNF=0
-                activity_SST=0
-                NDNF_contribution_sum=0
-                SST_contribution_sum=0
-                weights_SST=0
-                weights_NDNF=0
-                
-                if optimization_time:
-                    internals_dict = dict(dend_list_EC=dend_list_EC, an_velocity=an_velocity, dist=dist, kernel=kernel,
-                                          dt_constant=dt_constant)
-                
-                dend_vm_list, weights_EC, last_EPSP, warped_list = (
-                    turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant,
-                                           n_dendrites=100, rng=rng, debug=debug, optimization_time=optimization_time,
-                                           mean=mean, std=std))
-                return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list #, min_trial_length
                     
 
 # (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP) = get_dend_contribution(self.kernel, self.dt_constant,
@@ -1554,7 +1480,7 @@ def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=
 
 
 
-def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt_constant=None, n_dendrites=100, rng=None, debug=False, optimization_time=None, mean=None, std=None):
+def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt=None, n_dendrites=100, rng=None, debug=False, optimization_time=None, mean=None, std=None):
 
     # if optimization_time:
     assert dt_constant is not None
@@ -2205,32 +2131,26 @@ class SimConfig:
 
 
 class SpikeSimModel:
-    def __init__(
-        self,
-        kernel: np.ndarray,               # EPSP kernel (samples)
-        dist_for_weights,                 # callable or string label
-        weights_SST=None, weights_NDNF=None,
-        config: Optional[SimConfig]=None,
-        flags: Optional[StoreFlags]=None,):
+    def __init__(self,
+                 kernel: np.ndarray,          # EPSP kernel (samples)
+                 weight_config_dict,                 # dict
+                 dt=0.001,  # sec
+                 dx=3.6,  # cm
+                 residuals_activity_dict=None,
+                 GLM_params_dict=None,
+                 behav_factors_dict=None,
+                 ):
         
         self.kernel = kernel
-        self.W_dist = dist_for_weights
-        self.W_dist_name = dist_for_weights if isinstance(dist_for_weights, str) else getattr(dist_for_weights, "__name__", "weights")
-        self.W_SST = weights_SST
-        self.W_NDNF = weights_NDNF
-
-
-        self.cfg = config or SimConfig()
-        # if self.cfg.dx is None:
-        #     self.cfg.dx = 180.0 / self.n_pos
-        self.flags = flags or StoreFlags()
-
+        self.weight_config_dict = weight_config_dict
+        self.residuals_activity_dict = residuals_activity_dict
+        self.GLM_params_dict = GLM_params_dict
+        self.behav_factors_dict = behav_factors_dict
+        
         self._precomputed = None
         self._results: Dict[int, Dict[str, Any]] = {}
         self.tau_ms: Optional[float] = None
         self.dend_threshold: Optional[float] = None
-        self.dist: str = self.W_dist_name
-        self.seeds: List[int] = []
         self._pos_cnt_dict = {}
         self.start_pos_cnt50_dict = {}
         self._plateau_arr_list_dict = {}
@@ -2424,8 +2344,53 @@ class SpikeSimModel:
         if self._precomputed is not None:
             return
         self._precomputed = True
-
-    def _simulate_one_seed(self, seed: int, debug=False):
+    
+    def get_dend_contribution(self, seed=0, debug=False):
+        
+        SEED = seed
+        np.random.seed(SEED)
+        random.seed(SEED)
+        rng = np.random.default_rng(SEED)
+        
+        if self.multiple_dendrites:
+            
+            animal_velocity_dict = {}
+            processed_binned_activity_dict = {}
+            
+            for pop in self.weight_config_dict:
+                this_animal_velocity, this_processed_binned_activity = (
+                    get_dend_VM_cell_type_new(self.residual_activity_dic[pop], self.behav_factors_dict[pop],
+                                              self.GLM_params_dict[pop], include_beta=self.include_beta,
+                                              const_vel=self.constant_vel, flat_input=self.flat_input,
+                                              animal_by_animal=self.animal_by_model, animal_used=self.input_animal))
+                        
+            an_velocity_stack = np.stack(list(animal_velocity_dict.values()))
+            an_velocity = np.mean(an_velocity_stack, axis=0)
+            
+            if make_it_spike:
+                
+                try:
+                    import psutil
+                    _PROC = psutil.Process(os.getpid())
+                except Exception:
+                    psutil = None
+                    _PROC = None
+                  
+                activity_NDNF = 0
+                activity_SST = 0
+                NDNF_contribution_sum = 0
+                SST_contribution_sum = 0
+                weights_SST = 0
+                weights_NDNF = 0
+                
+                dend_vm_list, psp_list_dict, weights_dict, last_EPSP_dict, warped_list = (
+                    turn_rates_into_spikes(processed_binned_activity_dict, an_velocity, self.weight_config_dict,
+                                           self.kernel, dt=self.dt,
+                                           n_dendrites=100, rng=rng, debug=debug,
+                                           store_intermediates=self.store_intermediates))
+                return an_velocity, dend_vm_list, psp_list_dict, weights_dict, last_EPSP_dict, warped_list  # , min_trial_length
+    
+    def simulate(self, seed=0, debug=False):
         
         if debug:
             import psutil, os
@@ -2483,7 +2448,7 @@ class SpikeSimModel:
                     weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST, activity_NDNF, warped_list)
         
             
-    def simulate(self, seeds, export=False, plot=False, debug=False):
+    def simulate_old(self, seeds, export=False, plot=False, debug=False):
         self._precompute_once()
         seeds = list(seeds)
         self.seeds = seeds

@@ -37,24 +37,16 @@
 #   --num_network_seeds=1 \
 #   --disp --network_start_seed=0 --network_end_seed=2 --plot --model-key=animal_6_precompute_spikes --param-file-path=model_key_yaml_opt.yaml --vel_applied='real' --dend_threshold=-69.0 --tau_ms=10.0 --animal_by_animal=False --constant_vel=False --include_beta=False --flat_input=True 
 
-import nested
-import optuna
-from optuna.trial import TrialState
-import numpy as np
-from pathlib import Path
-from nested.utils import Context, param_array_to_dict
+from nested.utils import Context
 
 # from build_a_model_object import (exp_kernel, load_yaml_cfg)
 
-from mpi4py import MPI
-import os, resource, sys
-
 #from Fixing_dend_models_presentation import *
-from spiking_model_utils import load_data_regular
 from build_a_model_object_per_animal import *
 
 
-import os, time, psutil, gc
+import os, time, psutil
+
 
 def _rank_tag():
     comm = MPI.COMM_WORLD

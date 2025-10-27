@@ -963,7 +963,7 @@ def count_plateaus_by_position_from_abs(plateau_abs_times,       # 1D array, sec
 
     return counts
 
-def get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=0.001, dend_threshold=None, vel_applied=None):
+def get_internals_summed_dendrite(an_velocity, summed_dendrite, dt=0.001, dend_threshold=None, vel_applied=None):
 
 
     animal_velocity_constant = np.full((summed_dendrite.shape), 23)
@@ -993,7 +993,7 @@ def get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=0.00
             continue
         total_time = time_bins[-1, t]
 
-        time_axis_constant = np.arange(0, total_time, dt_constant)
+        time_axis_constant = np.arange(0, total_time, dt)
         
         firing = summed_dendrite[:, t]
 
@@ -1057,7 +1057,7 @@ def get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=0.00
 
     return padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts
 
-def get_internal_counts(an_velocity, plateau_array, dx=None, dt_constant=None):
+def get_internal_counts(an_velocity, plateau_array, dx=None, dt=None):
     
     plateau_start_positions_counter = np.zeros(50)
 
@@ -1071,7 +1071,7 @@ def get_internal_counts(an_velocity, plateau_array, dx=None, dt_constant=None):
     plateau_starts_per_pos   = np.zeros(n_pos, dtype=int)    # onset counts
 
     # time axis for the (max) warped length
-    time_axis = np.arange(n_time) * dt_constant  # seconds
+    time_axis = np.arange(n_time) * dt  # seconds
 
     for t in range(n_trials):
         v = vel_cm_s[:, t].astype(float)  # (50,)
@@ -1090,7 +1090,7 @@ def get_internal_counts(an_velocity, plateau_array, dx=None, dt_constant=None):
 
         # weight by dt to convert samples → seconds
         plateau_mask = plateau_array[t, valid_mask].astype(bool)
-        w = plateau_mask.astype(float) * dt_constant  # seconds
+        w = plateau_mask.astype(float) * dt  # seconds
         add_s = np.bincount(pos_idx_for_time, weights=w, minlength=n_pos)
         plateau_time_per_pos_s += add_s
 
@@ -1099,7 +1099,7 @@ def get_internal_counts(an_velocity, plateau_array, dx=None, dt_constant=None):
         starts_idx = np.flatnonzero((np.pad(row.astype(int), (1,0))[:-1] == 0) &
                                     (np.pad(row.astype(int), (1,0))[1:]  == 1))
         if starts_idx.size:
-            start_times = starts_idx * dt_constant
+            start_times = starts_idx * dt
             pos_of_starts = np.searchsorted(edges, start_times, side='right') - 1
             pos_of_starts = np.clip(pos_of_starts, 0, n_pos-1)
             np.add.at(plateau_starts_per_pos, pos_of_starts, 1)
@@ -1111,7 +1111,7 @@ def get_internal_counts(an_velocity, plateau_array, dx=None, dt_constant=None):
         time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
 
         plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
-        plateau_start_times = plateau_start_indices * dt_constant  # in seconds
+        plateau_start_times = plateau_start_indices * dt  # in seconds
         # plateau_start_times_list.append(plateau_start_times)
 
         for pt_start_time in plateau_start_times:
@@ -1211,8 +1211,8 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
         axs[1,3].set_xlabel("Position Bin")
 
 
-        dt_constant = 0.001
-        padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=dt_constant, dend_threshold=dend_threshold, vel_applied=vel_applied)
+        dt = 0.001
+        padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt=dt, dend_threshold=dend_threshold, vel_applied=vel_applied)
 
         if pad_with_means:
             A = padded_warped_activity.copy()
@@ -1251,7 +1251,7 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
         axs[2,3].set_title("Plateau Counts per Time")
 
 
-        starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt_constant=dt_constant)
+        starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt=dt)
 
 
         n_bins = 10
@@ -1353,8 +1353,8 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
         
         summed_dendrite = zscore_2d(summed_dendrite, axis=None, eps=1e-12)
 
-        dt_constant = 0.001
-        padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=dt_constant, dend_threshold=dend_threshold, vel_applied=vel_applied)
+        dt = 0.001
+        padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt=dt, dend_threshold=dend_threshold, vel_applied=vel_applied)
 
         print("NaNs left:", np.isnan(padded_warped_activity).sum())  # should be 0
         
@@ -1418,7 +1418,7 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
         axs[2,3].set_title("Plateau Counts per Time")
 
 
-        starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt_constant=dt_constant)
+        starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt=dt)
 
 
         n_bins = 5
@@ -1518,8 +1518,8 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
 
         print(f"an_velocity.shape {an_velocity.shape}")
 
-        dt_constant = 0.001
-        padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt_constant=dt_constant, dend_threshold=dend_threshold, vel_applied=vel_applied)
+        dt = 0.001
+        padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, summed_dendrite, dt=dt, dend_threshold=dend_threshold, vel_applied=vel_applied)
         
         if pad_with_means:
             A = padded_warped_activity.copy()
@@ -1576,7 +1576,7 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
 
 
 
-        starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt_constant=dt_constant)
+        starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt=dt)
 
 
         n_bins = 5
@@ -1725,7 +1725,7 @@ def plot_multidendrite_EC_err_across_seeds(loss, christine_overrepresentation_ar
     padded_warped_activity_list, an_velocity, dend_threshold,
     _pos_cnt_dict, start_pos_cnt50_dict, _plateau_arr_list_dict, _mask_dict,  _starts_list_dict,
     dist, num_plateaus_per_dend_list, animal, example_cell=1, include_inhibition=None,
-    NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=False, make_it_spike=None, constant_vel=None, include_beta=None, flat_input=None, dt_constant=None):
+    NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=False, make_it_spike=None, constant_vel=None, include_beta=None, flat_input=None, dt=None):
     fig, axs = plt.subplots(4,4, figsize=(15,10))
 
     # save_path_3 = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
@@ -1867,7 +1867,7 @@ def plot_multidendrite_EC_err_across_seeds(loss, christine_overrepresentation_ar
         
     TRACK_LEN_M  = 1.80
     dx_m_per_pos = TRACK_LEN_M / 50.0
-    dt_s         = float(dt_constant)
+    dt_s         = float(dt)
 
     pos_var_per_seed = []
     for seed, dend_vm in dend_vm_per_seed_dict.items():
@@ -2665,8 +2665,8 @@ def plot_the_model_EC(dend_contribution_EC, an_velocity, dend_threshold=250, vel
 
 
 
-    dt_constant = 0.001
-    padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, dend_contribution_EC, dt_constant=dt_constant, dend_threshold=dend_threshold, vel_applied=vel_applied)
+    dt = 0.001
+    padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, dend_contribution_EC, dt=dt, dend_threshold=dend_threshold, vel_applied=vel_applied)
 
     axs[1,2].plot(just_plateau_starts_sums, color='k', linewidth=2)
     axs[1,2].set_title("Plateau Count Over Trials")
@@ -2702,7 +2702,7 @@ def plot_the_model_EC(dend_contribution_EC, an_velocity, dend_threshold=250, vel
     axs[3,0].set_title("Plateau Counts per Time")
 
     dx=3.6
-    starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt_constant=dt_constant)
+    starts_per_pos, time_per_pos_s, plateau_start_positions_counter = get_internal_counts(an_velocity, plateau_array, dx=dx, dt=dt)
 
     n_bins = 5
     bin_size = int(50 / n_bins)
@@ -2746,7 +2746,7 @@ def get_activity_multidendrite2(
     activity_SST,
     NDNF_sf_opt,
     SST_sf_opt,
-    dt_constant,
+    dt,
     dx,
     dend_threshold=20,
     vel_applied="real",
@@ -2807,7 +2807,7 @@ def get_activity_multidendrite2(
     flat_plateau = np.zeros(flat_len, dtype=np.uint8)  # reused per dendrite
 
     # Precompute time grid used for mapping indices -> time
-    time_bins = (np.arange(T, dtype=np.int32) * np.float32(dt_constant)).astype(np.float32, copy=False)
+    time_bins = (np.arange(T, dtype=np.int32) * np.float32(dt)).astype(np.float32, copy=False)
 
     for d_idx in range(D):
         # view only (no copy)
@@ -2998,7 +2998,7 @@ def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, ex
         n_pos = 50
         n_trials = 58
         dx=180/50
-        dt_constant = 0.001
+        dt = 0.001
 
         plateau_positions_counter = np.zeros(n_pos)
         plateau_start_positions_counter = np.zeros(n_pos)
@@ -3077,7 +3077,7 @@ def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, ex
                 time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
 
                 plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
-                plateau_start_times = plateau_start_indices * dt_constant  # in seconds
+                plateau_start_times = plateau_start_indices * dt  # in seconds
                 plateau_start_times_list.append(plateau_start_times)
 
                 for pt_start_time in plateau_start_times:
@@ -3097,7 +3097,7 @@ def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, ex
 
                 plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
 
-                plateau_start_times = plateau_start_indices * dt_constant  # in seconds
+                plateau_start_times = plateau_start_indices * dt  # in seconds
                 num_plateaus_list.append(len(plateau_start_times))
 
                 for pt_start_time in plateau_start_times:
@@ -3117,7 +3117,7 @@ def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, ex
                 dt_trial = dx / velocity_trial              # shape (50,)
                 bin_edges = np.concatenate([[0], np.cumsum(dt_trial)])  # shape (51,)
 
-                time_bins = np.arange(num_time_bins) * dt_constant  # shape (num_time_bins,)
+                time_bins = np.arange(num_time_bins) * dt  # shape (num_time_bins,)
 
                 plateau_indices = np.where(plateau_array[trial] == 1)[0]  # shape (n_plateaus,)
 

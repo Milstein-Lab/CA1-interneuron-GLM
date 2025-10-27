@@ -8,8 +8,7 @@ from pathlib import Path
 
 from multidendrite_spiking_main import SpikingModel, SpikingModelConfig
 from multidendrite_spiking_utils import (
-    get_velocity_array_every_animal, get_scaled_data_Hz_dict, do_the_interpolation_an,
-    get_epsp_dict_animal, get_dend_vm_from_cells_multi, sample_weights,
+    get_velocity_array_every_animal, get_scaled_data_Hz_dict, get_epsp_dict_animal, get_dend_vm_from_cells_multi, sample_weights,
     get_dendrite_activity_multi, activity_to_dend_vm, get_activity_multidendrite2
 )
 from spiking_model_utils import (

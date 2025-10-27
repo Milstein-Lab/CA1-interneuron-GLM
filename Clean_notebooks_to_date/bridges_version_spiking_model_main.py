@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Tuple
-import os
-import numpy as np
+from typing import Dict, Any
 import pickle
 import click
 from spiking_model_utils import *

@@ -3,18 +3,6 @@ import random
 
 from spiking_model_utils import *
 
-
-import pathlib
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Tuple
-import numpy as np
-import pickle
-import click
-from spiking_model_utils import *
-from pathlib import Path
-import sys
-import platform
-
 import matplotlib as mpl
 from matplotlib.font_manager import FontProperties
 
@@ -1722,7 +1710,7 @@ def _build_static_inputs_animal_av(spike_model: "SpikingModel", animal_average=F
 
 #     return start_pos_cnt50, np.asarray(num_plateaus_per_dend_list, dtype=np.float32)
 
-import os, sys, resource
+import sys, resource
 def rss_now_mb():
     try:
         r = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

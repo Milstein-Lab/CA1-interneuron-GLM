@@ -1,7 +1,6 @@
 import pathlib
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Tuple
-import numpy as np
+from dataclasses import dataclass
+from typing import Dict, Any
 import pickle
 import click
 from spiking_model_utils import *

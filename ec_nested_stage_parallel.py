@@ -57,23 +57,13 @@
 #   --num_network_seeds=2 \
 #   --disp --network_start_seed=0 --vel_applied='real' --animal_by_animal=False --constant_vel=False --include_beta=False --flat_input=True --debug=True --optimization_time=False --plot --param-file-path=model_key_yaml_opt.yaml --model-key=oct21_justec_5seeds_serial_number1_velTbetaFinputT
 
-import nested
-import optuna
-from optuna.trial import TrialState
-import numpy as np
-from pathlib import Path
 from nested.utils import Context, param_array_to_dict
-
-from mpi4py import MPI
-import os, resource, sys, time, gc, psutil
 
 from spiking_model_utils import load_data_regular
 from build_a_model_object_per_animal import *
 
 
 import pickle
-from types import SimpleNamespace
-
 
 context = Context()
 
@@ -139,7 +129,11 @@ def config_worker():
     start = int(context.network_start_seed)
     end   = start + int(context.num_network_seeds)
     seeds_array = list(range(start, end))
-
+    
+    residuals_activity_dict = {}
+    GLM_params_dict = {}
+    behav_factors_dict = {}
+    
     GLM_params_SST, _, _, factors_dict_SST, filtered_factors_dict_SST, residual_activity_dict_SST = load_data_regular(
         file_path=context.data_root, name="SSTindivsomata_GLM", new_NDNF=False)
     GLM_params_EC, _, _, factors_dict_EC, filtered_factors_dict_EC, residual_activity_dict_EC = load_data_regular(
@@ -153,20 +147,32 @@ def config_worker():
     fixed_filtered_factors_dict_NDNF_newest = {f"animal_{idx+1}": filtered_factors_dict_NDNF_newest[animal]
                                                for idx, animal in enumerate(filtered_factors_dict_NDNF_newest)
                                                if 17 < idx < 31}
-
+    
+    residuals_activity_dict['EC'] = residual_activity_dict_EC
+    residuals_activity_dict['SST'] = residual_activity_dict_SST
+    residuals_activity_dict['NDNF'] = fixed_residual_activity_dict_NDNF_newest
+    
+    GLM_params_dict['EC'] = GLM_params_EC
+    GLM_params_dict['SST'] = GLM_params_SST
+    GLM_params_dict['NDNF'] = GLM_params_NDNF_newest
+    
+    behav_factors_dict['EC'] = factors_dict_EC
+    behav_factors_dict['SST'] = factors_dict_SST
+    behav_factors_dict['NDNF'] = factors_dict_NDNF_newest
+    
     christine_save_path = (f"{context.data_root}/datasets/christines_overrepresentation_pkl.pkl")
     with open(christine_save_path, 'rb') as f:
         christine_overrepresentation_array = pickle.load(f)
 
-    dx=180./50.
-
-    mean_new_average_vel_array = get_real_velocity_array(filtered_factors_dict_EC, filtered_factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest)
+    dx = 180. / 50.
 
     debug = str_true_false_to_bool(context.debug)
     if debug:
         rank = MPI.COMM_WORLD.Get_rank()
         print(f"[rank={rank} pid={os.getpid()}] seeds_array={list(seeds_array)}", flush=True)
-
+    
+    store_intermediates = str_true_false_to_bool(context.store_intermediates)
+    
     context.update(locals())
 
 
@@ -176,18 +182,24 @@ def get_args():
 
 
 def compute_features(params, network_seed, model_id=None, export=False, plot=False):
-
+    
     param_dict = param_array_to_dict(params, context.param_names)
-
+    
     tau_ms = param_dict['tau_ms']
     dend_threshold = param_dict['dend_threshold']
-    weights_mean = param_dict['weights_mean']
-    weights_std  = param_dict['weights_std']
-
-    dt_ms   = context.dt_constant * 1000.0
+    EC_weights_mean = param_dict['EC_weights_mean']
+    EC_weights_std  = param_dict['EC_weights_std']
+    
+    if 'EC' in context.weight_config_dict:
+        if not all([param_name in param_dict for param_name in ['EC_weights_mean', 'EC_weights_std']]):
+            raise Exception('missing EC weight mean and/or std in param_dict')
+        context.weight_config_dict['EC']['mean'] = EC_weights_mean
+        context.weight_config_dict['EC']['std'] = EC_weights_std
+    
+    dt_ms   = context.dt * 1000.0
     AMP     = 1.0
     MODE    = "peak"
-
+    
     kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
     
     rank = MPI.COMM_WORLD.Get_rank()
@@ -199,80 +211,50 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
         print("[context overrides]",
               {"tau_ms": getattr(context, "tau_ms", None),
                "dend_threshold": getattr(context, "dend_threshold", None)}, flush=True)
-
-    cfg = {"dt_constant": context.dt_constant,
-           "dx": context.dx,
-           "store": context.store}
-
-    flg = {"spikes": context.spikes,
-    "epsps": context.epsps,
-    "warp_axes": context.warp_axes}
-
-    debug = str_true_false_to_bool(context.debug)
-
-    if debug:
         log_mem("A: before building model")
 
 
-    model = SpikeSimModel(kernel=kernel, dist_for_weights=context.dist, weights_SST=None, weights_NDNF=None,
-                          config=cfg, flags=flg)
+    model = SpikeSimModel(kernel=kernel, weight_config_dict=context.weight_config_dict, dt=context.dt, dx=context.dx,
+                          store_intermediates=context.store_intermediates,
+                          residuals_activity_dict=context.residuals_activity_dict,
+                          GLM_params_dict=context.GLM_params_dict, behav_factors_dict=context.behav_factors_dict)
 
-    if debug:
+    if context.debug:
         log_mem("B: after building empty model")
-
-    model.residual_activity_dict_EC = context.residual_activity_dict_EC
-    model.fixed_residual_activity_dict_NDNF_newest = context.fixed_residual_activity_dict_NDNF_newest
-    model.residual_activity_dict_SST = context.residual_activity_dict_SST
-    model.factors_dict_EC = context.factors_dict_EC
-    model.factors_dict_SST = context.factors_dict_SST
-    model.factors_dict_NDNF_newest = context.factors_dict_NDNF_newest
-    model.GLM_params_EC = context.GLM_params_EC
-    model.GLM_params_NDNF_newest = context.GLM_params_NDNF_newest
-    model.GLM_params_SST = context.GLM_params_SST
-    model.mean_new_average_vel_array = context.mean_new_average_vel_array
-
+    
     model.real_vel = (context.vel_applied == "real")
-    model.constant_vel = context.constant_vel
+    model.constant_vel = str_true_false_to_bool(context.constant_vel)
     # model.add_inh = context.add_inh             # ← was bare add_inh
-    model.make_it_spike = context.make_it_spike
+    model.make_it_spike = str_true_false_to_bool(context.make_it_spike)
     # model.SST_bias_factor = context.SST_bias_multi
-    model.dist = context.dist
     # model.vel_applied = context.vel_applied
     # model.use_averaged_velocity = context.use_averaged_velocity
     # model.use_model_EC = context.use_model_EC
     model.tau_ms = tau_ms #context.tau_ms
     model.dend_threshold = dend_threshold #context.dend_threshold
-    model.animal_by_animal = context.animal_by_animal
+    model.animal_by_animal = str_true_false_to_bool(context.animal_by_animal)
     model.input_animal = context.input_animal
-    model.kernel = kernel
-    model.dt_constant = context.dt_constant
-    model.include_beta = context.include_beta
-    model.flat_input = context.flat_input
-    model.mean = weights_mean
-    model.std = weights_std
-    model.include_inh = False
-
-    model.NDNF_sf_opt = 0
-    model.SST_sf_opt = 0
-
-    optimization_time = str_true_false_to_bool(context.optimization_time)
-
+    model.include_beta = str_true_false_to_bool(context.include_beta)
+    model.flat_input = str_true_false_to_bool(context.flat_input)
+    
     t0 = time.time()
     
-    model.optimization_time = optimization_time
+    if context.disp:
+        print(f"model.optimization_time {model.optimization_time}")
 
-    print(f"model.optimization_time {model.optimization_time}")
-
-    if debug:
+    if context.debug:
         log_mem("C: after attaching attrs, pre simulate")
     
     (dend_activity, plateau_positions_counter, padded_warped_activity_list,
      start_pos_cnt50_dict, _plateau_arr_list_dict,
      dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
      last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
-     activity_NDNF, warped_list) = model._simulate_one_seed(int(network_seed), debug=debug)
+     activity_NDNF, warped_list) = model.simulate(int(network_seed), debug=context.debug)
     
-    if model.optimization_time:
+    # if plot:
+    #   model.plot_summary()
+    
+    if not context.interactive:
         
         t1 = time.time()
         features_dict = {
@@ -290,7 +272,7 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
 
     else:
     
-        if debug:
+        if context.debug:
             log_mem("D: after simulate returned")
 
         t1 = time.time()
@@ -330,7 +312,7 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
             "constant_vel":context.constant_vel,
             "include_beta":context.include_beta, 
             "flat_input":context.flat_input,
-            "dt_constant":context.dt_constant}
+            "dt":context.dt}
         
         
         return features_dict
@@ -510,7 +492,7 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
             constant_vel = features_dict_list[seed]["constant_vel"]
             flat_input = features_dict_list[seed]["flat_input"]
             include_beta = features_dict_list[seed]["include_beta"]
-            dt_constant = features_dict_list[seed]["dt_constant"]
+            dt = features_dict_list[seed]["dt"]
 
         # model.last_EPSP = important_dict["last_EPSP"]
         # model.weights_EC=important_dict["weights_EC"]
@@ -530,7 +512,7 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
         # model.num_plateaus_per_dend_list = important_dict["num_plateaus_per_dend_dict"]
         # model.warped_list_dict = important_dict["warped_list_dict"]
 
-        input_animal=0
+        input_animal=context.input_animal
         animal_by_animal = False
         
         if export:
@@ -571,21 +553,24 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
         constant_vel=constant_vel,
         include_beta=include_beta,
         flat_input=flat_input,
-        dt_constant=dt_constant)
+        dt=dt)
         
 
         # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/dend_activity_dict.pkl"
         # with open(save_path, 'wb') as f:
         #     pickle.dump(dend_activity_dict, f)
 
-        plot_multidendrite_EC_err_across_seeds(loss, context.christine_overrepresentation_array, warped_list_dict, residual_activity_dict_EC, tau_ms = tau_ms,
-        seeds = context.seeds_array, last_EPSP = last_EPSP, weights_EC = weights_EC_dict[0], weights_SST = weights_SST_dict[0], weights_NDNF =weights_NDNF_dict[0], dend_vm_per_seed_dict = dend_activity_dict, activity_SST = activity_SST_dict[0], activity_NDNF = activity_NDNF_dict[0], SST_sf_opt = SST_sf_opt_dict[0], NDNF_sf_opt = NDNF_sf_opt_dict[0],
+        plot_multidendrite_EC_err_across_seeds(
+            loss, context.christine_overrepresentation_array, warped_list_dict, residual_activity_dict_EC,
+            tau_ms = tau_ms, seeds = context.seeds_array, last_EPSP = last_EPSP, weights_EC = weights_EC_dict[0],
+            weights_SST = weights_SST_dict[0], weights_NDNF =weights_NDNF_dict[0],
+            dend_vm_per_seed_dict = dend_activity_dict, activity_SST = activity_SST_dict[0], activity_NDNF = activity_NDNF_dict[0], SST_sf_opt = SST_sf_opt_dict[0], NDNF_sf_opt = NDNF_sf_opt_dict[0],
         padded_warped_activity_list = padded_warped_activity_list_dict, an_velocity = an_velocity_dict[0], dend_threshold = dend_threshold,
         _pos_cnt_dict = _pos_cnt_dict, start_pos_cnt50_dict = start_pos_cnt50_dict, _plateau_arr_list_dict = _plateau_arr_list_dict, _mask_dict = _mask_dict, _starts_list_dict = _starts_list_dict,
         dist = dist, num_plateaus_per_dend_list = num_plateaus_per_dend_dict, animal=input_animal, example_cell=17, include_inhibition=False, #include inhibiiton,
         NDNF_contribution_sum = None, #state["NDNF_contribution_sum"], 
         SST_contribution_sum = None, #state["SST_contribution_sum"], 
-        animal_by_animal = animal_by_animal, constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dt_constant=dt_constant) #state["animal_by_animal"])
+        animal_by_animal = animal_by_animal, constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dt=dt) #state["animal_by_animal"])
 
     
 

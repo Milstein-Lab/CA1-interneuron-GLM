@@ -13,21 +13,13 @@
 #   --num_network_seeds=2 \
 #   --disp --network_start_seed=0 --vel_applied='real' --animal_by_animal=False --constant_vel=False --include_beta=False --flat_input=True --debug=True --optimization_time=False --plot --param-file-path=model_key_yaml_opt.yaml --model-key=oct21_justec_5seeds_serial_number1_velTbetaFinputT
 
-import nested
-import optuna
-from optuna.trial import TrialState
-import numpy as np
-from pathlib import Path
-from nested.utils import Context, param_array_to_dict
+from nested.utils import Context
 
-from mpi4py import MPI
-import os, resource, sys, time
-
-from spiking_model_utils import load_data_regular
 from build_a_model_object_per_animal import *
 
 
-import os, time, psutil, gc
+import os, time, psutil
+
 
 def _rank_tag():
     comm = MPI.COMM_WORLD
@@ -66,8 +58,6 @@ def str_true_false_to_bool(s):
     if t == "false":
         return False
     raise ValueError(f"Unrecognized boolean string: {s!r}")
-
-import pickle
 
 
 def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
@@ -122,8 +112,6 @@ def config_worker():
     context.update(locals())
 
 import pickle
-from types import SimpleNamespace
-
 
 
 def get_args():
