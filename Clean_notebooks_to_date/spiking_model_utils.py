@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import torch
-import slicetca
+# import slicetca
 import mat73
 from sklearn.linear_model import LassoCV, RidgeCV, ElasticNetCV, LinearRegression
 import h5py

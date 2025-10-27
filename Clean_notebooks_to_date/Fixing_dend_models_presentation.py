@@ -1,6 +1,6 @@
 import sys
 from scipy.stats import sem
-sys.path.append('/Users/michaelfinch/CA1-interneuron-GLM')
+sys.path.append('..')
 
 from utils_TCA_clustering_scratchpad import *
 from GLM_regression_plotting import *
@@ -1728,9 +1728,9 @@ def plot_multidendrite_EC_err_across_seeds(loss, christine_overrepresentation_ar
     NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=False, make_it_spike=None, constant_vel=None, include_beta=None, flat_input=None, dt_constant=None):
     fig, axs = plt.subplots(4,4, figsize=(15,10))
 
-    save_path_3 = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
-    with open(save_path_3, 'wb') as f:
-        pickle.dump(an_velocity, f)
+    # save_path_3 = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
+    # with open(save_path_3, 'wb') as f:
+    #     pickle.dump(an_velocity, f)
 
 
     animal_by_animal = to_bool(animal_by_animal)

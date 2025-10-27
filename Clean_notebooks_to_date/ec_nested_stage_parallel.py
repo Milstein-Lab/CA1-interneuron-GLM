@@ -70,15 +70,23 @@ import os, resource, sys, time
 from spiking_model_utils import load_data_regular
 from build_a_model_object_per_animal import *
 
-
 import os, time, psutil, gc
+
+import pickle
+from types import SimpleNamespace
+
+
+context = Context()
+
 
 def _rank_tag():
     comm = MPI.COMM_WORLD
     return f"[rank={comm.Get_rank()} pid={os.getpid()}]"
 
+
 def rss_gb():
     return psutil.Process(os.getpid()).memory_info().rss / 1e9
+
 
 def log_mem(tag):
     print(f"[{time.time():.3f}] {tag} RSS={rss_gb():.2f} GB", flush=True)
@@ -111,8 +119,6 @@ def str_true_false_to_bool(s):
         return False
     raise ValueError(f"Unrecognized boolean string: {s!r}")
 
-import pickle
-
 
 def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
     L = int(np.ceil(10.0 * tau_ms / max(dt_ms, 1e-6)))
@@ -126,8 +132,6 @@ def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
         k = (np.float32(target) * k) / np.float32(max(area, 1e-12))
 
     return k
-
-context = Context()
 
 
 def config_worker():
@@ -164,10 +168,6 @@ def config_worker():
         print(f"[rank={rank} pid={os.getpid()}] seeds_array={list(seeds_array)}", flush=True)
 
     context.update(locals())
-
-import pickle
-from types import SimpleNamespace
-
 
 
 def get_args():
@@ -267,17 +267,15 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
 
     if debug:
         log_mem("C: after attaching attrs, pre simulate")
-
+    
+    (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+     start_pos_cnt50_dict, _plateau_arr_list_dict,
+     dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
+     last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
+     activity_NDNF, warped_list) = model._simulate_one_seed(int(network_seed), debug=debug)
+    
     if model.optimization_time:
-        (dend_activity, plateau_positions_counter, padded_warped_activity_list,
-        start_pos_cnt50_dict, _plateau_arr_list_dict,
-        dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
-        last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
-        activity_NDNF) = model._simulate_one_seed(int(network_seed), debug=debug)
-
         
-
-
         t1 = time.time()
         features_dict = {
         "seed": network_seed,
@@ -293,15 +291,7 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
         return features_dict
 
     else:
-        (dend_activity, plateau_positions_counter, padded_warped_activity_list,
-                start_pos_cnt50_dict, _plateau_arr_list_dict,
-                dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
-                last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
-                activity_NDNF, warped_list) = model._simulate_one_seed(int(network_seed), debug=debug)
-
-        
-                
-
+    
         if debug:
             log_mem("D: after simulate returned")
 
@@ -544,10 +534,11 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
 
         input_animal=0
         animal_by_animal = False
-
-        save_path2 = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/warped_pkl.pkl"
-        with open(save_path2, 'wb') as f:
-            pickle.dump(warped_list_dict, f)
+        
+        if export:
+            save_path2 = context.save_path + "/warped_pkl.pkl"
+            with open(save_path2, 'wb') as f:
+                pickle.dump(warped_list_dict, f)
 
         important_dict = dict(
         warped_list_dict=warped_list_dict,

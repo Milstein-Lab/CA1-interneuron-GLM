@@ -21,12 +21,12 @@ bounds:
    - 3.0
 
 kwargs:
-  data_root: /Users/michaelfinch/CA1-interneuron-GLM
+  data_root: '..'
   animal: animal_3
   weight_dist: Normal
   inner_jobs: 7
   network_start_seed: 0
-  network_end_seed: 2
+  num_network_seeds: 5
   ec_animal_average: True
   vel_applied: real
   dend_threshold: -65.
@@ -39,7 +39,6 @@ kwargs:
   constant_vel: False
   use_model_EC: False
   SST_bias_factor: 2.0
-  dt_constant : 0.0001
   tau_ms : 5.0
   # reshold
   dt_constant: 0.001
@@ -51,7 +50,7 @@ kwargs:
   warp_axes: true
   seed_start: 0
   export: true
-  save_path: /Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/
+  save_path: .
   plot: true
   animal_by_animal: false 
   input_animal: 'animal_1'

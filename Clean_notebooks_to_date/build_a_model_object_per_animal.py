@@ -53,6 +53,7 @@ def random_timeseries(initial_value: float, volatility: float, count: int) -> li
         time_series.append(initial_value + random.gauss(0, 1) * volatility)
     return time_series
 
+
 def _sanitize_velocity_cm_s(v_in_m_per_s, min_vel_cm_s=1e-3 * 100):
     """
     Convert m/s -> cm/s and make strictly positive.
@@ -98,7 +99,53 @@ def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
                 k = (np.float32(target) * k) / np.float32(max(area, 1e-12))
             return k
 
-def get_inhom_poisson_spike_times_by_thinning(rate, t, dt=0.02, refractory=3., generator=None, rng=None):
+
+def get_inhom_poisson_spike_times_by_thinning(rate, t, dt=0.02, refractory=3., generator=None):
+    """
+    Given a time series of instantaneous spike rates in Hz, produce a spike train consistent with an inhomogeneous
+    Poisson process with a refractory period after each spike.
+    :param rate: instantaneous rates in time (Hz)
+    :param t: corresponding time values (ms)
+    :param dt: temporal resolution for spike times (ms)
+    :param refractory: absolute deadtime following a spike (ms)
+    :param generator: :class:'np.random.RandomState()'
+    :return: list of m spike times (ms)
+    """
+    if generator is None:
+        generator = np.random.default_rng()
+    interp_t = np.arange(t[0], t[-1] + dt, dt)
+    try:
+        interp_rate = np.interp(interp_t, t, rate)
+    except Exception as e:
+        print('t shape: %s rate shape: %s' % (str(t.shape), str(rate.shape)))
+        sys.stdout.flush()
+        time.sleep(0.1)
+        raise(e)
+    interp_rate /= 1000.
+    spike_times = []
+    non_zero = np.where(interp_rate > 1.e-100)[0]
+    if len(non_zero) == 0:
+        return spike_times
+    interp_rate[non_zero] = 1. / (1. / interp_rate[non_zero] - refractory)
+    max_rate = np.max(interp_rate)
+    if not max_rate > 0.:
+        return spike_times
+    i = 0
+    ISI_memory = 0.
+    while i < len(interp_t):
+        x = generator.uniform(0.0, 1.0)
+        if x > 0.:
+            ISI = -np.log(x) / max_rate
+            i += int(ISI / dt)
+            ISI_memory += ISI
+            if (i < len(interp_t)) and (generator.uniform(0.0, 1.0) <= (interp_rate[i] / max_rate)) and \
+                    ISI_memory >= 0.:
+                spike_times.append(interp_t[i])
+                ISI_memory = -refractory
+    return np.asarray(spike_times, dtype=float)
+
+
+def get_inhom_poisson_spike_times_by_thinning_modified(rate, t, dt=0.02, refractory=3., generator=None, rng=None):
     """
     Given a time series of instantaneous spike rates in Hz, produce a spike train
     consistent with an inhomogeneous Poisson process with an absolute refractory period.
@@ -770,9 +817,9 @@ def get_dend_contribution(kernel, dt_constant, residual_activity_dict_EC, fixed_
             else:
                 an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
 
-                save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
-                with open(save_path, 'wb') as f: 
-                    pickle.dump(an_velocity, f)
+                # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
+                # with open(save_path, 'wb') as f:
+                #     pickle.dump(an_velocity, f)
         if make_it_spike:
 
             try:
@@ -781,49 +828,33 @@ def get_dend_contribution(kernel, dt_constant, residual_activity_dict_EC, fixed_
             except Exception:
                 psutil = None
                 _PROC = None
-
-            if optimization_time:
-                if include_inh:
-                    dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
-                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP #, min_trial_length
-                else:
-                    
-                    activity_NDNF=0
-                    activity_SST=0 
-                    NDNF_contribution_sum=0
-                    SST_contribution_sum=0
-                    weights_SST=0
-                    weights_NDNF=0
-                    
-                    dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
-                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP #, min_trial_length
-                    
-            else:
-                if include_inh:
-
-                    dend_vm_list, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict= turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
-                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict
-
-                else:
-
-                    activity_NDNF=0
-                    activity_SST=0 
-                    NDNF_contribution_sum=0
-                    SST_contribution_sum=0
-                    weights_SST=0
-                    weights_NDNF=0
-
-                    internals_dict = dict(dend_list_EC=dend_list_EC, an_velocity=an_velocity, dist=dist, kernel=kernel, dt_constant=dt_constant)
-
-                    save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/internals_dict.pkl"
-                    with open(save_path, 'wb') as f:
-                        pickle.dump(internals_dict, f)
-
+            
+            if include_inh:
                 
-                    dend_vm_list, weights_EC, last_EPSP, warped_dict = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=False, mean=mean, std=std)
-                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict
-
-
+                dend_vm_list, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list = turn_rates_into_spikes_add_inh(
+                    dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt,
+                    dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean,
+                    std=std)
+                return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list
+            else:
+                
+                activity_NDNF=0
+                activity_SST=0
+                NDNF_contribution_sum=0
+                SST_contribution_sum=0
+                weights_SST=0
+                weights_NDNF=0
+                
+                if optimization_time:
+                    internals_dict = dict(dend_list_EC=dend_list_EC, an_velocity=an_velocity, dist=dist, kernel=kernel,
+                                          dt_constant=dt_constant)
+                
+                dend_vm_list, weights_EC, last_EPSP, warped_list = (
+                    turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant,
+                                           n_dendrites=100, rng=rng, debug=debug, optimization_time=optimization_time,
+                                           mean=mean, std=std))
+                return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list #, min_trial_length
+                    
 
 # (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP) = get_dend_contribution(self.kernel, self.dt_constant,
 #                 residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest,
@@ -1365,9 +1396,8 @@ def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=
     dend_vm_list = []  
     if debug:
         proc_peak_start = _get_peak_rss_bytes()
-
-    if not optimization_time:
-        warped_list = []
+    
+    warped_list = []
 
     for t in range(n_trials):
         if debug:
@@ -1413,7 +1443,7 @@ def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=
 
             holder = warped[-L_prev:] if warped.size >= L_prev else warped
 
-            spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(np.int32, copy=False)
+            spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=rng).astype(np.int32, copy=False)
 
             epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
             epsps = epsps[hL:hL + T]  
@@ -1473,11 +1503,8 @@ def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=
         Vm_dict[d] = Vm.astype(np.float32, copy=False)
 
     dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
-
-    if not optimization_time:
-        return dend_activity, weights_EC, last_EPSP, warped_list
-    else:
-        return dend_activity, weights_EC, last_EPSP
+    
+    return dend_activity, weights_EC, last_EPSP, warped_list
 
 
 ##############################################################################################################
@@ -1531,10 +1558,7 @@ def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, 
 
     if debug:
         proc_peak_start = _get_peak_rss_bytes()
-
-    if not optimization_time:
-        warped_dict = {}
-
+    
     dend_vm_dict = {}
 
     label_list = ["EC", "SST", "NDNF"]
@@ -1551,8 +1575,7 @@ def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, 
 
         dend_vm_list = []  # per-trial, shape (n_dendrites, T_t) in f16
 
-        if not optimization_time:
-            warped_list = []
+        warped_list = []
 
 
         for t in range(n_trials):
@@ -1597,7 +1620,7 @@ def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, 
 
                 holder = warped[-L_prev:] if warped.size >= L_prev else warped
 
-                spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(np.int32, copy=False)
+                spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=rng).astype(np.int32, copy=False)
 
                 epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
                 epsps = epsps[hL:hL + T]  # crop back to the middle warped region (length T)
@@ -2378,12 +2401,18 @@ class SpikeSimModel:
             sys.stdout.flush()
             report_mem("pre get_dend_contribution")
 
-        if self.optimization_time:
-            (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP) = get_dend_contribution(self.kernel, self.dt_constant, self.residual_activity_dict_EC, self.fixed_residual_activity_dict_NDNF_newest, self.residual_activity_dict_SST, self.factors_dict_EC, self.factors_dict_SST, self.factors_dict_NDNF_newest,
-                self.GLM_params_EC, self.GLM_params_NDNF_newest, self.GLM_params_SST, self.NDNF_sf_opt, self.SST_sf_opt, include_inh=self.include_inh, multiple_dendrites=True, dist=self.dist, make_it_spike=self.make_it_spike, seed=seed, animal_by_animal=self.animal_by_animal, input_animal=self.input_animal, include_beta=self.include_beta, flat_input=self.flat_input, optimization_time=True, debug=debug, mean=self.mean, std=self.std)
-        else:
-            (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list) = get_dend_contribution(self.kernel, self.dt_constant, self.residual_activity_dict_EC, self.fixed_residual_activity_dict_NDNF_newest,self.residual_activity_dict_SST, self.factors_dict_EC, self.factors_dict_SST, self.factors_dict_NDNF_newest,
-                self.GLM_params_EC, self.GLM_params_NDNF_newest, self.GLM_params_SST, self.NDNF_sf_opt, self.SST_sf_opt, include_inh=self.include_inh, multiple_dendrites=True, dist=self.dist, make_it_spike=self.make_it_spike, seed=seed, animal_by_animal=self.animal_by_animal, input_animal=self.input_animal, constant_vel = self.constant_vel, include_beta=self.include_beta, flat_input=self.flat_input, optimization_time=False, debug=debug, mean=self.mean, std=self.std)
+        (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum,
+         weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list) = (
+            get_dend_contribution(self.kernel, self.dt_constant, self.residual_activity_dict_EC,
+                                  self.fixed_residual_activity_dict_NDNF_newest,self.residual_activity_dict_SST,
+                                  self.factors_dict_EC, self.factors_dict_SST, self.factors_dict_NDNF_newest,
+                                  self.GLM_params_EC, self.GLM_params_NDNF_newest, self.GLM_params_SST,
+                                  self.NDNF_sf_opt, self.SST_sf_opt, include_inh=self.include_inh,
+                                  multiple_dendrites=True, dist=self.dist, make_it_spike=self.make_it_spike, seed=seed,
+                                  animal_by_animal=self.animal_by_animal, input_animal=self.input_animal,
+                                  constant_vel=self.constant_vel, include_beta=self.include_beta,
+                                  flat_input=self.flat_input, optimization_time=self.optimization_time, debug=debug,
+                                  mean=self.mean, std=self.std))
         
         if debug:
             report_mem("post get_dend_contribution")
@@ -2398,19 +2427,14 @@ class SpikeSimModel:
         (padded_warped_activity_list, plateau_positions_counter,
         plateau_start_positions_counter, plateau_array_per_dendrite_list,
         dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list,
-        EC_used, num_plateaus_per_dend_list) = get_activity_multidendrite(an_velocity, dend_activity,dend_threshold=self.dend_threshold, example_cell=17, n_dendrites=100, make_it_spike=self.make_it_spike)
-
-
+        EC_used, num_plateaus_per_dend_list) = (
+            get_activity_multidendrite(an_velocity, dend_activity,dend_threshold=self.dend_threshold, example_cell=17,
+                                       n_dendrites=100, make_it_spike=self.make_it_spike))
+        
         if debug:
             report_mem("post get_activity_multidendrite")
 
-        if self.optimization_time:
-            return (dend_activity, plateau_positions_counter, padded_warped_activity_list,
-                    plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
-                    num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP,
-                    weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST, activity_NDNF)
-        else:
-            return (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+        return (dend_activity, plateau_positions_counter, padded_warped_activity_list,
                     plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
                     num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP,
                     weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST, activity_NDNF, warped_list)
