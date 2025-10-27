@@ -63,20 +63,20 @@ def get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest):
 
     return data_truncated_array
 
-def get_the_tca_model(fixed_residual_activity_dict_NDNF_newest, components=None):
-    data_truncated_array_NDNF = get_truncated_to_min_data_array(fixed_residual_activity_dict_NDNF_newest)
-    example_NDNF_cell_tensor = torch.from_numpy(data_truncated_array_NDNF)
-    example_NDNF_cell_tensor = example_NDNF_cell_tensor.permute(2,0,1)
+def get_the_tca_model(fixed_residual_activity_dict, components=None):
+    data_truncated_array = get_truncated_to_min_data_array(fixed_residual_activity_dict)
+    example_cell_tensor = torch.from_numpy(data_truncated_array)
+    example_cell_tensor = example_cell_tensor.permute(2,0,1)
 
         
-    components_10, model_20_NDNF_resid = slicetca.decompose(example_NDNF_cell_tensor,
+    components, model_20 = slicetca.decompose(example_cell_tensor,
                                                 number_components=components, # (trials, neurons, time bins)
                                                 positive=False,learning_rate=1*10**-2, min_std=10**-5, max_iter=4000, iter_std=1000,seed=0)
 
-    plt.plot(model_20_NDNF_resid.losses, color='k')
+    plt.plot(model_20.losses, color='k')
     plt.show()
 
-    return model_20_NDNF_resid
+    return model_20
 
 def get_labels_all_different_Ks_single(model_20_NDNF_resid, which_vectors: int):
     from sklearn.cluster import KMeans

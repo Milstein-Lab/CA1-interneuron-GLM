@@ -17,6 +17,7 @@ import matplotlib as mpl
 from matplotlib.font_manager import FontProperties
 
 
+
 from scipy.signal import fftconvolve
 
 def fit_equal_contrib_L2(EC, NDNF, SST, eps=1e-12):
@@ -116,18 +117,9 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
     mu= np.mean(data_list_normalized)
     sigma = np.std(data_list_normalized)
 
-    print(f"mu={mu} sigma={sigma}")
-
     dendrite = np.zeros((50, 58))
     
     dendrite_list = []
-
-
-    #dendrite_ta_list = []
-
-
-    # if use_averaged_velocity=="cell_type_av":
-    #     animal_velocity = np.tile(mean_new_average_vel_array[:, np.newaxis], (1, 58))
 
     animal_velocity_list = []
 
@@ -142,7 +134,6 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
                 data = np.zeros((data.shape))
 
             weights = GLM_params_EC[animal][cell]['weights']["Velocity"]
-            # intercept = GLM_params[animal][cell]['intercept']
 
             if const_vel:
                 animal_velocity = np.full((50, 58), 0.43)
@@ -155,13 +146,8 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
                 else:
                     data = data + mu
 
-                #dendrite_ta_list.append(np.mean(data, axis=1))
-
-
             else:
-                # if use_averaged_velocity=="cell_type_av":
-                #     animal_velocity = np.tile(mean_new_average_vel_array[:, np.newaxis], (1, 58))
-                # elif use_averaged_velocity=="actual_velocity":
+
                 animal_velocity = factors_dict_EC[animal]["Velocity"][:,:58]
                 animal_velocity_list.append(animal_velocity)
                 
@@ -171,11 +157,6 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
 
                 else:
                     data = data + mu
-
-                # dendrite_ta_list.append(np.mean(data, axis=1))
-
-
-
             dendrite += data
             dendrite_list.append(data)
 
@@ -190,7 +171,6 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
                     data = np.zeros((data.shape))
 
                 weights = GLM_params_EC[animal][cell]['weights']["Velocity"]
-                # intercept = GLM_params[animal][cell]['intercept']
 
                 if const_vel:
                     animal_velocity = np.full((50, 58), 0.43)
@@ -203,13 +183,7 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
                     else:
                         data = data + mu
 
-                    #dendrite_ta_list.append(np.mean(data, axis=1))
-
-
                 else:
-                    # if use_averaged_velocity=="cell_type_av":
-                    #     animal_velocity = np.tile(mean_new_average_vel_array[:, np.newaxis], (1, 58))
-                    # elif use_averaged_velocity=="actual_velocity":
                     animal_velocity = factors_dict_EC[animal]["Velocity"][:,:58]
                     animal_velocity_list.append(animal_velocity)
                     
@@ -227,20 +201,14 @@ def get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_pa
                 dendrite += data
                 dendrite_list.append(data)
 
-                                            
-    # if add_vel_contribution:
-    #     if use_averaged_velocity=="actual_velocity":
-    #         # if add_inh == 'both' or add_inh == 'sst':
-    #         animal_velocity_array = np.array(animal_velocity_list)
-    #         animal_velocity = np.mean(animal_velocity_array, axis=0)
-    #         # else:
-    #         #     animal_velocity_array = np.array(animal_velocity_list)
-    #         #     animal_velocity = np.mean(animal_velocity_array, axis=2)
-
+                                  
     an_velocity = np.array(animal_velocity_list)
     an_velocity = np.nanmean(an_velocity, axis=0)
 
     return an_velocity, dendrite_list  #, dendrite_ta_list
+
+
+
 
 # def get_dend_VM_cell_type(residual_activity_dict, factors_dict_EC, mean_new_average_vel_array, GLM_params, dend_sf, amplitude=-5, vel=23, norm=False, add_vel_contribution=False, const_vel=True, use_averaged_velocity=None, add_inh=None, normalize_hz=False, make_it_spike=False, animal_by_animal=False, animal=None):
 
@@ -1641,16 +1609,129 @@ def plot_the_dendrite(NDNF_sf_opt, SST_sf_opt, dend_contribution_EC, dend_contri
 
         return padded_warped_activity
 
-def plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp, tau_ms,
-    seeds, last_EPSP, weights_EC, weights_SST, weights_NDNF,  dend_vm_per_seed_dict,
-    activity_EC, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt,
+
+
+
+def pad_stack_trials(arrs, fill_value=np.nan, dtype=np.float16):
+    """
+    arrs: list (or dict.values()) of 2D arrays shaped (n_cells, T_i)
+    Returns: 3D array (n_trials, n_cells_max, T_max) padded with fill_value.
+    """
+    # Convert dict -> list in stable order
+    if isinstance(arrs, dict):
+        # keep original insertion order (py3.7+); change to sorted(arrs) if you need a fixed key order
+        arrs = list(arrs.values())
+
+    # Ensure arrays and record per-trial shapes
+    arrs = [np.asarray(a) for a in arrs]
+    if not arrs:
+        return np.empty((0, 0, 0), dtype=dtype)
+
+    n_cells_max = max(a.shape[0] for a in arrs)
+    T_max       = max(a.shape[1] for a in arrs)
+
+    out = np.full((len(arrs), n_cells_max, T_max), fill_value, dtype=dtype)
+    for i, a in enumerate(arrs):
+        c, t = a.shape[:2]
+        # cast once on copy; avoid huge temporaries
+        a16 = a.astype(dtype, copy=False)
+        out[i, :c, :t] = a16
+    return out
+
+
+
+def get_interpolated_array(plat, vel, var=True):
+
+    plat_array_per_dendrite = []
+
+    if var:
+        for dendrite in range(plat.shape[0]):
+
+            plateau_array = plat[dendrite,:,:]
+
+            plateau_pos_list = []
+
+            for t in range(plateau_array.shape[0]):
+                sig_time_full = plateau_array[t].astype(float)
+                valid = np.isfinite(sig_time_full)
+                if not np.any(valid):
+                    plat_pos = np.full(50, np.nan)  # no data
+                    plateau_pos_list.append(plat_pos)
+                    continue
+
+                last = np.max(np.where(valid)[0])
+                sig_time = sig_time_full[:last+1]
+                T       = sig_time.size
+                t_ms    = np.arange(T, dtype=np.float32)
+                # sig_time = plateau_array[t]                 # shape (T,), 0/1 per ms
+                v        = vel[:, t]                        # shape (50,), m/s per position bin
+                dx_m     = 1.8 / 50.0                       # meters per bin
+                dt_ms    = 1.0
+                # T        = sig_time.size
+
+                dt_per_bin_ms = (dx_m / np.maximum(v, 1e-6)) * 1000.0              # (50,)
+                dt_per_bin_ms *= (T*dt_ms) / np.sum(dt_per_bin_ms)
+
+                edges_ms   = np.concatenate([[0.0], np.cumsum(dt_per_bin_ms)])     # (51,)
+                centers_ms = 0.5 * (edges_ms[:-1] + edges_ms[1:])                  # (50,)
+
+                t_ms = np.arange(T, dtype=np.float32) * dt_ms                      # (T,)
+
+                plat_pos = np.interp(centers_ms, t_ms, sig_time)                   # (50,)
+
+                plateau_pos_list.append(plat_pos)
+
+            plateau_pos_array = np.stack(plateau_pos_list)
+
+            plat_array_per_dendrite.append(plateau_pos_array)
+
+        return plat_array_per_dendrite
+
+    else:
+
+        for dendrite in range(len(plat)):
+
+            plateau_array = plat[dendrite]
+
+            plateau_pos_list = []
+
+            for t in range(plateau_array.shape[0]):
+                sig_time = plateau_array[t]                 # shape (T,), 0/1 per ms
+                v        = vel[:, t]                        # shape (50,), m/s per position bin
+                dx_m     = 1.8 / 50.0                       # meters per bin
+                dt_ms    = 1.0
+                T        = sig_time.size
+
+                dt_per_bin_ms = (dx_m / np.maximum(v, 1e-6)) * 1000.0              # (50,)
+                dt_per_bin_ms *= (T*dt_ms) / np.sum(dt_per_bin_ms)
+
+                edges_ms   = np.concatenate([[0.0], np.cumsum(dt_per_bin_ms)])     # (51,)
+                centers_ms = 0.5 * (edges_ms[:-1] + edges_ms[1:])                  # (50,)
+
+                t_ms = np.arange(T, dtype=np.float32) * dt_ms                      # (T,)
+
+                plat_pos = np.interp(centers_ms, t_ms, sig_time)                   # (50,)
+
+                plateau_pos_list.append(plat_pos)
+
+            plateau_pos_array = np.stack(plateau_pos_list)
+
+            plat_array_per_dendrite.append(plateau_pos_array)
+
+        return plat_array_per_dendrite
+
+def plot_multidendrite_EC_err_across_seeds(loss, christine_overrepresentation_array, warped_list_dict, residual_activity_dict_EC, tau_ms,
+    seeds, last_EPSP, weights_EC, weights_SST, weights_NDNF,  dend_vm_per_seed_dict, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt,
     padded_warped_activity_list, an_velocity, dend_threshold,
     _pos_cnt_dict, start_pos_cnt50_dict, _plateau_arr_list_dict, _mask_dict,  _starts_list_dict,
     dist, num_plateaus_per_dend_list, animal, example_cell=1, include_inhibition=None,
-    NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=False, make_it_spike=None, constant_vel=None, include_beta=None, flat_input=None):
+    NDNF_contribution_sum=None, SST_contribution_sum=None, animal_by_animal=False, make_it_spike=None, constant_vel=None, include_beta=None, flat_input=None, dt_constant=None):
     fig, axs = plt.subplots(4,4, figsize=(15,10))
 
-    
+    save_path_3 = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
+    with open(save_path_3, 'wb') as f:
+        pickle.dump(an_velocity, f)
+
 
     animal_by_animal = to_bool(animal_by_animal)
     constant_vel = to_bool(constant_vel)
@@ -1685,95 +1766,29 @@ def plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp, tau_ms,
     else:
         fig.suptitle(f"{input_str} {vel_str} {beta_str} Data From All EC Cells, Tau (ms): {tau_ms:.3f}")
 
-    # num_trials   = len(dend_list_EC_interp)
-    # n_dendrites_ = dend_list_EC_interp[0].shape[0]   # assume constant across trials
+
+    data_list = []
+
+    for animal in residual_activity_dict_EC:
+        for cell in residual_activity_dict_EC[animal]:
+            data = residual_activity_dict_EC[animal][cell][:,:58]
+
+            data_list.append(data)
+
+    data_array = np.array(data_list)
+
+    mean_data_array = np.mean(data_array, axis=(0,2))
+
+    if flat_input:
+        axs[0,0].plot(np.zeros(50))
+    else:
+        axs[0,0].plot(mean_data_array)
+
+    axs[0,0].set_ylabel("Z-scored DF/F", fontsize=label_fs)
+    axs[0,0].set_title("Input Activity Position Binned", fontsize=title_fs)
+    axs[0,0].set_xlabel("Position Bins", fontsize=label_fs)
 
 
-    # print(f"num_trials{num_trials} n_dendrites_ {n_dendrites_}")
-
-    # num_trials = len(dend_list_EC_interp)
-    # n_dendrites_ = dend_list_EC_interp[0].shape[0]
-    # max_T = max(arr.shape[1] for arr in dend_list_EC_interp)  # <-- time axis length
-
-    # print(f"num_trials={num_trials}  n_dendrites_={n_dendrites_}  max_T={max_T}")
-
-    # dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
-
-    # for i, arr in enumerate(dend_list_EC_interp):
-    #     if arr.shape[0] != n_dendrites_:
-    #         raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
-    #     Ti = arr.shape[1]               # current trial's time length
-    #     dend_vm_padded[i, :, :Ti] = arr # pad along time axis
-
-
-    # dend_array_EC = dend_vm_padded
-
-    # print(f"dend_vm_padded.shape {dend_vm_padded.shape}")
-
-    clean_trials = []
-    for i, arr in enumerate(dend_list_EC_interp):
-        arr = np.asarray(arr)
-        if arr is None or arr.size == 0:
-            raise ValueError(f"Trial {i}: empty array with shape {arr.shape}")
-        if arr.ndim == 1:
-            # Treat as (T,) -> (n_dendrites=1, T)
-            arr = arr[np.newaxis, :]
-        if arr.ndim != 2:
-            raise ValueError(f"Trial {i}: expected 2D (n_dendrites, T), got {arr.ndim}D with shape {arr.shape}")
-        clean_trials.append(arr)
-
-    dend_list_EC_interp = clean_trials
-
-    num_trials = len(dend_list_EC_interp)
-    n_dendrites_ = dend_list_EC_interp[0].shape[0]
-    for i, arr in enumerate(dend_list_EC_interp):
-        if arr.shape[0] != n_dendrites_:
-            raise ValueError(f"Trial {i}: n_dendrites mismatch {arr.shape[0]} != {n_dendrites_}")
-
-    max_T = max(arr.shape[1] for arr in dend_list_EC_interp)
-    print(f"num_trials={num_trials}  n_dendrites_={n_dendrites_}  max_T={max_T}")
-
-    dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
-    for i, arr in enumerate(dend_list_EC_interp):
-        Ti = arr.shape[1]
-        dend_vm_padded[i, :, :Ti] = arr
-
-    print(f"dend_vm_padded.shape {dend_vm_padded.shape}")
-
-    mean_over_dend_per_trial = np.nanmean(dend_vm_padded, axis=1)     # (trial, time)
-    grand_mean = np.nanmean(mean_over_dend_per_trial, axis=0)[:7000]        # (time,)
-    grand_sem  = sem(mean_over_dend_per_trial, axis=0, nan_policy="omit")[:7000]
-
-    axs[0,0].plot(grand_mean)
-    axs[0,0].fill_between(range(len(grand_mean)), grand_mean+grand_sem, grand_mean-grand_sem, alpha=0.2)
-    axs[0,0].set_ylabel("Average EC Activity (Hz)",  fontsize=label_fs)
-    axs[0,0].set_xlabel("Time (ms)", fontsize=label_fs)
-    axs[0,0].set_title("EC Input Rate", fontsize=title_fs)
-
-    # if constant_vel==True and include_beta==False and flat_input
-
-    # if make_it_spike:
-    #     activity_list = []
-    #     for trial in activity_EC:
-    #         activity_list.append(activity_EC[trial])
-    #     activity_EC = np.array(activity_list)
-    #     print(f"activity_EC.shape {activity_EC.shape}")
-
-
-    # D, N, T = activity_EC.shape            # (dendrites, trials, timebins)
-    # dt = 0.001                             # seconds per time bin
-    # t_ms = np.arange(T) * dt * 1000.0      # time (ms), length T
-
-    # activity_EC_trial_av = np.nanmean(activity_EC, axis=1)   # (D, T)
-    # for i in range(D):
-    #     y = np.ma.masked_invalid(activity_EC_trial_av[i])
-    #     axs[0, 0].plot(t_ms, y, alpha=0.2)
-
-    # axs[0, 0].set_title("EC Input To Each Dendrite", fontsize=title_fs)
-    # axs[0, 0].set_ylabel("Summed Z-Scored Activity", fontsize=label_fs)
-    # axs[0, 0].set_xlabel("Time (ms)", fontsize=label_fs)
-    # if not animal_by_animal:
-    #     axs[0, 0].set_xlim(0, 6000)
 
     axs[0,3].plot(an_velocity, color='r')
     axs[0,3].set_xlabel("Position Bins", fontsize=label_fs)
@@ -1797,66 +1812,508 @@ def plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp, tau_ms,
     axs[0,1].set_ylabel("EPSP Amplitude (mV)", fontsize=label_fs)
     axs[0,1].set_title("EPSP Example Train", fontsize=title_fs)
 
-    # im1 = axs[0,1].imshow(weights_EC, aspect='auto')
-    # axs[0,1].set_title(f"EC Weights: {dist} Distribution", fontsize=title_fs)
-    # axs[0,1].set_ylabel("Dendrites", fontsize=label_fs)
-    # axs[0,1].set_xlabel("Input Cells", fontsize=label_fs)
-    # fig.colorbar(im1, ax=axs[0,1])
+    # full_var_array_list = []
+
+    # seed_list = []
+    # for seed in dend_vm_per_seed_dict:
+    #     seed_list.append(np.mean(dend_vm_per_seed_dict[seed], axis=0))
+    #     threed_data = dend_vm_per_seed_dict[seed]
+    #     full_var_array_list.append(np.var(threed_data, axis=1))
+    # seed_array = np.array(seed_list)
+    # average_seeds_dend = np.mean(seed_array, axis=0)
+
+    # var_array = np.array(full_var_array_list)
+    # mean_dends_var_array = np.mean(full_var_array_list, axis=(0,1))
+    # sem_dends_var_array = sem(full_var_array_list, axis=(0,1))
+
+    # axs[1,0].errorbar(range(len(mean_dends_var_array)), mean_dends_var_array, yerr=sem_dends_var_array)
+
+
+
+    from scipy.stats import sem as _sem
+
+    def _time_edges_from_velocity_m(vel_m_s, dx_m_per_pos):
+        dt_s = dx_m_per_pos / vel_m_s
+        return np.concatenate(([0.0], np.cumsum(dt_s)))  # (51,)
+
+    def _trial_bin(y_t, edges, dt_s, n_pos=50):
+        t_axis = np.arange(y_t.size, dtype=float) * dt_s
+        pos_idx = np.searchsorted(edges, t_axis, side='right') - 1
+        valid = (pos_idx >= 0) & (pos_idx < n_pos) & np.isfinite(y_t)
+        sums = np.bincount(pos_idx[valid], weights=y_t[valid], minlength=n_pos)
+        cnts = np.bincount(pos_idx[valid], minlength=n_pos)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return sums / cnts  # (50,)
+
+    def per_seed_pos_variance(dend_vm, vel_m_s, dx_m_per_pos, dt_s):
+        """
+        dend_vm: (n_trials, n_dend, T_t) per trial (ragged allowed if each trial’s T_t differs)
+                If you have them padded, m_trial_time = np.nanmean(dend_vm, axis=1).
+        vel_m_s: (50, n_trials) meters/second for this seed.
+        """
+        n_trials = vel_m_s.shape[1]
+        per_trial_bins = []
+        for tr in range(n_trials):
+            # mean over dendrites for THIS trial, keep time axis
+            m_t = np.nanmean(dend_vm[tr], axis=0)         # (T_tr,)
+            edges = _time_edges_from_velocity_m(vel_m_s[:, tr], dx_m_per_pos)  # (51,)
+            bins50 = _trial_bin(m_t, edges, dt_s, n_pos=50)                     # (50,)
+            per_trial_bins.append(bins50)
+
+        per_trial_bins = np.asarray(per_trial_bins)  # (n_trials, 50)
+        pos_var = np.nanvar(per_trial_bins, axis=0)  # variance across trials, per position
+        return pos_var, per_trial_bins
+
+        
+    TRACK_LEN_M  = 1.80
+    dx_m_per_pos = TRACK_LEN_M / 50.0
+    dt_s         = float(dt_constant)
+
+    pos_var_per_seed = []
+    for seed, dend_vm in dend_vm_per_seed_dict.items():
+        vel_m_s = an_velocity        # (50, n_trials), meters/second
+        pos_var, per_trial_bins = per_seed_pos_variance(dend_vm, vel_m_s, dx_m_per_pos, dt_s)
+        pos_var_per_seed.append(pos_var)
+
+    pos_var_per_seed = np.asarray(pos_var_per_seed)     # (n_seeds, 50)
+    mean_pos = np.nanmean(pos_var_per_seed, axis=0)
+    sem_pos  = _sem(pos_var_per_seed, axis=0, nan_policy="omit")
+
+
+
+    dend_array = get_interpolated_array(dend_vm_per_seed_dict[0], an_velocity, var=True)
+
+    stacked_dend = np.stack(dend_array)
+    stacked_dend.shape
+
+    var_per_cell = []
+
+    for cell in range(stacked_dend.shape[0]):
+        dendrite = stacked_dend[cell,:,:]
+        var_trials = np.var(dendrite, axis=0)
+        var_per_cell.append(var_trials)
+
+    var_per_array = np.array(var_per_cell)
+
+    mean_var_per_array = np.nanmean(var_per_array, axis=0)
+    # sem_var_per_array = np.nanmean(var_per_array, axis=0)
+    # axs[1,0].bar(range(len(mean_var_per_array)), mean_var_per_array, yerr=sem_var_per_array)
+
+    bins = np.array_split(np.arange(50), 10)   # handles any remainder too
+
+    # mean across positions inside each bin (ignore NaNs)
+    binned_mean = np.array([np.nanmean(mean_var_per_array[idx]) for idx in bins])
+
+    # SEM across cells within each bin (compute cell-wise means first)
+    # 1) average per cell within bins -> (n_cells, 10)
+    cell_bin_means = np.array([np.nanmean(var_per_array[:, idx], axis=1) for idx in bins]).T
+    # 2) SEM across cells for each bin
+    n_non_nan = np.sum(np.isfinite(cell_bin_means), axis=0)
+    binned_sem = np.nanstd(cell_bin_means, axis=0, ddof=1) / np.sqrt(np.maximum(n_non_nan, 1))
+
+    # --- plot ---
+    x = np.arange(len(binned_mean))
+    axs[1,0].bar(x, binned_mean, yerr=binned_sem, capsize=3)
+    axs[1,0].set_xticks(x)
+    axs[1,0].set_xticklabels([f"{idx[0]+1}-{idx[-1]+1}" for idx in bins], fontsize=5)
+    axs[1,0].set_xlabel("Binned Position", fontsize=label_fs)
+    axs[1,0].set_ylabel("Mean variance across trials", fontsize=label_fs)
+
+
+
+
+    # # collapse to 10 coarse bins (optional)
+    # n_bins   = 10
+    # bin_size = 50 // n_bins
+    # seed_means10 = np.asarray([
+    #     [np.nanmean(p[i*bin_size:(i+1)*bin_size]) for i in range(n_bins)]
+    #     for p in pos_var_per_seed
+    # ])
+    # mean10 = np.nanmean(seed_means10, axis=0)
+    # sem10  = _sem(seed_means10, axis=0, nan_policy="omit")
+
+    # axs[1,0].clear()
+    # err_kw = dict(ecolor='k', elinewidth=0.8, capsize=2, capthick=0.8)
+    # axs[1,0].bar(np.arange(n_bins), mean10, yerr=np.asarray(getattr(sem10, "statistic", sem10)), error_kw=err_kw)
+    # axs[1,0].set_xlabel("Track section (5-pos bins)", fontsize=label_fs)
+    # axs[1,0].set_ylabel("Var over trials (mean±SEM)", fontsize=label_fs)
+    # axs[1,0].set_xticks(np.arange(n_bins),
+    #     ["1–5","6–10","11–15","16–20","21–25","26–30","31–35","36–40","41–45","46–50"], fontsize=5)
+    # axs[1,0].set_title("Variance mapped to position (m/s)", fontsize=title_fs)
+
+    # dend_vm_per_seed_dict[seed] has shape (dendrites, trials, time)
+    per_seed_list = []
+    full_var_array_list = []
+
+    for seed, threed_data in dend_vm_per_seed_dict.items():
+        # Promote to f64 to prevent overflow in mean/var
+        X = np.asarray(threed_data, dtype=np.float64)
+
+        # Optional: clamp ridiculous values (viz / robustness only)
+        # X = np.clip(X, -1e3, 1e3, out=X)
+
+        # mean over dendrites -> (trials, time)
+        per_seed = np.nanmean(X, axis=0)
+        per_seed_list.append(per_seed)
+
+        # variance over trials per dendrite -> (dendrites, time)
+        full_var_array_list.append(np.nanvar(X, axis=1))
+
+    # Stack seeds -> (seeds, trials, time)
+    seed_array = np.stack(per_seed_list, axis=0)
+
+    # Average across seeds -> (trials, time)
+    average_seeds_dend = np.nanmean(seed_array, axis=0)
+    print("average_seeds_dend.shape", average_seeds_dend.shape)
+
+    # Drop all-NaN time columns (common with variable T + NaN padding)
+    finite_cols = np.any(np.isfinite(average_seeds_dend), axis=0)
+    A = average_seeds_dend[:, finite_cols]   # (trials, time_valid)
+
+    if A.size == 0 or A.shape[1] == 0:
+        axs[2,0].text(0.5, 0.5, "No finite data", ha="center", va="center",transform=axs[2,0].transAxes)
+        axs[2,1].text(0.5, 0.5, "No finite data", ha="center", va="center",
+                    transform=axs[2,1].transAxes)
+    else:
+        # ---- Panel: trials x time heatmap ----
+        im4 = axs[2,0].imshow(A, aspect='auto', interpolation='none', origin='upper')
+        axs[2,0].set_title("Mean over dendrites over seeds", fontsize=title_fs)
+        axs[2,0].set_ylabel("Trials", fontsize=label_fs)
+        axs[2,0].set_xlabel("Time (ms)", fontsize=label_fs)
+        # One colorbar; avoid making many in loops
+        fig.colorbar(im4, ax=axs[2,0], label="mV")
+
+        # ---- Panel: mean ± SEM over trials ----
+        # mean over trials
+        mean_pad = np.nanmean(A, axis=0)  # (time_valid,)
+        # SEM computed only where n>1
+        n = np.sum(np.isfinite(A), axis=0)
+        std = np.nanstd(A, axis=0, ddof=1)
+        sem_pad = np.where(n > 1, std / np.sqrt(n), np.nan)
+
+        t = np.arange(mean_pad.size)
+        axs[2,1].plot(t, mean_pad)
+        good = np.isfinite(mean_pad) & np.isfinite(sem_pad)
+        if np.any(good):
+            axs[2,1].fill_between(t[good],mean_pad[good] - sem_pad[good],mean_pad[good] + sem_pad[good],alpha=0.2)
+        axs[2,1].set_title("Mean of trials", fontsize=title_fs)
+        axs[2,1].set_xlabel("Time (ms)", fontsize=label_fs)
+        axs[2,1].set_ylabel("mV", fontsize=label_fs)
+
+
+
+
+
+    # print(f"average_seeds_dend.shape {average_seeds_dend.shape}")
+    # mean_pad = np.nanmean(average_seeds_dend, axis=0)
+    # print(f"mean_pad.shape {mean_pad.shape}")
+    # sem_pad = sem(average_seeds_dend, axis=0, nan_policy="omit")
+
+    # im4 = axs[2,0].imshow(average_seeds_dend, aspect='auto', interpolation='None')
+    # axs[2,0].set_title("Mean Over Dendrites over Seeds", fontsize=title_fs)
+    # axs[2,0].set_ylabel("Trials", fontsize=label_fs)
+    # axs[2,0].set_xlabel("Time (ms)", fontsize=label_fs)
+    # fig.colorbar(im4, ax=axs[2,0], label="mV")
+
+    # axs[2,1].set_ylabel("mV", fontsize=label_fs)
+    # axs[2,1].plot(mean_pad)
+    # axs[2,1].fill_between(range(len(mean_pad)), mean_pad-sem_pad, mean_pad+sem_pad, alpha=0.2)
+    # axs[2,1].set_title("Mean of Dendrites and Trials", fontsize=title_fs)
+    # axs[2,1].set_xlabel("Time (ms)", fontsize=label_fs)
 
     seed_list = []
-    for seed in dend_vm_per_seed_dict:
-        seed_list.append(np.mean(dend_vm_per_seed_dict[seed], axis=0))
+
+    for seed in _plateau_arr_list_dict:
+
+        plat = _plateau_arr_list_dict[seed]
+
+        plat_array_per_dendrite = []
+
+        for dendrite in range(len(plat)):
+
+            plateau_array = plat[dendrite]
+
+            plateau_pos_list = []
+
+            for t in range(plateau_array.shape[0]):
+                sig_time = plateau_array[t]                 # shape (T,), 0/1 per ms
+                v        = an_velocity[:, t]                        # shape (50,), m/s per position bin
+                dx_m     = 1.8 / 50.0                       # meters per bin
+                dt_ms    = 1.0
+                T        = sig_time.size
+
+                dt_per_bin_ms = (dx_m / np.maximum(v, 1e-6)) * 1000.0              # (50,)
+                dt_per_bin_ms *= (T*dt_ms) / np.sum(dt_per_bin_ms)
+
+                edges_ms   = np.concatenate([[0.0], np.cumsum(dt_per_bin_ms)])     # (51,)
+                centers_ms = 0.5 * (edges_ms[:-1] + edges_ms[1:])                  # (50,)
+
+                t_ms = np.arange(T, dtype=np.float32) * dt_ms                      # (T,)
+
+                plat_pos = np.interp(centers_ms, t_ms, sig_time)                   # (50,)
+
+                plateau_pos_list.append(plat_pos)
+
+            plateau_pos_array = np.stack(plateau_pos_list)
+
+            plat_array_per_dendrite.append(plateau_pos_array)
+
+            
+
+        plat_array_per_dendrite_array = np.stack(plat_array_per_dendrite)
+        sum_over_dends = np.sum(plat_array_per_dendrite_array, axis=1)
+
+        seed_list.append(sum_over_dends)
+
     seed_array = np.array(seed_list)
-    average_seeds_dend = np.mean(seed_array, axis=0)
-    print(f"average_seeds_dend.shape {average_seeds_dend.shape}")
-    mean_pad = np.nanmean(average_seeds_dend, axis=0)
-    print(f"mean_pad.shape {mean_pad.shape}")
-    sem_pad = sem(average_seeds_dend, axis=0, nan_policy="omit")
+    
+    mean_seed_plateaus = np.mean(seed_array, axis=0)
 
-    im4 = axs[2,0].imshow(average_seeds_dend, aspect='auto', interpolation='None')
-    axs[2,0].set_title("Mean Over Dendrites over Seeds", fontsize=title_fs)
-    axs[2,0].set_ylabel("Trials", fontsize=label_fs)
-    axs[2,0].set_xlabel("Time (ms)", fontsize=label_fs)
-    fig.colorbar(im4, ax=axs[2,0], label="mV")
 
-    axs[2,1].set_ylabel("mV", fontsize=label_fs)
-    axs[2,1].plot(mean_pad)
-    axs[2,1].fill_between(range(len(mean_pad)), mean_pad-sem_pad, mean_pad+sem_pad, alpha=0.2)
-    axs[2,1].set_title("Mean of Dendrites and Trials", fontsize=title_fs)
-    axs[2,1].set_xlabel("Time (ms)", fontsize=label_fs)
+    max_indices = np.argmax(mean_seed_plateaus, axis=1)
+    sorted_row_indices = np.argsort(max_indices)
+    sorted_sum_over_dends = mean_seed_plateaus[sorted_row_indices, :]
 
-    seed = seeds[0]
-    ims = axs[1,2].imshow(_plateau_arr_list_dict[seed][example_cell], aspect='auto', cmap='gray', interpolation='none')
-    axs[1,2].set_title(f"Seed#{seed} Dendrite#{example_cell} Plateaus \n Dendrite Threshold={dend_threshold}", fontsize=title_fs)
-    axs[1,2].set_xlabel("Time (ms)", fontsize=label_fs)
-    axs[1,2].set_ylabel("Trials", fontsize=label_fs)
-    fig.colorbar(ims, ax=axs[1,2])
+    ims = axs[1,2].imshow(sorted_sum_over_dends, aspect='auto', cmap='gray', interpolation='none')
+    axs[1,2].set_title(f"Mean plateaus per position (sum over trials)\nDendrite Threshold={dend_threshold:.2f}",
+                    fontsize=title_fs)
+    axs[1,2].set_xlabel("Position bin (1–50)", fontsize=label_fs)
+    axs[1,2].set_ylabel("Dendrite index", fontsize=label_fs)
+    cbar = fig.colorbar(ims, ax=axs[1,2], label="plateau count")
+    cbar.set_label("plateau count", fontsize=label_fs)
 
-    axs[0,2].hist(weights_EC.flatten(), bins=50)
+    # def sanitize_vel_mps(vel_mps, min_mps=1e-3):
+    #     """vel_mps: (n_trials, n_pos) in m/s. Fix NaNs/<=0 by 1D interp along pos per trial."""
+    #     v = np.asarray(vel_mps, dtype=np.float32).copy()
+    #     n_trials, n_pos = v.shape
+    #     for t in range(n_trials):
+    #         x = v[t]
+    #         bad = ~np.isfinite(x) | (x <= 0)
+    #         if bad.any():
+    #             good = ~bad
+    #             if good.sum() >= 2:
+    #                 idx = np.arange(n_pos, dtype=np.float32)
+    #                 x[bad] = np.interp(idx[bad], idx[good], x[good]).astype(np.float32)
+    #             elif good.sum() == 1:
+    #                 x[:] = np.float32(x[good][0])
+    #             else:
+    #                 x[:] = np.float32(0.1)  # fallback
+    #         v[t] = np.maximum(x, np.float32(min_mps))
+    #     return v
+
+    # def plateau_time_to_pos_bins_normalized(plateau_array, vel_pos_mps, dx_m, dt_ms, any_or_count="any"):
+    #     """
+    #     Map time-indexed plateau mask to position bins using per-trial velocity.
+    #     Critically: per-trial dwell times are normalized to sum to the trial's duration (T * dt_ms).
+    #     plateau_array: (n_trials, T)  0/1 or counts per time sample (dt_ms each)
+    #     vel_pos_mps:   (n_trials, n_pos) velocity at each position bin (m/s)
+    #     dx_m:          meters per position bin (e.g., 3.6 for 180m/50 bins)
+    #     dt_ms:         milliseconds per time sample (e.g., 1.0 if dt_constant=0.001)
+    #     any_or_count:  "any" -> 0/1 per bin; "count" -> number of plateau samples per bin
+    #     Returns:
+    #     out: (n_trials, n_pos)
+    #     """
+    #     plateau = np.asarray(plateau_array, dtype=np.float32)
+    #     n_trials, T = plateau.shape
+    #     vel = sanitize_vel_mps(np.asarray(vel_pos_mps, dtype=np.float32))
+    #     n_pos = vel.shape[1]
+
+    #     out = np.zeros((n_trials, n_pos), dtype=np.float32)
+    #     time_ms = np.arange(T, dtype=np.float32) * np.float32(dt_ms)
+    #     trial_ms = float(T) * float(dt_ms)
+
+    #     for t in range(n_trials):
+    #         # raw dwell time from velocity (ms)
+    #         dt_per_bin_ms = (dx_m / vel[t]) * 1000.0  # (n_pos,)
+
+    #         # --- normalize dwell times so total equals actual trial duration ---
+    #         raw_total = float(np.sum(dt_per_bin_ms))
+    #         if raw_total <= 0 or not np.isfinite(raw_total):
+    #             # degenerate case; distribute uniformly
+    #             dt_per_bin_ms[:] = trial_ms / float(n_pos)
+    #         else:
+    #             scale = trial_ms / raw_total
+    #             dt_per_bin_ms *= np.float32(scale)
+
+    #         # build cumulative edges
+    #         edges = np.empty(n_pos + 1, dtype=np.float32)
+    #         edges[0] = 0.0
+    #         np.cumsum(dt_per_bin_ms, out=edges[1:])  # edges[-1] ≈ trial_ms now
+
+    #         # which position bin each time sample falls into
+    #         t_ms = time_ms  # all samples valid now that edges[-1] ≈ trial_ms
+    #         bin_idx = np.searchsorted(edges, t_ms, side="right") - 1
+    #         bin_idx = np.clip(bin_idx, 0, n_pos - 1)
+
+    #         sig = plateau[t]  # (T,)
+    #         if any_or_count == "any":
+    #             acc = np.bincount(bin_idx, weights=(sig > 0).astype(np.float32), minlength=n_pos)
+    #             out[t] = (acc > 0).astype(np.float32)
+    #         else:
+    #             out[t] = np.bincount(bin_idx, weights=sig.astype(np.float32), minlength=n_pos)
+
+    #     return out
+
+    # dx_m   = 1.8 / 50.0
+    # dt_ms  = dt_constant * 1000.0      # must be the sampling used to make plateau_array
+    # vel_pos_mps = an_velocity.T                # (n_trials, n_pos) in m/s
+
+    # seed_plateau_list = []
+    # for seed in _plateau_arr_list_dict:
+    #     plateau_list = _plateau_arr_list_dict[seed]   # list of (n_trials, T) per dendrite
+    #     cell_plateaus_list = []
+    #     for cell in range(len(plateau_list)):
+    #         plateau_array = plateau_list[cell]
+    #         pos_has_plateau = plateau_time_to_pos_bins_normalized(
+    #             plateau_array, vel_pos_mps, dx_m=dx_m, dt_ms=dt_ms, any_or_count="any"
+    #         )  # (n_trials, n_pos)
+    #         cell_plateaus_list.append(np.sum(pos_has_plateau, axis=0))  # (n_pos,)
+    #     seed_plateau_list.append(np.asarray(cell_plateaus_list))        # (n_dends, n_pos)
+
+    # seed_plateau_array = np.asarray(seed_plateau_list)                  # (n_seeds, n_dends, n_pos)
+    # mean_seed_plateau_array = np.nanmean(seed_plateau_array, axis=0)    # (n_dends, n_pos)
+    # order = np.argsort(np.nanargmax(mean_seed_plateau_array, axis=1))
+    # ims = axs[1,2].imshow(mean_seed_plateau_array[order, :], aspect='auto', cmap='gray', interpolation='none')
+    # axs[1,2].set_title(f"Mean plateaus per position (sum over trials)\nDendrite Threshold={dend_threshold:.2f}",
+    #                 fontsize=title_fs)
+    # axs[1,2].set_xlabel("Position bin (1–50)", fontsize=label_fs)
+    # axs[1,2].set_ylabel("Dendrite index (sorted by peak)", fontsize=label_fs)
+    # fig.colorbar(ims, ax=axs[1,2], label="Trials with ≥1 plateau")
+
+    # T = plateau_list[0].shape[1]
+    # print("Trial duration from T*dt_ms:", T * dt_ms, "ms")
+    # print("Velocity-implied duration (before normalize) trial 0:",
+    #     np.sum((dx_m / np.maximum(vel_pos_mps[0], 1e-6)) * 1000.0), "ms")
+    # print("Velocity-implied duration (after normalize) trial 0:", np.sum((dx_m / np.maximum(vel_pos_mps[0], 1e-6)) * 1000.0) * ((T*dt_ms) / np.sum((dx_m / np.maximum(vel_pos_mps[0], 1e-6)) * 1000.0)), "ms")
+
+
+
+
+    # def _sanitize_velocity_cm_s(v_in_m_per_s, min_vel_cm_s=1e-3 * 100):
+    #     """
+    #     Convert m/s -> cm/s and make strictly positive.
+    #     Accepts 1D (n_pos,) or 2D (n_pos, n_trials). Returns same shape.
+    #     Fills NaNs/<=0 by interpolation along the position axis, per trial.
+    #     """
+
+    #     v = np.asarray(v_in_m_per_s, dtype=np.float32) * np.float32(100.0)  # m/s -> cm/s
+
+    #     def _sanitize_1d(x):
+    #         # operate on the passed slice, not on the outer 'v'
+    #         bad = ~np.isfinite(x) | (x <= 0)
+    #         if bad.any():
+    #             good_idx = np.flatnonzero(~bad)
+    #             bad_idx  = np.flatnonzero(bad)
+    #             if good_idx.size >= 2:
+    #                 x[bad] = np.interp(bad_idx, good_idx, x[good_idx])
+    #             elif good_idx.size == 1:
+    #                 x[bad] = x[good_idx[0]]
+    #             else:
+    #                 x[:] = np.float32(10.0)  # fallback if everything is bad
+    #         return np.maximum(x, np.float32(min_vel_cm_s))
+
+    #     if v.ndim == 1:
+    #         return _sanitize_1d(v)
+    #     if v.ndim == 2:
+    #         out = v.copy()
+    #         for t in range(out.shape[1]):
+    #             out[:, t] = _sanitize_1d(out[:, t])
+    #         return out
+    #     raise ValueError(f"sanitize_velocity_cm_s: expected 1D or 2D, got shape {v.shape}")
+
+    # for seed in _plateau_arr_list_dict:
+    #     # for cell in _plateau_arr_list_dict[seed]:
+    #     plateau_list = _plateau_arr_list_dict[seed]
+    #     for cell in range(len(plateau_list)):
+    #         plateau_array = plateau_list[cell]
+    #         an_velocity_cm_s = _sanitize_velocity_cm_s(an_velocity.T)
+    #         print(f"plateau_array.shape {plateau_array.shape}")
+    #         print(f"an_velocity_cm_s.shape {an_velocity_cm_s.shape}")
+
+
+    # seed = seeds[0]
+    # ims = axs[1,2].imshow(_plateau_arr_list_dict[seed][example_cell], aspect='auto', cmap='gray', interpolation='none')
+    # axs[1,2].set_title(f"Seed#{seed} Dendrite#{example_cell} Plateaus \n Dendrite Threshold={dend_threshold}", fontsize=title_fs)
+    # axs[1,2].set_xlabel("Time (ms)", fontsize=label_fs)
+    # axs[1,2].set_ylabel("Trials", fontsize=label_fs)
+    # fig.colorbar(ims, ax=axs[1,2])
+
+    # for seed in _plateau_arr_list_dict:
+    #     plateau_array = 
+
+    w = np.asarray(weights_EC, dtype=np.float32).ravel()
+
+    w = w[np.isfinite(w)]
+    if w.size == 0:
+        axs[0,2].text(0.5, 0.5, "No finite weights", ha="center", va="center", transform=axs[0,2].transAxes)
+    else:
+        hi = np.quantile(w, 0.999)  # or 0.995
+        if not np.isfinite(hi) or hi <= 0:
+            hi = np.nanmax(w[np.isfinite(w)])
+        w = np.clip(w, 0.0, hi)
+
+        axs[0,2].hist(w, bins=50, range=(0.0, float(hi)))
+
+
+    # axs[0,2].hist(weights_EC.flatten(), bins=50)
     axs[0,2].set_title(f"EC Weights: {dist} Distribution", fontsize=title_fs)
     axs[0,2].set_ylabel("Count", fontsize=label_fs)
     axs[0,2].set_xlabel("Weight", fontsize=label_fs)
 
-    mean_EC_activity = np.nanmean(activity_EC, axis=1)
-    im4 = axs[1,0].imshow(mean_EC_activity, aspect='auto', interpolation=None)
-    axs[1,0].set_title("Mean Input Activity", fontsize=title_fs)
-    axs[1,0].set_ylabel("Trials", fontsize=label_fs)
-    axs[1,0].set_xlabel("Time (ms)", fontsize=label_fs)
-    # if not animal_by_animal:
-    #     axs[1,0].set_xlim(0, 6000)
-    cb = fig.colorbar(im4, ax=axs[1,0], label="Summed Z-Scored Activity")
-    cb.set_label("Summed Z-Scored Activity", fontsize=label_fs)
+    # mean_EC_activity = np.nanmean(activity_EC, axis=1)
+    # im4 = axs[1,0].imshow(mean_EC_activity, aspect='auto', interpolation=None)
+    # axs[1,0].set_title("Mean Input Activity", fontsize=title_fs)
+    # axs[1,0].set_ylabel("Trials", fontsize=label_fs)
+    # axs[1,0].set_xlabel("Time (ms)", fontsize=label_fs)
+    # # if not animal_by_animal:
+    # #     axs[1,0].set_xlim(0, 6000)
+    # cb = fig.colorbar(im4, ax=axs[1,0], label="Summed Z-Scored Activity")
+    # cb.set_label("Summed Z-Scored Activity", fontsize=label_fs)
 
-    print(f"activity_EC.shape {activity_EC.shape}")
+    # print(f"activity_EC.shape {activity_EC.shape}")
 
-    mean_EC_activity = np.nanmean(activity_EC, axis=1)
-    mean_mean = np.nanmean(mean_EC_activity, axis=0)
-    sem_mean = sem(mean_EC_activity, axis=0, nan_policy='omit')
-    axs[1,1].plot(mean_mean)
-    axs[1,1].fill_between(range(len(mean_mean)), mean_mean-sem_mean, mean_mean+sem_mean, alpha=0.2)
-    axs[1,1].set_title("Trial Averaged Input Activity", fontsize=title_fs)
-    axs[1,1].set_xlabel("Trial Averaged Input Activity", fontsize=title_fs)
-    axs[1,1].set_ylabel("Summed Z-Scored Activity", fontsize=label_fs)
+    # mean_EC_activity = np.nanmean(activity_EC, axis=1)
+    # mean_mean = np.nanmean(mean_EC_activity, axis=0)
+    # sem_mean = sem(mean_EC_activity, axis=0, nan_policy='omit')
+    # axs[1,1].plot(mean_mean)
+    # axs[1,1].fill_between(range(len(mean_mean)), mean_mean-sem_mean, mean_mean+sem_mean, alpha=0.2)
+    # axs[1,1].set_title("Trial Averaged Input Activity", fontsize=title_fs)
+    # axs[1,1].set_xlabel("Trial Averaged Input Activity", fontsize=title_fs)
+    # axs[1,1].set_ylabel("Summed Z-Scored Activity", fontsize=label_fs)
+
+    means_seeds_warped_list = []
+
+    for seed in warped_list_dict:
+        warped_list = warped_list_dict[seed]
+        max_T = max(a.shape[1] for a in warped_list)
+        max_N = max(a.shape[0] for a in warped_list)
+
+        padded = np.full((len(warped_list), max_T, max_N), np.nan, dtype=float)
+
+        for i, a in enumerate(warped_list):
+            N, T = a.shape
+            padded[i, :T, :N] = a.T   # transpose to (T, N) and place into padded slice
+
+        # mean over trials and neurons → time trace
+        mean_array = np.nanmean(padded, axis=(0, 2))   # shape (max_T,)
+
+        means_seeds_warped_list.append(mean_array)
+
+    means_seeds_warped_array = np.array(means_seeds_warped_list)   
+
+    mean_means_seeds_warped_array = np.mean(means_seeds_warped_array, axis=0)
+    sem_means_seeds_warped_array = sem(means_seeds_warped_array, axis=0)
+
+    # warped_list_array = pad_stack_trials(warped_list_dict, fill_value=np.nan, dtype=np.float16)
+
+    # warped_list_dict_array_mean = np.nanmean(warped_list_array, axis=(0,1))
+
+    axs[1,1].plot(mean_means_seeds_warped_array)
+    axs[1,1].fill_between(range(len(mean_means_seeds_warped_array)), mean_means_seeds_warped_array+sem_means_seeds_warped_array, mean_means_seeds_warped_array-sem_means_seeds_warped_array, alpha=0.2)
+    axs[1,1].set_title("Input Activity Over Time", fontsize=title_fs)
+    axs[1,1].set_xlabel("Time (ms)", fontsize=label_fs)
+    axs[1,1].set_ylabel("DF/F Z-scored Scaled to Hz", fontsize=label_fs)
+
 
     per_seed_list = []
     for seed in _starts_list_dict:
@@ -1904,6 +2361,7 @@ def plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp, tau_ms,
     summed_plateaus_over_seeds = []
     for seed in start_pos_cnt50_dict:
         start_pos_cnt50_list = start_pos_cnt50_dict[seed]
+        print(f"start_pos_cnt50_list {start_pos_cnt50_list}")
         n_bins = 10
         bin_size = int(50 / n_bins)
         summed_plateaus = np.zeros(n_bins)
@@ -1923,29 +2381,124 @@ def plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp, tau_ms,
     axs[2,3].set_xlabel("Position Bin", fontsize=label_fs)
     axs[2,3].set_ylabel("Plateau Count +- SEM over Seeds", fontsize=label_fs)
     axs[2,3].set_title("Plateau Onset Count per Track Section", fontsize=title_fs)
-    axs[2,3].set_xticks(np.arange(n_bins), ["1-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", "41-45", "46-50"], fontsize=7)
+    axs[2,3].set_xticks(np.arange(n_bins), ["1-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", "41-45", "46-50"], fontsize=5)
 
     cumsum_plateaus_all_dends = np.cumsum(num_plateaus_per_trial_array, axis=1)
     mean_plateaus_all_dends = np.mean(cumsum_plateaus_all_dends, axis=0)
     sem_plateaus_all_dends = sem(cumsum_plateaus_all_dends, axis=0)
 
-    axs[3,0].set_title("Cumulative # Plateaus Across Trials", fontsize=title_fs)
-    axs[3,0].set_ylabel("# Plateaus Mean +- SEM Across Dends", fontsize=label_fs)
+    # num_plateaus_per_trial_array: shape (n_dends, n_trials), entries are 0,1,2,...
+    
+    # per_seed_frac_list = []
+    # for seed in _starts_list_dict:
+    #     # build num_plateaus_per_trial_array as you already do...
+    #     num_plateaus_per_trial_array = np.array(num_plateaus_per_trial_list_across_dends)
+
+    #     had_any_this_trial = (num_plateaus_per_trial_array > 0).astype(int)   # 0/1 per trial
+    #     ever_had_by_trial = (np.cumsum(had_any_this_trial, axis=1) > 0).astype(float)  # 0 -> 1 at first plateau, stays 1
+    #     frac_dends_cum = ever_had_by_trial.mean(axis=0)  # shape (n_trials,), fraction of dendrites with ≥1 plateau so far
+
+
+    #     # had_any_this_trial = (num_plateaus_per_trial_array > 0).astype(int)
+    #     # ever_had_by_trial = (np.cumsum(had_any_this_trial, axis=1) > 0).astype(float)
+    #     # frac_dends_cum = ever_had_by_trial.mean(axis=0)  # fraction curve for this seed
+
+    #     per_seed_frac_list.append(frac_dends_cum)
+
+    # per_seed_frac = np.array(per_seed_frac_list)          # shape (n_seeds, n_trials)
+    # mean_frac_over_seeds = per_seed_frac.mean(axis=0)
+    # sem_frac_over_seeds  = sem(per_seed_frac, axis=0)
+
+    # axs[3,0].clear()
+    # axs[3,0].set_title("Cumulative fraction of dendrites with ≥1 plateau")
+    # axs[3,0].set_ylabel("Fraction of dendrites")
+    # axs[3,0].set_xlabel("Session Length (%)")
+    # axs[3,0].set_xticks(
+    #     [0, len(mean_frac_over_seeds)//4, len(mean_frac_over_seeds)//2,
+    #     len(mean_frac_over_seeds)//4 + len(mean_frac_over_seeds)//2,
+    #     len(mean_frac_over_seeds) - 1],
+    #     labels=["0", "25", "50", "75", "100"]
+    # )
+    # axs[3,0].plot(mean_frac_over_seeds, color='k')
+    # axs[3,0].fill_between(
+    #     range(len(mean_frac_over_seeds)),
+    #     mean_frac_over_seeds - sem_frac_over_seeds,
+    #     mean_frac_over_seeds + sem_frac_over_seeds,
+    #     alpha=0.2, color='k')
+
+    # --- cumulative fraction of dendrites with ≥1 plateau by trial (session %) ---
+    per_seed_frac_list = []
+
+    for seed in _starts_list_dict:
+        # Build (n_dends, n_trials) count array for this seed
+        num_plateaus_per_trial_list_across_dends = []
+        dend_plateaus = _starts_list_dict[seed]     # list of length n_dends; each is list over trials
+        for dend in range(len(dend_plateaus)):
+            per_trial_counts = [len(dend_plateaus[dend][trial])
+                                for trial in range(len(dend_plateaus[dend]))]
+            num_plateaus_per_trial_list_across_dends.append(per_trial_counts)
+
+        num_plateaus_per_trial_array = np.array(num_plateaus_per_trial_list_across_dends)  # (n_dends, n_trials)
+
+        # 0/1 whether a dendrite had any plateau on that trial
+        had_any_this_trial = (num_plateaus_per_trial_array > 0).astype(int)
+
+        # cumulative "ever had" by trial (stays 1 once a dendrite has had its first plateau)
+        ever_had_by_trial = (np.cumsum(had_any_this_trial, axis=1) > 0).astype(float)  # (n_dends, n_trials)
+
+        # fraction of dendrites that have had ≥1 plateau so far
+        frac_dends_cum = ever_had_by_trial.mean(axis=0)  # (n_trials,)
+        per_seed_frac_list.append(frac_dends_cum)
+
+    per_seed_frac = np.array(per_seed_frac_list)  # (n_seeds, n_trials)
+    mean_frac_over_seeds = np.nanmean(per_seed_frac, axis=0)
+    sem_frac_over_seeds  = sem(per_seed_frac, axis=0, nan_policy='omit')
+
+    # Plot
+    axs[3,0].clear()
+    axs[3,0].set_title("Cumulative fraction of dendrites with plateau", fontsize=title_fs)
+    axs[3,0].set_ylabel("Fraction of dendrites", fontsize=label_fs)
     axs[3,0].set_xlabel("Session Length (%)", fontsize=label_fs)
-    axs[3,0].set_xticks(
-        [0, len(mean_plateaus_all_dends)//4, len(mean_plateaus_all_dends)//2,
-         len(mean_plateaus_all_dends)//4 + len(mean_plateaus_all_dends)//2,
-         len(mean_plateaus_all_dends) - 1],
-        labels=["0", '25', "50", '75', "100"])
-    
-    axs[3,0].plot(mean_plateaus_all_dends, color='k')
+    axs[3,0].set_ylim(0, 0.5)
+
+    # x as trial index; relabel ticks as 0/25/50/75/100
+    Tn = len(mean_frac_over_seeds)
+    axs[3,0].set_xticks([0, Tn//4, Tn//2, (3*Tn)//4, Tn-1], labels=["0","25","50","75","100"])
+
+    axs[3,0].plot(mean_frac_over_seeds, color='k')
     axs[3,0].fill_between(
-        range(len(mean_plateaus_all_dends)),
-        mean_plateaus_all_dends - sem_plateaus_all_dends,
-        mean_plateaus_all_dends + sem_plateaus_all_dends,
-        alpha=0.2, color='k')
+        range(Tn),
+        mean_frac_over_seeds - sem_frac_over_seeds,
+        mean_frac_over_seeds + sem_frac_over_seeds,
+        alpha=0.2, color='k', label='Model')
+
+    # Red star at session 100% with y = 0.25
+    axs[3,0].plot(Tn-1, 0.25, marker='*', markersize=10, color='r', label='Experimental Target')
+    axs[3,0].legend(fontsize=8)
+
+
+
+    # axs[3,0].set_title("Cumulative # Plateaus Across Trials", fontsize=title_fs)
+    # axs[3,0].set_ylabel("# Plateaus Mean +- SEM Across Dends", fontsize=label_fs)
+    # axs[3,0].set_xlabel("Session Length (%)", fontsize=label_fs)
+    # axs[3,0].set_xticks(
+    #     [0, len(mean_plateaus_all_dends)//4, len(mean_plateaus_all_dends)//2,
+    #      len(mean_plateaus_all_dends)//4 + len(mean_plateaus_all_dends)//2,
+    #      len(mean_plateaus_all_dends) - 1],
+    #     labels=["0", '25', "50", '75', "100"])
     
-    print(f"summed_plateaus_over_seeds_array {summed_plateaus_over_seeds_array.shape}")
+    # axs[3,0].plot(mean_plateaus_all_dends, color='k')
+    # axs[3,0].fill_between(
+    #     range(len(mean_plateaus_all_dends)),
+    #     mean_plateaus_all_dends - sem_plateaus_all_dends,
+    #     mean_plateaus_all_dends + sem_plateaus_all_dends,
+    #     alpha=0.2, color='k')
+    
+    # print(f"summed_plateaus_over_seeds_array {summed_plateaus_over_seeds_array.shape}")
+
+
+
+
 
 
     # fraction_plateaus_list = []
@@ -1984,14 +2537,15 @@ def plot_multidendrite_EC_err_across_seeds(dend_list_EC_interp, tau_ms,
     axs[3,3].errorbar(
         x, mean_fraction_plateaus_array,
         yerr=sem_fraction_plateaus_array,
-        fmt='o-', color='k', ms=2,
-        elinewidth=0.8, capsize=2, capthick=0.8
-    )
-    axs[3,3].set_title("% of Plateaus in Grouped Position Bin", fontsize=title_fs)
+        fmt='o-', color='b', ms=2,
+        elinewidth=0.8, capsize=2, capthick=0.8, label="Model")
+    
+    axs[3,3].plot(christine_overrepresentation_array, color='k', label='Experimental Target')
+    axs[3,3].set_title(f"% of Plateaus in Grouped Position Bin \n MSE={loss:.8f}", fontsize=title_fs)
     axs[3,3].set_xlabel("Grouped Position Bins", fontsize=label_fs)
     axs[3,3].set_ylabel("% of Total Plateaus", fontsize=label_fs)
-    axs[3,3].set_xticks(np.arange(n_bins), ["1-5","6-10","11-15","16-20","21-25","26-30","31-35","36-40","41-45","46-50"], fontsize=7)
-
+    axs[3,3].set_xticks(np.arange(n_bins), ["1-5","6-10","11-15","16-20","21-25","26-30","31-35","36-40","41-45","46-50"], fontsize=5)
+    axs[3,3].legend(fontsize=6)
     # Optional quick sanity prints:
     # print("arr shape:", arr.shape)
     # print("totals per seed:", totals)
@@ -2108,6 +2662,8 @@ def plot_the_model_EC(dend_contribution_EC, an_velocity, dend_threshold=250, vel
     axs[1,1].set_title("Trial Averaged Dend Vm")
     axs[1,1].set_xlabel("Position Bin")
     axs[1,1].set_ylabel("Dendrite Vm")
+
+
 
     dt_constant = 0.001
     padded_warped_activity, summed_dendrite, an_velocity, just_plateau_starts_list, plateau_array, mean_dend_time, sem_dend_time, x_time_ms, just_plateau_starts_sums, cumulative_plateau_counts = get_internals_summed_dendrite(an_velocity, dend_contribution_EC, dt_constant=dt_constant, dend_threshold=dend_threshold, vel_applied=vel_applied)
@@ -2376,8 +2932,6 @@ def sample_weights(distribution, n_EC, n_dendrites, rng, mean=0.1, std=0.5):
     else:
         raise ValueError("Invalid distribution")
 
-    print(f"samples.shape {samples.shape}")
-
     return samples
 
 def get_dendrite_activity(weights, EC_input_matrix, n_dendrites, n_EC):
@@ -2421,23 +2975,23 @@ def multi_wrap_contribution(residual_activity_dict_EC, fixed_residual_activity_d
 
     return an_velocity, EC_pop_list, NDNF_pop_list, SST_pop_list, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF
         
-def get_activity_multidendrite(an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, dend_threshold=20, vel_applied="real", example_cell=15, dist="Uniform", n_dendrites=100, n_SST=75, n_EC=792, n_NDNF=73, include_inhibition=True, use_model_EC=False, make_it_spike=None):
+# def get_activity_multidendrite(an_velocity, dend_activity, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, dend_threshold=20, vel_applied="real", example_cell=15, dist="Uniform", n_dendrites=100, include_inhibition=True, use_model_EC=False, make_it_spike=None):
 
+def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, example_cell=15, n_dendrites=100, use_model_EC=False, make_it_spike=None):
 
-    if use_model_EC:
+    # if use_model_EC:
         
-        dend_list = []
-        for j in range(792):
-            ts_list = []
-            for i in range(58):
-                ts = random_timeseries(1.0, 0.005, 49)
-                ts_list.append(ts)
+    #     dend_list = []
+    #     for j in range(792):
+    #         ts_list = []
+    #         for i in range(58):
+    #             ts = random_timeseries(1.0, 0.005, 49)
+    #             ts_list.append(ts)
 
-            dend_contribution_EC = np.array(ts_list).T
-            dend_list.append(dend_contribution_EC)
+    #         dend_contribution_EC = np.array(ts_list).T
+    #         dend_list.append(dend_contribution_EC)
             
-        EC_input_matrix = np.array(dend_list)
-
+    #     EC_input_matrix = np.array(dend_list)
 
     if make_it_spike:
 
@@ -2445,61 +2999,6 @@ def get_activity_multidendrite(an_velocity, dend_vm_list, activity_NDNF, activit
         n_trials = 58
         dx=180/50
         dt_constant = 0.001
-
-        # vm_list = []
-
-        # for trial in range(dend_contribution_EC.shape[0]):
-        #     vm_list.append(dend_contribution_EC[trial])
-
-        # vm_array = np.array(vm_list)
-        # vm_array = np.swapaxes(vm_array, 0, 1)
-        # if vm_array.shape[1] != 100:
-        #     raise ValueError(f"dendrites in wrong axis !=100")
-        # if vm_array.shape[0] != 58:
-        #     raise ValueError(f"trials in wrong axis !=58")
-
-        num_trials   = len(dend_vm_list)
-        n_dendrites_ = dend_vm_list[0].shape[0]   # assume constant across trials
-
-
-        print(f"num_trials{num_trials} n_dendrites_ {n_dendrites_}")
-
-        num_trials = len(dend_vm_list)
-        n_dendrites_ = dend_vm_list[0].shape[0]
-        max_T = max(arr.shape[1] for arr in dend_vm_list)  # <-- time axis length
-
-        print(f"num_trials={num_trials}  n_dendrites_={n_dendrites_}  max_T={max_T}")
-
-        dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
-
-        for i, arr in enumerate(dend_vm_list):
-            if arr.shape[0] != n_dendrites_:
-                raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
-            Ti = arr.shape[1]               # current trial's time length
-            dend_vm_padded[i, :, :Ti] = arr # pad along time axis
-
-        dend_contribution_EC = dend_vm_padded
-
-        if dend_contribution_EC.shape[1] != 100:
-            print("dend_contribution_EC dendrites in the wrong axis")
-
-    
-
-        Vm_dict = {}
-        for dend in range(dend_contribution_EC.shape[1]):
-            vm_array_shaped = dend_contribution_EC[:, dend, :]
-            Vm, _, _ = activity_to_dend_vm_2d(
-                vm_array_shaped,
-                Vrest=-70.0,
-                vm_scale=0.1,
-                center_across="time")
-            Vm_dict[dend] = Vm
-
-        vm_list = []
-        for trial in Vm_dict:
-            vm_list.append(Vm_dict[trial])
-
-        dend_activity = np.array(vm_list)
 
         plateau_positions_counter = np.zeros(n_pos)
         plateau_start_positions_counter = np.zeros(n_pos)
@@ -2509,25 +3008,61 @@ def get_activity_multidendrite(an_velocity, dend_vm_list, activity_NDNF, activit
         padded_warped_activity_list = []
         plateau_start_times_list_mega_list = []
 
+        n_dendrites, n_trials, T_max = dend_activity.shape
+        print(f"dend_activity.shape {dend_activity.shape}")
+
+        ragged_dend_list = []
+        valid_lengths_per_dend = []   # <-- store per-trial valid lengths
+
         for d_idx in range(dend_activity.shape[0]):
+            padded_warped_activity_list.append(dend_activity[d_idx,:,:])
+            ragged_trial_list = []
+            trial_lengths = [] 
 
-            padded_warped_activity=dend_activity[d_idx,:,:]
-            padded_warped_activity_list.append(padded_warped_activity)
+            sum_data = 0
+            for trial in range(dend_activity.shape[1]):
+                trial_activity = dend_activity[d_idx,trial,:]
+                valid = ~np.isnan(trial_activity)
+                valid_trial_activity = trial_activity[valid]
+                sum_data+=len(valid_trial_activity)
+                trial_lengths.append(len(valid_trial_activity))
+                ragged_trial_list.append(valid_trial_activity)
 
-            flat_padded_warped_activity = padded_warped_activity.flatten()
-            flat_plateau_array = np.zeros_like(flat_padded_warped_activity)
+            
 
+            ragged_trial_list_flat = np.hstack(ragged_trial_list)
+
+            ragged_dend_list.append(ragged_trial_list_flat)
+            valid_lengths_per_dend.append(trial_lengths)
+
+        for d_idx in range(n_dendrites):
+
+            flat_signal = ragged_dend_list[d_idx]                  # 1-D concatenated trace
+            flat_plateau_array = np.zeros_like(flat_signal, dtype=np.uint8)
 
             i = 0
-            while i < len(flat_padded_warped_activity):
-                if flat_padded_warped_activity[i] > float(dend_threshold):
+            while i < flat_signal.size:
+                if flat_signal[i] > float(dend_threshold):
                     flat_plateau_array[i:i+300] = 1
-
                     i += 800
                 else:
                     i += 100
 
-            plateau_array = flat_plateau_array.reshape(padded_warped_activity.shape)
+            lengths = valid_lengths_per_dend[d_idx]
+            cursor = 0
+            per_trial_padded = []
+            for L in lengths:
+                if L > 0:
+                    seg = flat_plateau_array[cursor:cursor+L]
+                    cursor += L
+                    # pad back to T_max on the right with zeros to recover (T_max,)
+                    padded = np.zeros(T_max, dtype=np.uint8)
+                    padded[:L] = seg
+                else:
+                    padded = np.zeros(T_max, dtype=np.uint8)
+                per_trial_padded.append(padded)
+
+            plateau_array = np.stack(per_trial_padded, axis=0)     # shape (n_trials, T_max)
             plateau_array_per_dendrite_list.append(plateau_array)
                         
             proper_velocity = an_velocity*100
@@ -2574,10 +3109,6 @@ def get_activity_multidendrite(an_velocity, dend_vm_list, activity_NDNF, activit
 
             num_plateaus_per_dend_list.append(np.sum(num_plateaus_list))
 
-
-            num_time_bins = padded_warped_activity.shape[1]
-
-
             num_trials, num_time_bins = plateau_array.shape
             position_bins = 50
 
@@ -2610,196 +3141,196 @@ def get_activity_multidendrite(an_velocity, dend_vm_list, activity_NDNF, activit
         EC_used = use_model_EC
 
 
-        return padded_warped_activity_list, dend_contribution_EC, dend_activity, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, EC_used, dist, num_plateaus_per_dend_list    
+        return padded_warped_activity_list, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, EC_used, num_plateaus_per_dend_list    
             
                 
 
-    else:
-        if include_inhibition == 'both':
-            dend_activity = activity_EC - (activity_NDNF*NDNF_sf_opt + activity_SST*SST_sf_opt)
+    # else:
+    #     if include_inhibition == 'both':
+    #         dend_activity = activity_EC - (activity_NDNF*NDNF_sf_opt + activity_SST*SST_sf_opt)
 
-        elif include_inhibition == 'sst':
-            dend_activity = activity_EC - (activity_SST*SST_sf_opt)
+    #     elif include_inhibition == 'sst':
+    #         dend_activity = activity_EC - (activity_SST*SST_sf_opt)
             
-        else:
-            dend_activity = activity_EC 
+    #     else:
+    #         dend_activity = activity_EC 
 
-        dend_activity = zscore_2d(dend_activity, axis=None, eps=1e-12)
+    #     dend_activity = zscore_2d(dend_activity, axis=None, eps=1e-12)
 
     
         
-        plateau_positions_counter = np.zeros(50)
-        plateau_start_positions_counter = np.zeros(50)
+    #     plateau_positions_counter = np.zeros(50)
+    #     plateau_start_positions_counter = np.zeros(50)
 
-        threshold_list = []
+    #     threshold_list = []
 
-        variance_list = []
+    #     variance_list = []
 
-        plateau_array_per_dendrite_list = []
+    #     plateau_array_per_dendrite_list = []
 
-        num_plateaus_per_dend_list = []
+    #     num_plateaus_per_dend_list = []
 
-        dendrite_plateau_mask = np.zeros((dend_activity.shape[0], 50), dtype=bool)
+    #     dendrite_plateau_mask = np.zeros((dend_activity.shape[0], 50), dtype=bool)
 
-        padded_warped_activity_list = []
+    #     padded_warped_activity_list = []
         
-        plateau_start_times_list_mega_list = []
+    #     plateau_start_times_list_mega_list = []
 
 
-        for d_idx in range(dend_activity.shape[0]):
-            doi=dend_activity[d_idx,:,:]
+    #     for d_idx in range(dend_activity.shape[0]):
+    #         doi=dend_activity[d_idx,:,:]
 
-            dt= 4.71657036/50
-            dx=180/50
+    #         dt= 4.71657036/50
+    #         dx=180/50
 
-            animal_velocity_constant= np.full((doi.shape), dx/dt)
+    #         animal_velocity_constant= np.full((doi.shape), dx/dt)
 
-            proper_velocity = an_velocity*100
-
-
-            dt_constant = 0.001
-
-            if vel_applied=="constant":
-                dt = dx / animal_velocity_constant
-            else:
-                dt = dx / proper_velocity
-            time_bins = np.cumsum(dt, axis=0)
-            time_bins_ms = time_bins * 1
-
-            num_trials = dend_activity.shape[2]
-            trial_warped_activity = []
-            max_len = 0
-
-            for t in range(num_trials):
-                if np.any(np.isnan(time_bins[:, t])):
-                    continue
-                total_time = time_bins[-1, t]
-
-                time_axis_constant = np.arange(0, total_time, dt_constant)
-
-                firing = doi[:, t]
-
-                warped_firing = np.interp(time_axis_constant, time_bins[:,t], firing)
-
-                trial_warped_activity.append(warped_firing)
-                if len(warped_firing) > max_len:
-                    max_len = len(warped_firing)
-
-            padded_warped_activity = np.full((num_trials, max_len), np.nan) 
-            for i, trace in enumerate(trial_warped_activity):
-                padded_warped_activity[i, :len(trace)] = trace
+    #         proper_velocity = an_velocity*100
 
 
-            padded_warped_activity_list.append(padded_warped_activity)
+    #         dt_constant = 0.001
 
-            position_bins, num_trials = animal_velocity_constant.shape
+    #         if vel_applied=="constant":
+    #             dt = dx / animal_velocity_constant
+    #         else:
+    #             dt = dx / proper_velocity
+    #         time_bins = np.cumsum(dt, axis=0)
+    #         time_bins_ms = time_bins * 1
 
-            flat_padded_warped_activity = padded_warped_activity.flatten()
-            flat_plateau_array = np.zeros_like(flat_padded_warped_activity)
+    #         num_trials = dend_activity.shape[2]
+    #         trial_warped_activity = []
+    #         max_len = 0
+
+    #         for t in range(num_trials):
+    #             if np.any(np.isnan(time_bins[:, t])):
+    #                 continue
+    #             total_time = time_bins[-1, t]
+
+    #             time_axis_constant = np.arange(0, total_time, dt_constant)
+
+    #             firing = doi[:, t]
+
+    #             warped_firing = np.interp(time_axis_constant, time_bins[:,t], firing)
+
+    #             trial_warped_activity.append(warped_firing)
+    #             if len(warped_firing) > max_len:
+    #                 max_len = len(warped_firing)
+
+    #         padded_warped_activity = np.full((num_trials, max_len), np.nan) 
+    #         for i, trace in enumerate(trial_warped_activity):
+    #             padded_warped_activity[i, :len(trace)] = trace
 
 
-            i = 0
-            while i < len(flat_padded_warped_activity):
-                if flat_padded_warped_activity[i] > dend_threshold:
-                    flat_plateau_array[i:i+300] = 1
+    #         padded_warped_activity_list.append(padded_warped_activity)
 
-                    i += 800
-                else:
-                    i += 100
+    #         position_bins, num_trials = animal_velocity_constant.shape
+
+    #         flat_padded_warped_activity = padded_warped_activity.flatten()
+    #         flat_plateau_array = np.zeros_like(flat_padded_warped_activity)
 
 
-            plateau_array = flat_plateau_array.reshape(padded_warped_activity.shape)
-            plateau_array_per_dendrite_list.append(plateau_array)
+    #         i = 0
+    #         while i < len(flat_padded_warped_activity):
+    #             if flat_padded_warped_activity[i] > dend_threshold:
+    #                 flat_plateau_array[i:i+300] = 1
 
-            animal_velocity = proper_velocity
+    #                 i += 800
+    #             else:
+    #                 i += 100
 
-            plateau_start_times_list = []
+
+    #         plateau_array = flat_plateau_array.reshape(padded_warped_activity.shape)
+    #         plateau_array_per_dendrite_list.append(plateau_array)
+
+    #         animal_velocity = proper_velocity
+
+    #         plateau_start_times_list = []
 
             
-            for trial in range(plateau_array.shape[0]):
-                velocity_trial = animal_velocity[:, trial]
-        #         velocity_trial = proper_velocity
-                dt_trial = dx / velocity_trial  # in seconds
-                time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
+    #         for trial in range(plateau_array.shape[0]):
+    #             velocity_trial = animal_velocity[:, trial]
+    #     #         velocity_trial = proper_velocity
+    #             dt_trial = dx / velocity_trial  # in seconds
+    #             time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
 
-                plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
-                plateau_start_times = plateau_start_indices * dt_constant  # in seconds
-                plateau_start_times_list.append(plateau_start_times)
+    #             plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
+    #             plateau_start_times = plateau_start_indices * dt_constant  # in seconds
+    #             plateau_start_times_list.append(plateau_start_times)
 
-                for pt_start_time in plateau_start_times:
-                    if pt_start_time != 0.0:
-                        for pos_idx in range(50):
-                            if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
-                                plateau_start_positions_counter[pos_idx] += 1
-                                break
+    #             for pt_start_time in plateau_start_times:
+    #                 if pt_start_time != 0.0:
+    #                     for pos_idx in range(50):
+    #                         if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
+    #                             plateau_start_positions_counter[pos_idx] += 1
+    #                             break
 
-            plateau_start_times_list_mega_list.append(plateau_start_times_list)
+    #         plateau_start_times_list_mega_list.append(plateau_start_times_list)
 
-            num_plateaus_list = []
-            for trial in range(plateau_array.shape[0]):
-                velocity_trial = animal_velocity[:, trial]
-        #         velocity_trial = proper_velocity
-                dt_trial = dx / velocity_trial  # in seconds
-                time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
+    #         num_plateaus_list = []
+    #         for trial in range(plateau_array.shape[0]):
+    #             velocity_trial = animal_velocity[:, trial]
+    #     #         velocity_trial = proper_velocity
+    #             dt_trial = dx / velocity_trial  # in seconds
+    #             time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
 
-                plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
+    #             plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
 
-                plateau_start_times = plateau_start_indices * dt_constant  # in seconds
-                num_plateaus_list.append(len(plateau_start_times))
+    #             plateau_start_times = plateau_start_indices * dt_constant  # in seconds
+    #             num_plateaus_list.append(len(plateau_start_times))
 
-                for pt_start_time in plateau_start_times:
-                    if pt_start_time != 0.0:
-                        for pos_idx in range(50):
-                            if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
-                                dendrite_plateau_mask[d_idx, pos_idx] = True
-                                break
+    #             for pt_start_time in plateau_start_times:
+    #                 if pt_start_time != 0.0:
+    #                     for pos_idx in range(50):
+    #                         if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
+    #                             dendrite_plateau_mask[d_idx, pos_idx] = True
+    #                             break
 
-            num_plateaus_per_dend_list.append(np.sum(num_plateaus_list))
-
-
+    #         num_plateaus_per_dend_list.append(np.sum(num_plateaus_list))
 
 
 
-            num_time_bins = padded_warped_activity.shape[1]
-
-            animal_velocity = proper_velocity
 
 
-            num_trials, num_time_bins = plateau_array.shape
-            position_bins = 50
+    #         num_time_bins = padded_warped_activity.shape[1]
 
-            for trial in range(num_trials):
-                velocity_trial = animal_velocity[:, trial]  # shape (50,)
-                dt_trial = dx / velocity_trial              # shape (50,)
-                bin_edges = np.concatenate([[0], np.cumsum(dt_trial)])  # shape (51,)
+    #         animal_velocity = proper_velocity
 
-                time_bins = np.arange(num_time_bins) * dt_constant  # shape (num_time_bins,)
 
-                plateau_indices = np.where(plateau_array[trial] == 1)[0]  # shape (n_plateaus,)
+    #         num_trials, num_time_bins = plateau_array.shape
+    #         position_bins = 50
 
-                if len(plateau_indices) == 0:
-                    continue
+    #         for trial in range(num_trials):
+    #             velocity_trial = animal_velocity[:, trial]  # shape (50,)
+    #             dt_trial = dx / velocity_trial              # shape (50,)
+    #             bin_edges = np.concatenate([[0], np.cumsum(dt_trial)])  # shape (51,)
 
-                pt_times = time_bins[plateau_indices] 
+    #             time_bins = np.arange(num_time_bins) * dt_constant  # shape (num_time_bins,)
 
-                pos_bin_idxs = np.searchsorted(bin_edges, pt_times, side='right') - 1
+    #             plateau_indices = np.where(plateau_array[trial] == 1)[0]  # shape (n_plateaus,)
 
-                valid_mask = (pos_bin_idxs >= 0) & (pos_bin_idxs < position_bins)
-                pos_bin_idxs = pos_bin_idxs[valid_mask]
+    #             if len(plateau_indices) == 0:
+    #                 continue
 
-                bin_counts = np.bincount(pos_bin_idxs, minlength=position_bins)
+    #             pt_times = time_bins[plateau_indices] 
 
-                # --- Accumulate into global counter
-                plateau_positions_counter += bin_counts
+    #             pos_bin_idxs = np.searchsorted(bin_edges, pt_times, side='right') - 1
+
+    #             valid_mask = (pos_bin_idxs >= 0) & (pos_bin_idxs < position_bins)
+    #             pos_bin_idxs = pos_bin_idxs[valid_mask]
+
+    #             bin_counts = np.bincount(pos_bin_idxs, minlength=position_bins)
+
+    #             # --- Accumulate into global counter
+    #             plateau_positions_counter += bin_counts
                 
-        plateau_start_times_list = plateau_start_times_list_mega_list[example_cell]
+    #     plateau_start_times_list = plateau_start_times_list_mega_list[example_cell]
         
-        EC_used = use_model_EC
+    #     EC_used = use_model_EC
 
         
 
 
-        return padded_warped_activity_list, dend_activity, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, EC_used, dist, num_plateaus_per_dend_list    
+    #     return padded_warped_activity_list, dend_activity, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, EC_used, dist, num_plateaus_per_dend_list    
         
 def plot_multidendrite_EC(weights_EC, weights_SST, weights_NDNF, activity_EC, activity_SST, activity_NDNF, SST_sf_opt, NDNF_sf_opt, padded_warped_activity_list, an_velocity, dend_activity, dend_threshold, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, EC_used, dist, num_plateaus_per_dend_list, example_cell=1, include_inhibition=None, NDNF_contribution_sum=None, SST_contribution_sum=None):
     

@@ -1,0 +1,31 @@
+#data/20251009_092725_nested_optimization_history_PopulationAnnealing_ching_lung_figure_2_pop_anneal_236751200438785313524170535622835966242.hdf5 
+#best model_id: 29979, total_error: 0.09178500108819469
+pop_anneal_local_oct9_chinglung_allHzincluding_bidirectional_kernel:
+  tau_et: 1410.393447456833
+  tau_is: 176.34929097902682
+  lam_et: 152.5684059500006
+  lam_is: 25.744490638121604
+  eta_ms: 0.004998600162125412
+
+#data/20251009_135342_nested_optimization_history_PopulationAnnealing_ching_lung_figure_2_pop_anneal_304254191330590666791245938902765146402.hdf5
+#best model_id: 28931 total_error: 0.07515111485197407
+model_test_2:
+  tau_et: 1474.7515259682878
+  tau_is: 739.2145185588507
+  lam_et: 161.24381107148224
+  lam_is: 39.57778784397287
+  eta_ms: 0.002976991280586468
+
+fit_jeff:
+  tau_et: 1197.9474141298822
+  tau_is: 369.41011914001825
+  lam_et: 130.9647294527586
+  lam_is: 49.92543972544764
+  eta_ms: 0.004040298745068529
+
+total_dataset_jeff:
+  tau_et: 1307.3706852728226
+  tau_is: 517.0085321387273
+  lam_et: 119.87951416286887
+  lam_is: 49.984596145977214
+  eta_ms: 0.003982527270809444

@@ -1,7 +1,63 @@
-#(ca1_env) michaelfinch@nbp-25-228-133 Clean_notebooks_to_date % mpiexec -n 3 python -i -m mpi4py.futures -m  nested.analyze --config-file-path=config/ec_nested_ec_av.yaml --disp --framework=mpi --plot --model-key=animal_6_precompute_spikes --param-file-path=model_key_yaml_opt.yaml
+#best model_id: 121
+# /ocean/projects/bio250022p/mfinch/data/20251023_175833_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_142585985436231518059493664533515879390.hdf5
+#total_error: 0.00014660269093680597
+oct21_justec_5seeds_serial_number1_velTbetaFinputT:
+  tau_ms: 6.10131135018831
+  dend_threshold: -57.05704397640961
+  weights_mean: 0.30800001919022635
+  weights_std: 1.149925277460194
 
-animal_6_precompute_spikes:
-  tau_ms: 162.53166538052287
-  dend_threshold: -42.896508047551684
-  weights_mean: 0.9314244024691123
-  weights_std: 0.7842371160364618
+# 0.00010320846461145771
+# /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277023735232369394433075510718181459436.hdf5
+#best model_id: 33997
+oct24_justec_5seeds_number1_velTbetaFinputT:
+  tau_ms: 5.273837546293319
+  dend_threshold: -54.01799785339066
+  weights_mean: 1.3266467907522272
+  weights_std: 0.8042842801289596
+
+# 5.6170875510788365e-05
+# /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277024628926042555335503840201844253202.hdf5
+#best model_id: 38188
+oct24_justec_5seeds_number2_velFbetaFinputT:
+  tau_ms: 10.007991538346904
+  dend_threshold: -53.30941739451945
+  weights_mean: 0.34321023121761535
+  weights_std: 1.1523352488851524
+
+# 8.09431404332633e-05
+# /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277023693241443261873177242364129322642.hdf5
+#best model_id: 38212
+oct24_justec_5seeds_number3_velFbetaTinputT:
+  tau_ms: 5.013938925901849
+  dend_threshold: -50.34625675807507
+  weights_mean: 0.09148972242720968
+  weights_std: 1.3709378485726142
+
+# 0.00011543152369701526
+#/ocean/projects/bio250022p/mfinch/data/20251024_012057_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_75307032456464534517751469512540594932.hdf5
+#best model_id: 29945
+oct24_justec_5seeds_number4_velTbetaFinputF:
+  tau_ms: 11.529164967269315
+  dend_threshold: -61.38116570223583
+  weights_mean: 0.6578800325397322
+  weights_std: 0.7035486007541073
+
+# 7.777378403741364e-05
+# /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277023785938393403564803105816038659500.hdf5
+#best model_id: 20708
+oct24_justec_5seeds_number5_velFbetaFinputF:
+  tau_ms: 5.064506276126609
+  dend_threshold: -50.89186792511163
+  weights_mean: 0.220714991428913
+  weights_std: 1.3051821374338135
+
+# 5.929398607429661e-05
+# /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277024182871487600026861820509268014342.hdf5
+#best model_id: 37898
+oct24_justec_5seeds_number6_velFbetaTinputF:
+  tau_ms: 11.56499474244825
+  dend_threshold: -53.865658062648414
+  weights_mean: 0.8430433525286931
+  weights_std: 0.9101819935355204
+

@@ -23,6 +23,22 @@ import click
 from Fixing_dend_models_presentation import *
 from spiking_model_utils import load_data_regular
 
+from mpi4py import MPI
+import os, sys, time
+
+import psutil, os, gc, time, numpy as np
+
+def report_mem(tag):
+    p = psutil.Process(os.getpid())
+    rss = p.memory_info().rss / 1e9
+    print(f"[{time.time():.3f}] {tag} RSS={rss:.2f} GB", flush=True)
+
+def nbytes(arr, name):
+    try:
+        print(f"  {name}.nbytes={arr.nbytes/1e6:.1f} MB", flush=True)
+    except Exception:
+        pass
+
 
 
 
@@ -514,561 +530,1554 @@ def to_bool(x):
 
 
 
-def get_dend_contribution(kernel, dt_constant, residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest, residual_activity_dict_SST, factors_dict_EC, factors_dict_SST, factors_dict_NDNF_newest, GLM_params_EC, GLM_params_NDNF_newest, GLM_params_SST, mean_new_average_vel_array, real_vel=None, constant_vel=None, use_residuals=True, use_model_EC=False, multiple_dendrites=False, add_inh=None, seed=0, SST_bias_factor=None, dist=None, use_averaged_velocity=None, make_it_spike=False, store_intermediates=False, animal_by_animal=False, input_animal=None, include_beta=None, flat_input=None):
+# def get_dend_contribution(kernel, dt_constant, residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest, residual_activity_dict_SST, factors_dict_EC, factors_dict_SST, factors_dict_NDNF_newest, GLM_params_EC, GLM_params_NDNF_newest, GLM_params_SST, mean_new_average_vel_array, real_vel=None, constant_vel=None, use_residuals=True, use_model_EC=False, multiple_dendrites=False, add_inh=None, seed=0, SST_bias_factor=None, dist=None, use_averaged_velocity=None, make_it_spike=False, store_intermediates=False, animal_by_animal=False, input_animal=None, include_beta=None, flat_input=None, optimization_time=False, debug=False, mean=None, std=None):
+    
+#     SEED = seed
+#     np.random.seed(SEED)
+#     random.seed(SEED)
+#     rng = np.random.default_rng(SEED)
+
+#     animal_by_animal = to_bool(animal_by_animal)
+#     flat_input = to_bool(flat_input)
+#     include_beta = to_bool(include_beta)
+
+
+#     if use_model_EC:
+
+#         if make_it_spike:
+            
+#             n_EC = 792
+#             pos_bins = 50
+#             n_trials = 58
+
+#             data_list_normalized = []
+
+#             for animal in residual_activity_dict_EC:
+#                 for cell in residual_activity_dict_EC[animal]:
+#                     data_normalized = residual_activity_dict_EC[animal][cell][:,:58]
+#                     data_normalized = (data_normalized - np.min(data_normalized)) / (np.max(data_normalized) - np.min(data_normalized)) *50
+#                     data_list_normalized.append(data_normalized)
+
+
+#             data_array_normalized = np.array(data_list_normalized)
+
+#             overall_mu= np.mean(data_list_normalized)
+#             overall_std = np.std(data_list_normalized)
+
+
+#             animal_velocity_list_cm_sec = get_vel_formatted(residual_activity_dict_EC, factors_dict_EC)
+#             data_normalized_list, r2_list = get_correlation(residual_activity_dict_EC, factors_dict_EC)
+#             overall_mean = np.mean(data_normalized_list)
+#             synthetic_data_plus_vel_list, synthetic_activity = get_synthetic_data(n_EC, pos_bins, n_trials, overall_mean, animal_velocity_list_cm_sec, r2_list)
+
+#             animal_velocity_array = np.array(animal_velocity_list_cm_sec)
+#             an_velocity = np.mean(animal_velocity_array, axis=0) / 100
+
+#             if optimization_time:
+#                 dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes(synthetic_data_plus_vel_list, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, store_intermediates=False, rng=rng, debug=debug, optimization_time=False, mean=mean, std=std)
+#             else:
+#                 dend_vm_list, weights_EC, last_EPSP, warped_list = turn_rates_into_spikes(synthetic_data_plus_vel_list, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, store_intermediates=False, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
+
+#             num_trials   = len(dend_vm_list)
+#             n_dendrites_ = dend_vm_list[0].shape[0]   # assume constant across trials
+
+
+#             # dend_vm_list: list of 2D arrays, each (n_dendrites, T_i)
+
+#             num_trials = len(dend_vm_list)
+#             n_dendrites_ = dend_vm_list[0].shape[0]
+#             max_T = max(arr.shape[1] for arr in dend_vm_list)  # <-- time axis length
+
+#             dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+
+#             for i, arr in enumerate(dend_vm_list):
+#                 if arr.shape[0] != n_dendrites_:
+#                     raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
+#                 Ti = arr.shape[1]               # current trial's time length
+#                 dend_vm_padded[i, :, :Ti] = arr # pad along time axis
+
+
+#             print(f"dend_vm_padded.shape {dend_vm_padded.shape}")
+
+#             Vm_list = []
+#             for dend in range(dend_vm_padded.shape[1]):
+#                 trials_by_time = dend_vm_padded[:,dend,:]
+#                 Vm, _, _ = activity_to_dend_vm_2d(
+#                 trials_by_time,
+#                 Vrest=-70.0,
+#                 vm_scale=0.1,
+#                 center_across="time")
+#                 Vm_list.append(Vm)
+
+#             activity_EC = np.array(Vm_list)
+
+#             activity_NDNF=0
+#             activity_SST=0 
+#             NDNF_sf_opt=0 
+#             SST_sf_opt=0 
+#             NDNF_contribution_sum=0
+#             SST_contribution_sum=0
+#             weights_SST=0
+#             weights_NDNF=0
+
+#             return an_velocity, activity_EC, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP
+
+        
+#         else:
+#             random.seed(seed)
+#             ts_list = []
+#             for i in range(58):
+#                 ts = random_timeseries(1.0, 1., 49)
+#                 ts_list.append(ts)
+
+#             dend_contribution_EC = np.array(ts_list).T
+#             print(dend_contribution_EC.shape)
+
+#             if constant_vel:
+#                 an_velocity = np.full(dend_contribution_EC.shape, 0.43)
+#             else:
+#                 an_velocity = np.tile(mean_new_average_vel_array[:,None], (1,58))
+
+
+#             # dend_contribution_EC /= dend_contribution_EC
+
+#             return dend_contribution_EC, an_velocity 
+            
+    
+#     else:
+#         if multiple_dendrites:
+
+#             animal_by_animal = to_bool(animal_by_animal)
+#             include_beta = to_bool(include_beta)
+#             flat_input = to_bool(flat_input)
+#             constant_vel = to_bool(constant_vel)
+            
+#             if animal_by_animal:
+
+#                 an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=True, animal_used=input_animal)
+    
+#             else:
+
+#                 an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
+
+#             if make_it_spike:
+
+#                 try:
+#                     import psutil
+#                     _PROC = psutil.Process(os.getpid())
+#                 except Exception:
+#                     psutil = None
+#                     _PROC = None
+
+#                 if optimization_time:
+#                     dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
+#                 else:
+#                     dend_vm_list, weights_EC, last_EPSP, warped_list = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=False, mean=mean, std=std)
+
+#                 activity_NDNF=0
+#                 activity_SST=0 
+#                 NDNF_sf_opt=0 
+#                 SST_sf_opt=0 
+#                 NDNF_contribution_sum=0
+#                 SST_contribution_sum=0
+#                 weights_SST=0
+#                 weights_NDNF=0
+
+#             else:
+#                 n_EC = 792
+#                 n_SST = 75
+#                 n_NDNF = 115
+#                 n_dendrites=100
+
+
+#                 EC_input_matrix = np.stack(dend_list_EC[:n_EC], axis=0)
+#                 SST_input_matrix = np.stack(dend_list_SST[:n_SST], axis=0)
+#                 NDNF_input_matrix = np.stack(dend_list_NDNF[:n_NDNF], axis=0)
+
+#                 weights_EC = sample_weights(dist, n_dendrites, n_EC, rng=rng)
+#                 weights_SST = sample_weights('Equal', n_dendrites, n_SST, rng=rng)
+#                 weights_NDNF = sample_weights('Equal', n_dendrites, n_NDNF, rng=rng)
+
+#                 activity_EC = get_dendrite_activity(weights_EC, EC_input_matrix, n_dendrites, n_EC)
+#                 activity_SST = get_dendrite_activity(weights_SST, SST_input_matrix, n_dendrites, n_SST)
+#                 activity_NDNF = get_dendrite_activity(weights_NDNF, NDNF_input_matrix, n_dendrites, n_NDNF)
+
+#                 EC = activity_EC.copy()
+#                 NDNF = activity_NDNF.copy()
+#                 SST = activity_SST.copy()
+
+#                 if add_inh=='sst':
+#                     SST_sf_opt, info = fit_sst_scale_to_cancel_ec(activity_EC, activity_SST)
+#                     NDNF_sf_opt=0
+#                 else:
+#                     res = fit_equal_contrib_L2(EC, NDNF, SST, SST_bias_factor=SST_bias_factor)
+#                     NDNF_sf_opt = res["ndnf_sf"]
+#                     SST_sf_opt  = res["sst_sf"]
+#                     NDNF_contribution_sum = res["contrib_L2_ndnf"]
+#                     SST_contribution_sum = res["contrib_L2_sst"]
+
+
+#             if optimization_time:
+#                 return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP #, min_trial_length
+#             else:
+#                 return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list
+#         else:
+#             return dend_contribution_EC, dend_contribution_NDNF, dend_contribution_SST, an_velocity, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, last_EPSP #, min_trial_length
+
+
+
+
+
+
+
+
+
+def get_dend_contribution(kernel, dt_constant, residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest, residual_activity_dict_SST, factors_dict_EC, factors_dict_SST, factors_dict_NDNF_newest, GLM_params_EC, GLM_params_NDNF_newest, GLM_params_SST, NDNF_sf_opt, SST_sf_opt, dist=None, include_inh=False, constant_vel=None, multiple_dendrites=False, seed=0, make_it_spike=False, animal_by_animal=False, input_animal=None, include_beta=None, flat_input=None, optimization_time=False, debug=False, mean=None, std=None):
     
     SEED = seed
     np.random.seed(SEED)
     random.seed(SEED)
     rng = np.random.default_rng(SEED)
 
-
     animal_by_animal = to_bool(animal_by_animal)
     flat_input = to_bool(flat_input)
     include_beta = to_bool(include_beta)
 
+    # else:
+    if multiple_dendrites:
 
-    if use_model_EC:
-
-        if make_it_spike:
-            
-            n_EC = 792
-            pos_bins = 50
-            n_trials = 58
-
-            data_list_normalized = []
-
-            for animal in residual_activity_dict_EC:
-                for cell in residual_activity_dict_EC[animal]:
-                    data_normalized = residual_activity_dict_EC[animal][cell][:,:58]
-                    data_normalized = (data_normalized - np.min(data_normalized)) / (np.max(data_normalized) - np.min(data_normalized)) *50
-                    data_list_normalized.append(data_normalized)
-
-
-            data_array_normalized = np.array(data_list_normalized)
-
-            overall_mu= np.mean(data_list_normalized)
-            overall_std = np.std(data_list_normalized)
-
-
-            animal_velocity_list_cm_sec = get_vel_formatted(activity_dict_EC, factors_dict_EC)
-            data_normalized_list, r2_list = get_correlation(activity_dict_EC, factors_dict_EC)
-            overall_mean = np.mean(data_normalized_list)
-            synthetic_data_plus_vel_list, synthetic_activity = get_synthetic_data(n_EC, pos_bins, n_trials, overall_mean, animal_velocity_list_cm_sec, r2_list)
-
-            animal_velocity_array = np.array(animal_velocity_list_cm_sec)
-            an_velocity = np.mean(animal_velocity_array, axis=0) / 100
-
-
-            dend_vm_list, weights_EC, last_EPSP, min_trial_length = turn_rates_into_spikes(synthetic_data_plus_vel_list, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, store_intermediates=False, rng=rng)
-
-            num_trials   = len(dend_vm_list)
-            n_dendrites_ = dend_vm_list[0].shape[0]   # assume constant across trials
-
-
-            # dend_vm_list: list of 2D arrays, each (n_dendrites, T_i)
-
-            num_trials = len(dend_vm_list)
-            n_dendrites_ = dend_vm_list[0].shape[0]
-            max_T = max(arr.shape[1] for arr in dend_vm_list)  # <-- time axis length
-
-            dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
-
-            for i, arr in enumerate(dend_vm_list):
-                if arr.shape[0] != n_dendrites_:
-                    raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
-                Ti = arr.shape[1]               # current trial's time length
-                dend_vm_padded[i, :, :Ti] = arr # pad along time axis
-
-
-            print(f"dend_vm_padded.shape {dend_vm_padded.shape}")
-
-            Vm_list = []
-            for dend in range(dend_vm_padded.shape[1]):
-                trials_by_time = dend_vm_padded[:,dend,:]
-                Vm, _, _ = activity_to_dend_vm_2d(
-                trials_by_time,
-                Vrest=-70.0,
-                vm_scale=0.1,
-                center_across="time")
-                Vm_list.append(Vm)
-
-            activity_EC = np.array(Vm_list)
-
-            activity_NDNF=0
-            activity_SST=0 
-            NDNF_sf_opt=0 
-            SST_sf_opt=0 
-            NDNF_contribution_sum=0
-            SST_contribution_sum=0
-            weights_SST=0
-            weights_NDNF=0
-
-            return an_velocity, activity_EC, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP
-
+        animal_by_animal = to_bool(animal_by_animal)
+        include_beta = to_bool(include_beta)
+        flat_input = to_bool(flat_input)
+        constant_vel = to_bool(constant_vel)
         
+        if animal_by_animal:
+
+            an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=True, animal_used=input_animal)
+
         else:
-            random.seed(seed)
-            ts_list = []
-            for i in range(58):
-                ts = random_timeseries(1.0, 1., 49)
-                ts_list.append(ts)
 
-            dend_contribution_EC = np.array(ts_list).T
-            print(dend_contribution_EC.shape)
+            if include_inh:
+                an_velocity_EC, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
+                an_velocity_SST, dend_list_SST = get_dend_VM_cell_type_new(residual_activity_dict_SST, factors_dict_SST, GLM_params_SST, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
+                an_velocity_NDNF, dend_list_NDNF = get_dend_VM_cell_type_new(fixed_residual_activity_dict_NDNF_newest, factors_dict_NDNF_newest, GLM_params_NDNF_newest, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
 
-            if constant_vel:
-                an_velocity = np.full(dend_contribution_EC.shape, 0.43)
+
+                an_velocity_stack = np.stack([an_velocity_EC, an_velocity_SST, an_velocity_NDNF])
+                an_velocity = np.mean(an_velocity_stack, axis=0)
+
+
             else:
-                an_velocity = np.tile(mean_new_average_vel_array[:,None], (1,58))
-
-
-            # dend_contribution_EC /= dend_contribution_EC
-
-            return dend_contribution_EC, an_velocity 
-            
-
-        # rng = np.random.default_rng(seed=40)
-
-        # pos_bins = 150
-        # real_pos=50
-        # trials = 58
-        # dend_contribution_EC = np.zeros((pos_bins, trials))
-
-        # # Fixed Gaussian centers
-        # base_centers = np.arange(0, pos_bins+1, 5)  # bin 2, 7, 12, ..., 47
-        # width = 2.5
-        # for i in range(trials):
-        #     for center in base_centers:
-        #         # Add jitter to the center (±1 bin)
-        #         jittered_center = center + rng.choice([-1, 0, 1])
-
-        #         # Make sure jittered center stays within bounds
-        #         jittered_center = np.clip(jittered_center, 0, pos_bins - 1)
-
-        #         amplitude = rng.uniform(0.01, 0.02)  # still jitter amplitude too
-        #         gaussian = norm.pdf(np.arange(pos_bins), loc=jittered_center, scale=width)
-        #         gaussian /= np.max(gaussian)
-        #         dend_contribution_EC[:, i] += amplitude * gaussian
-
-        # final_dend = dend_contribution_EC[real_pos:real_pos*2, :]
-        # # Normalize globally if needed
-        # final_dend /= np.max(final_dend)
-        # if constant_vel:
-        #     an_velocity = np.full(final_dend.shape, 0.43)
-        # else:
-        #     an_velocity = np.tile(mean_new_average_vel_array[:,None], (1,58))
-            
-        # return final_dend, an_velocity 
-    
-    else:
-    #     if use_residuals:
-    #         dend_contribution_EC, an_velocity_EC, dend_list_EC = get_dend_VM_cell_type(residual_activity_dict_EC, factors_dict_EC, mean_new_average_vel_array, GLM_params_EC, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-    #         dend_contribution_NDNF, an_velocity_NDNF, dend_list_NDNF = get_dend_VM_cell_type(fixed_residual_activity_dict_NDNF_newest, factors_dict_NDNF_newest, mean_new_average_vel_array, GLM_params_NDNF_newest, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-    #         dend_contribution_SST, an_velocity_SST, dend_list_SST = get_dend_VM_cell_type(residual_activity_dict_SST, factors_dict_SST, mean_new_average_vel_array, GLM_params_SST, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-            
-    #         EC = dend_contribution_EC.copy()
-    #         NDNF = dend_contribution_NDNF.copy()
-    #         SST = dend_contribution_SST.copy()
-            
-    #         if add_inh=='neither':
-    #             an_velocity = an_velocity_EC 
-    #             SST_sf_opt = 0
-    #             NDNF_sf_opt = 0
-    #             NDNF_contribution_sum = 0
-    #             SST_contribution_sum = 0
-
-    #         elif add_inh=='sst':
-    #             SST_sf_opt, info = fit_sst_scale_to_cancel_ec(dend_contribution_EC, dend_contribution_SST)
-    #             NDNF_sf_opt=0
-    #             NDNF_contribution_sum = 0
-    #             SST_contribution_sum = 0
-
-    #             an_velocity = np.nanmean(np.stack([an_velocity_EC, an_velocity_SST], axis=0), axis=0)
-
-    #         else:
-    #             # result = minimize(loss_fn, x0=[1.0, 1.0], bounds=[(0, 5), (0, 5)], args=(EC, NDNF, SST))
-    #             # NDNF_sf_opt, SST_sf_opt = result.x
-
-    #             res = fit_equal_contrib_L2(EC, NDNF, SST, SST_bias_factor=SST_bias_factor)
-    #             NDNF_sf_opt = res["ndnf_sf"]
-    #             SST_sf_opt  = res["sst_sf"]
-    #             NDNF_contribution_sum = res["contrib_L2_ndnf"]
-    #             SST_contribution_sum = res["contrib_L2_sst"]
-
-    #             an_velocity = np.nanmean(np.stack([an_velocity_EC, an_velocity_SST, an_velocity_NDNF], axis=0), axis=0)
-
-
-    #     else:
-    #         dend_contribution_EC, an_velocity_EC, dend_list_EC = get_dend_VM_cell_type(residual_activity_dict_EC, factors_dict_EC, mean_new_average_vel_array, GLM_params_EC, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-    #         dend_contribution_NDNF, an_velocity_SST, dend_list_NDNF = get_dend_VM_cell_type(fixed_residual_activity_dict_NDNF_newest, factors_dict_NDNF_newest, mean_new_average_vel_array, GLM_params_NDNF_newest, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-    #         dend_contribution_SST, an_velocity_NDNF, dend_list_SST = get_dend_VM_cell_type(residual_activity_dict_SST, factors_dict_SST, mean_new_average_vel_array, GLM_params_SST, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-            
-    #         EC = dend_contribution_EC.copy()
-    #         NDNF = dend_contribution_NDNF.copy()
-    #         SST = dend_contribution_SST.copy()
-
-    #         if add_inh=='neither':
-    #             an_velocity = an_velocity_EC 
-    #             SST_sf_opt = 0
-    #             NDNF_sf_opt = 0
-    #             NDNF_contribution_sum = 0
-    #             SST_contribution_sum = 0
-
-    #         elif add_inh=='sst':
-    #             SST_sf_opt, info = fit_sst_scale_to_cancel_ec(dend_contribution_EC, dend_contribution_SST)
-    #             NDNF_sf_opt=0
-    #             NDNF_contribution_sum = 0
-    #             SST_contribution_sum = 0
-    #             an_velocity = np.nanmean(np.stack([an_velocity_EC, an_velocity_SST], axis=0), axis=0)
-
-    #         else:
-    #             # result = minimize(loss_fn, x0=[1.0, 1.0], bounds=[(0, 5), (0, 5)], args=(EC, NDNF, SST))
-    #             # NDNF_sf_opt, SST_sf_opt = result.x
-    #             res = fit_equal_contrib_L2(EC, NDNF, SST, SST_bias_factor=SST_bias_factor)
-    #             NDNF_sf_opt = res["ndnf_sf"]
-    #             SST_sf_opt  = res["sst_sf"]
-    #             NDNF_contribution_sum = res["contrib_L2_ndnf"]
-    #             SST_contribution_sum = res["contrib_L2_sst"]
-
-    #             an_velocity = np.nanmean(np.stack([an_velocity_EC, an_velocity_SST, an_velocity_NDNF], axis=0), axis=0)
-
-
-        if multiple_dendrites:
-
-            animal_by_animal = to_bool(animal_by_animal)
-            include_beta = to_bool(include_beta)
-            flat_input = to_bool(flat_input)
-            constant_vel = to_bool(constant_vel)
-            
-            if animal_by_animal:
-
-                an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=True, animal_used=input_animal)
-                
-                # an_velocity, dend_list_EC = get_dend_VM_cell_type(residual_activity_dict_EC, factors_dict_EC, mean_new_average_vel_array, GLM_params_EC, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=True, animal_by_animal=True, animal=input_animal)
-                # dend_contribution_EC, an_velocity, dend_list_EC = get_dend_VM_cell_type(residual_activity_dict_EC, factors_dict_EC, mean_new_average_vel_array, GLM_params_EC, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=True, animal_by_animal=True, animal=input_animal)
-                # dend_contribution_NDNF, an_velocity, dend_list_NDNF = get_dend_VM_cell_type(fixed_residual_activity_dict_NDNF_newest, factors_dict_NDNF_newest, mean_new_average_vel_array, GLM_params_NDNF_newest, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike, animal_by_animal=True, animal=input_animal)
-                # dend_contribution_SST, an_velocity, dend_list_SST = get_dend_VM_cell_type(residual_activity_dict_SST, factors_dict_SST, mean_new_average_vel_array, GLM_params_SST, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike, animal_by_animal=True, animal=input_animal)
-            
-    
-            else:
-
                 an_velocity, dend_list_EC = get_dend_VM_cell_type_new(residual_activity_dict_EC, factors_dict_EC, GLM_params_EC, include_beta=include_beta, const_vel=constant_vel, flat_input=flat_input, animal_by_animal=False, animal_used=input_animal)
 
-                # dend_contribution_EC, an_velocity = get_dend_VM_cell_type(residual_activity_dict_EC, factors_dict_EC, mean_new_average_vel_array, GLM_params_EC, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike, animal_by_animal=False, animal=input_animal)
-                # dend_contribution_NDNF, an_velocity, dend_list_NDNF = get_dend_VM_cell_type(fixed_residual_activity_dict_NDNF_newest, factors_dict_NDNF_newest, mean_new_average_vel_array, GLM_params_NDNF_newest, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-                # dend_contribution_SST, an_velocity, dend_list_SST = get_dend_VM_cell_type(residual_activity_dict_SST, factors_dict_SST, mean_new_average_vel_array, GLM_params_SST, 1.0, amplitude=-0.5, vel=0.43, norm="min_max", add_vel_contribution=real_vel, const_vel=constant_vel, use_averaged_velocity=use_averaged_velocity, add_inh=add_inh, make_it_spike=make_it_spike)
-            
+                save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/an_vel_pkl.pkl"
+                with open(save_path, 'wb') as f: 
+                    pickle.dump(an_velocity, f)
+        if make_it_spike:
 
+            try:
+                import psutil
+                _PROC = psutil.Process(os.getpid())
+            except Exception:
+                psutil = None
+                _PROC = None
 
-            if make_it_spike:
-
-                try:
-                    import psutil
-                    _PROC = psutil.Process(os.getpid())
-                except Exception:
-                    psutil = None
-                    _PROC = None
-
-                # plt.plot(an_velocity)
-                # plt.show()
-       
-                dend_vm_list, weights_EC, last_EPSP, min_trial_length, warped_list = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng)
-
-
-                # Vm_list = []
-                # for dend in range(dend_vm_padded.shape[1]):
-                #     trials_by_time = dend_vm_padded[:,dend,:]
-                #     Vm, _, _ = activity_to_dend_vm_2d(
-                #     trials_by_time,
-                #     Vrest=-70.0,
-                #     vm_scale=0.1,
-                #     center_across="time")
-                #     Vm_list.append(Vm)
-
-                # activity_EC = np.array(Vm_list)
-
-                # num_trials   = len(dend_vm_list)
-                # n_dendrites_ = dend_vm_list[0].shape[0]   # assume constant across trials
-
-
-                # print(f"num_trials{num_trials} n_dendrites_ {n_dendrites_}")
-
-                # num_trials = len(dend_vm_list)
-                # n_dendrites_ = dend_vm_list[0].shape[0]
-                # max_T = max(arr.shape[1] for arr in dend_vm_list)  # <-- time axis length
-
-                # print(f"num_trials={num_trials}  n_dendrites_={n_dendrites_}  max_T={max_T}")
-
-                # dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
-
-                # for i, arr in enumerate(dend_vm_list):
-                #     if arr.shape[0] != n_dendrites_:
-                #         raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
-                #     Ti = arr.shape[1]               # current trial's time length
-                #     dend_vm_padded[i, :, :Ti] = arr # pad along time axis
-
-                activity_NDNF=0
-                activity_SST=0 
-                NDNF_sf_opt=0 
-                SST_sf_opt=0 
-                NDNF_contribution_sum=0
-                SST_contribution_sum=0
-                weights_SST=0
-                weights_NDNF=0
-
-            else:
-                n_EC = 792
-                n_SST = 75
-                n_NDNF = 115
-                n_dendrites=100
-
-
-                EC_input_matrix = np.stack(dend_list_EC[:n_EC], axis=0)
-                SST_input_matrix = np.stack(dend_list_SST[:n_SST], axis=0)
-                NDNF_input_matrix = np.stack(dend_list_NDNF[:n_NDNF], axis=0)
-
-                weights_EC = sample_weights(dist, n_dendrites, n_EC, rng=rng)
-                weights_SST = sample_weights('Equal', n_dendrites, n_SST, rng=rng)
-                weights_NDNF = sample_weights('Equal', n_dendrites, n_NDNF, rng=rng)
-
-                activity_EC = get_dendrite_activity(weights_EC, EC_input_matrix, n_dendrites, n_EC)
-                activity_SST = get_dendrite_activity(weights_SST, SST_input_matrix, n_dendrites, n_SST)
-                activity_NDNF = get_dendrite_activity(weights_NDNF, NDNF_input_matrix, n_dendrites, n_NDNF)
-
-                EC = activity_EC.copy()
-                NDNF = activity_NDNF.copy()
-                SST = activity_SST.copy()
-
-                if add_inh=='sst':
-                    SST_sf_opt, info = fit_sst_scale_to_cancel_ec(activity_EC, activity_SST)
-                    NDNF_sf_opt=0
+            if optimization_time:
+                if include_inh:
+                    dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
+                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP #, min_trial_length
                 else:
-                    # result = minimize(loss_fn, x0=[1.0, 1.0], bounds=[(0, 5), (0, 5)], args=(EC, NDNF, SST))
-                    # NDNF_sf_opt, SST_sf_opt = result.x
-                    res = fit_equal_contrib_L2(EC, NDNF, SST, SST_bias_factor=SST_bias_factor)
-                    NDNF_sf_opt = res["ndnf_sf"]
-                    SST_sf_opt  = res["sst_sf"]
-                    NDNF_contribution_sum = res["contrib_L2_ndnf"]
-                    SST_contribution_sum = res["contrib_L2_sst"]
+                    
+                    activity_NDNF=0
+                    activity_SST=0 
+                    NDNF_contribution_sum=0
+                    SST_contribution_sum=0
+                    weights_SST=0
+                    weights_NDNF=0
+                    
+                    dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
+                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP #, min_trial_length
+                    
+            else:
+                if include_inh:
+
+                    dend_vm_list, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict= turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
+                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict
+
+                else:
+
+                    activity_NDNF=0
+                    activity_SST=0 
+                    NDNF_contribution_sum=0
+                    SST_contribution_sum=0
+                    weights_SST=0
+                    weights_NDNF=0
+
+                    internals_dict = dict(dend_list_EC=dend_list_EC, an_velocity=an_velocity, dist=dist, kernel=kernel, dt_constant=dt_constant)
+
+                    save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/internals_dict.pkl"
+                    with open(save_path, 'wb') as f:
+                        pickle.dump(internals_dict, f)
+
+                
+                    dend_vm_list, weights_EC, last_EPSP, warped_dict = turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, rng=rng, debug=debug, optimization_time=False, mean=mean, std=std)
+                    return an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict
 
 
-            return an_velocity, dend_vm_list, warped_list, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, min_trial_length
-        else:
-            return dend_contribution_EC, dend_contribution_NDNF, dend_contribution_SST, an_velocity, NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, last_EPSP, min_trial_length
 
-def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=None, n_dendrites=100,rng=None, debug=False):
+# (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP) = get_dend_contribution(self.kernel, self.dt_constant,
+#                 residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest,
+#                 residual_activity_dict_SST, factors_dict_EC, factors_dict_SST, factors_dict_NDNF_newest,
+#                 GLM_params_EC, GLM_params_NDNF_newest, GLM_params_SST, mean_new_average_vel_array, self.NDNF_sf_opt, self.SST_sf_opt, include_inh=self.include_inh,
+#                 real_vel=real_vel, constant_vel=constant_vel, use_residuals=True, use_model_EC=self.use_model_EC,
+#                 multiple_dendrites=True, add_inh=add_inh, SST_bias_factor=SST_bias_factor,
+#                 dist=dist, use_averaged_velocity=use_averaged_velocity, make_it_spike=make_it_spike,
+#                 seed=seed, animal_by_animal=self.animal_by_animal, input_animal=self.input_animal, include_beta=self.include_beta, flat_input=self.flat_input, optimization_time=True, debug=debug, mean=mean, std=std)
 
-    print(f"dt_constant {dt_constant}")
 
-    dt_ms = dt_constant*1000.
+    # if use_model_EC:
 
-    EC_input_matrix = np.stack(dend_list_EC, axis=0)
+    #     if make_it_spike:
+            
+    #         n_EC = 792
+    #         pos_bins = 50
+    #         n_trials = 58
 
-    print(f"EC_input_matrix.shape {EC_input_matrix.shape}")
+    #         data_list_normalized = []
 
-    # for i in range(EC_input_matrix.shape[0]):
-    #     EC_input_matrix[i]
+    #         for animal in residual_activity_dict_EC:
+    #             for cell in residual_activity_dict_EC[animal]:
+    #                 data_normalized = residual_activity_dict_EC[animal][cell][:,:58]
+    #                 data_normalized = (data_normalized - np.min(data_normalized)) / (np.max(data_normalized) - np.min(data_normalized)) *50
+    #                 data_list_normalized.append(data_normalized)
 
-    # SST_input_matrix = np.stack(dend_list_SST[:n_SST], axis=0)
-    # NDNF_input_matrix = np.stack(dend_list_NDNF[:n_NDNF], axis=0)
 
-    n_EC = EC_input_matrix.shape[0]
-    n_pos = EC_input_matrix.shape[1]
-    n_trials = EC_input_matrix.shape[2]
+    #         data_array_normalized = np.array(data_list_normalized)
 
-    dx = 180.0 / n_pos  
+    #         overall_mu= np.mean(data_list_normalized)
+    #         overall_std = np.std(data_list_normalized)
 
-    # vel = an_velocity
-    # if vel.shape != (n_pos, n_trials):
-    #     raise ValueError(f"velocity shape {vel.shape} != {(n_pos, n_trials)}")
 
-    # if constant_vel:
-    #     an_velocity = np.full((an_velocity.shape), 43.)
+    #         animal_velocity_list_cm_sec = get_vel_formatted(residual_activity_dict_EC, factors_dict_EC)
+    #         data_normalized_list, r2_list = get_correlation(residual_activity_dict_EC, factors_dict_EC)
+    #         overall_mean = np.mean(data_normalized_list)
+    #         synthetic_data_plus_vel_list, synthetic_activity = get_synthetic_data(n_EC, pos_bins, n_trials, overall_mean, animal_velocity_list_cm_sec, r2_list)
 
-    L_prev = 1200
+    #         animal_velocity_array = np.array(animal_velocity_list_cm_sec)
+    #         an_velocity = np.mean(animal_velocity_array, axis=0) / 100
 
-    # precomputed_prepend = np.zeros(L_prev)
-    weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng)
-    max_length = 0
+    #         if optimization_time:
+    #             dend_vm_list, weights_EC, last_EPSP = turn_rates_into_spikes(synthetic_data_plus_vel_list, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, store_intermediates=False, rng=rng, debug=debug, optimization_time=False, mean=mean, std=std)
+    #         else:
+    #             dend_vm_list, weights_EC, last_EPSP, warped_list = turn_rates_into_spikes(synthetic_data_plus_vel_list, an_velocity, dist, kernel, dt_constant=dt_constant, n_dendrites=100, store_intermediates=False, rng=rng, debug=debug, optimization_time=True, mean=mean, std=std)
+
+    #         num_trials   = len(dend_vm_list)
+    #         n_dendrites_ = dend_vm_list[0].shape[0]   # assume constant across trials
+
+
+    #         # dend_vm_list: list of 2D arrays, each (n_dendrites, T_i)
+
+    #         num_trials = len(dend_vm_list)
+    #         n_dendrites_ = dend_vm_list[0].shape[0]
+    #         max_T = max(arr.shape[1] for arr in dend_vm_list)  # <-- time axis length
+
+    #         dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+
+    #         for i, arr in enumerate(dend_vm_list):
+    #             if arr.shape[0] != n_dendrites_:
+    #                 raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
+    #             Ti = arr.shape[1]               # current trial's time length
+    #             dend_vm_padded[i, :, :Ti] = arr # pad along time axis
+
+
+    #         print(f"dend_vm_padded.shape {dend_vm_padded.shape}")
+
+    #         Vm_list = []
+    #         for dend in range(dend_vm_padded.shape[1]):
+    #             trials_by_time = dend_vm_padded[:,dend,:]
+    #             Vm, _, _ = activity_to_dend_vm_2d(
+    #             trials_by_time,
+    #             Vrest=-70.0,
+    #             vm_scale=0.1,
+    #             center_across="time")
+    #             Vm_list.append(Vm)
+
+    #         activity_EC = np.array(Vm_list)
+
+    #         activity_NDNF=0
+    #         activity_SST=0 
+    #         NDNF_contribution_sum=0
+    #         SST_contribution_sum=0
+    #         weights_SST=0
+    #         weights_NDNF=0
+
+    #         return an_velocity, activity_EC, activity_NDNF, activity_SST, weights_EC, weights_SST, weights_NDNF, last_EPSP
+
+        
+    #     else:
+    #         random.seed(seed)
+    #         ts_list = []
+    #         for i in range(58):
+    #             ts = random_timeseries(1.0, 1., 49)
+    #             ts_list.append(ts)
+
+    #         dend_contribution_EC = np.array(ts_list).T
+    #         print(dend_contribution_EC.shape)
+
+    #         if constant_vel:
+    #             an_velocity = np.full(dend_contribution_EC.shape, 0.43)
+    #         else:
+    #             an_velocity = np.tile(mean_new_average_vel_array[:,None], (1,58))
+
+
+    #         # dend_contribution_EC /= dend_contribution_EC
+
+    #         return dend_contribution_EC, an_velocity 
+            
+    
+
+
+
+
+
+
+
+
+
+
+
+
+# --- memory debug helpers ---
+import os, psutil
+
+_PEAK_RSS = 0  # bytes
+
+def _get_current_rss_bytes():
+    try:
+        return psutil.Process(os.getpid()).memory_info().rss
+    except Exception:
+        return 0
+
+def _get_peak_rss_bytes():
+    global _PEAK_RSS
+    rss = _get_current_rss_bytes()
+    if rss > _PEAK_RSS:
+        _PEAK_RSS = rss
+    return _PEAK_RSS
+
+def _fmt_bytes(n):
+    try:
+        for unit in ("B","KB","MB","GB","TB"):
+            if n < 1024.0:
+                return f"{n:,.1f} {unit}"
+            n /= 1024.0
+    except Exception:
+        pass
+    return f"{n} B"
+
+
+# def turn_rates_into_spikes(
+#     dend_list_EC, an_velocity, dist, kernel,
+#     dt_constant=None, n_dendrites=100, rng=None, debug=False, optimization_time=None
+# ):
+#     assert dt_constant is not None
+#     dt_ms = float(dt_constant * 1000.0)
+
+#     if optimization_time:
+#         # ----- OPT PATH (no warped_list returned) -----
+#         EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float32, copy=False)
+#         n_EC, n_pos, n_trials = EC_input_matrix.shape
+#         dx = np.float32(180.0 / n_pos)
+
+#         weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng).astype(np.float32, copy=False)
+#         kernel = np.asarray(kernel, dtype=np.float32)
+
+#         L_prev = 1200
+#         last_EPSP = None
+#         dend_vm_list = []
+
+#         if debug:
+#             proc_peak_start = _get_peak_rss_bytes()
+
+#         for t in range(n_trials):
+#             if debug:
+#                 trial_wall_start = time.perf_counter()
+#                 trial_peak_before = _get_peak_rss_bytes()
+#                 trial_curr_before = _get_current_rss_bytes()
+
+#             v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)
+#             dt_s   = dx / v_cm_s
+#             time_points = np.cumsum(dt_s, dtype=np.float32)
+#             total_time  = float(time_points[-1])
+#             t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32)
+#             T = t_axis.size
+
+#             rows = np.empty((n_EC, T), dtype=np.float32)
+
+#             firing0 = EC_input_matrix[0, :, t]
+#             valid0  = np.isfinite(firing0)
+#             warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+#                        if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
+#             holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
+
+#             two_len = len(holder) + T + len(holder)
+#             two_track_length = np.empty(two_len, dtype=np.float32)
+#             t_ms = (np.arange(two_len, dtype=np.float32) * np.float32(dt_ms))
+
+#             for cell in range(n_EC):
+#                 firing = EC_input_matrix[cell, :, t]
+#                 valid  = np.isfinite(firing)
+#                 if valid.sum() >= 2:
+#                     warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+#                 else:
+#                     warped = np.full(1, np.nan, dtype=np.float32)
+
+#                 hL = len(holder)
+#                 two_track_length[:hL] = holder
+#                 two_track_length[hL:hL + warped.size] = warped
+#                 two_track_length[hL + warped.size:] = holder
+#                 holder = warped[-L_prev:] if warped.size >= L_prev else warped
+
+#                 spike_times = get_inhom_poisson_spike_times_by_thinning(
+#                     two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng
+#                 ).astype(np.int32, copy=False)
+
+#                 epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
+#                 epsps = epsps[hL:hL + T]
+#                 rows[cell, :] = epsps
+#                 last_EPSP = epsps
+
+#             dend_vm_over_time = (weights_EC.T @ rows).astype(np.float32, copy=False)  # (n_dendrites, T)
+#             dend_vm_list.append(dend_vm_over_time)
+
+#             if debug:
+#                 trial_wall_end = time.perf_counter()
+#                 trial_peak_after = _get_peak_rss_bytes()
+#                 trial_curr_after = _get_current_rss_bytes()
+#                 trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
+#                     else (trial_peak_after - trial_peak_before)
+#                 proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
+#                     else (trial_peak_after - proc_peak_start)
+#                 print(
+#                     f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
+#                     f"RSS now={_fmt_bytes(trial_curr_after)}  "
+#                     f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
+#                     f"proc peak={_fmt_bytes(trial_peak_after)}  "
+#                     f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
+#                 )
+
+#             del rows, two_track_length, warped0, warped, firing, firing0
+
+#         num_trials = len(dend_vm_list)
+#         n_dendrites_ = dend_vm_list[0].shape[0]
+#         max_T = max(arr.shape[1] for arr in dend_vm_list)
+
+#         dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+#         for i, arr in enumerate(dend_vm_list):
+#             Ti = arr.shape[1]
+#             dend_vm_padded[i, :, :Ti] = arr
+
+#         dend_contribution_EC = dend_vm_padded  # (trials, dendrites, time) f32
+
+#         if dend_contribution_EC.shape[1] != 100:
+#             print("dend_contribution_EC dendrites in the wrong axis")
+
+#         Vm_dict = {}
+#         for d in range(dend_contribution_EC.shape[1]):
+#             vm_array = dend_contribution_EC[:, d, :]  # f32
+#             Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+#             Vm_dict[d] = Vm.astype(np.float32, copy=False)
+
+#         dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
+#         return dend_activity, weights_EC, last_EPSP
+
+#     else:
+#         # ----- FULL PATH (also returns warped_list) -----
+#         EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float32, copy=False)
+#         n_EC, n_pos, n_trials = EC_input_matrix.shape
+#         dx = np.float32(180.0 / n_pos)
+
+#         weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng).astype(np.float32, copy=False)
+#         kernel = np.asarray(kernel, dtype=np.float32)
+
+#         L_prev = 1200
+#         last_EPSP = None
+#         dend_vm_list = []
+#         warped_list = []
+
+#         if debug:
+#             proc_peak_start = _get_peak_rss_bytes()
+
+#         for t in range(n_trials):
+#             if debug:
+#                 trial_wall_start = time.perf_counter()
+#                 trial_peak_before = _get_peak_rss_bytes()
+#                 trial_curr_before = _get_current_rss_bytes()
+
+#             v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)
+#             dt_s   = dx / v_cm_s
+#             time_points = np.cumsum(dt_s, dtype=np.float32)
+#             total_time  = float(time_points[-1])
+#             t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32)
+#             T = t_axis.size
+
+#             rows = np.empty((n_EC, T), dtype=np.float32)
+#             firing0 = EC_input_matrix[0, :, t]
+#             valid0  = np.isfinite(firing0)
+#             warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+#                        if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
+#             holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
+
+#             two_len = len(holder) + T + len(holder)
+#             two_track_length = np.empty(two_len, dtype=np.float32)
+#             t_ms = (np.arange(two_len, dtype=np.float32) * np.float32(dt_ms))
+
+#             warped_array = np.empty((n_EC, T), dtype=np.float32)
+
+#             for cell in range(n_EC):
+#                 firing = EC_input_matrix[cell, :, t]
+#                 valid  = np.isfinite(firing)
+#                 if valid.sum() >= 2:
+#                     warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+#                 else:
+#                     warped = np.full(1, np.nan, dtype=np.float32)
+
+#                 hL = len(holder)
+#                 two_track_length[:hL] = holder
+#                 two_track_length[hL:hL + warped.size] = warped
+#                 two_track_length[hL + warped.size:] = holder
+#                 holder = warped[-L_prev:] if warped.size >= L_prev else warped
+
+#                 spike_times = get_inhom_poisson_spike_times_by_thinning(
+#                     two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng
+#                 ).astype(np.int32, copy=False)
+
+#                 epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
+#                 epsps = epsps[hL:hL + T]
+#                 rows[cell, :] = epsps
+#                 warped_array[cell, :] = warped
+#                 last_EPSP = epsps
+
+#             dend_vm_over_time = (weights_EC.T @ rows).astype(np.float32, copy=False)
+#             dend_vm_list.append(dend_vm_over_time)
+#             warped_list.append(warped_array)
+
+#             if debug:
+#                 trial_wall_end = time.perf_counter()
+#                 trial_peak_after = _get_peak_rss_bytes()
+#                 trial_curr_after = _get_current_rss_bytes()
+#                 trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
+#                     else (trial_peak_after - trial_peak_before)
+#                 proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
+#                     else (trial_peak_after - proc_peak_start)
+#                 print(
+#                     f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
+#                     f"RSS now={_fmt_bytes(trial_curr_after)}  "
+#                     f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
+#                     f"proc peak={_fmt_bytes(trial_peak_after)}  "
+#                     f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
+#                 )
+
+#             del rows, two_track_length, warped0, warped, firing, firing0
+
+#         num_trials = len(dend_vm_list)
+#         n_dendrites_ = dend_vm_list[0].shape[0]
+#         max_T = max(arr.shape[1] for arr in dend_vm_list)
+
+#         dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+#         for i, arr in enumerate(dend_vm_list):
+#             Ti = arr.shape[1]
+#             dend_vm_padded[i, :, :Ti] = arr
+
+#         dend_contribution_EC = dend_vm_padded  # (trials, dendrites, time) f32
+
+#         if dend_contribution_EC.shape[1] != 100:
+#             print("dend_contribution_EC dendrites in the wrong axis")
+
+#         Vm_dict = {}
+#         for d in range(dend_contribution_EC.shape[1]):
+#             vm_array = dend_contribution_EC[:, d, :]
+#             Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+#             Vm_dict[d] = Vm.astype(np.float32, copy=False)
+
+#         dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
+#         return dend_activity, weights_EC, last_EPSP, warped_list
+
+
+# def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=None, n_dendrites=100, rng=None, debug=False, optimization_time=None, mean=None, std=None):
+    
+#     assert dt_constant is not None
+#     dt_ms = float(dt_constant * 1000.0)
+
+#     # Store EC inputs in f16 to keep memory low; upcast when needed
+#     EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float16, copy=False)
+#     n_EC, n_pos, n_trials = EC_input_matrix.shape
+#     dx = np.float32(180.0 / n_pos)
+
+#     # Weights in f32; sanitize/normalize if you had heavy tails
+#     weights_EC = sample_weights(dist, n_EC, n_dendrites,
+#                                 rng=rng, mean=mean, std=std).astype(np.float32, copy=False)
+#     # Optional: tame tails + per-dendrite L1 norm
+#     weights_EC[~np.isfinite(weights_EC)] = 0.0
+#     colsum = weights_EC.sum(axis=0, keepdims=True)
+#     weights_EC /= (colsum + 1e-8)
+
+#     kernel = np.asarray(kernel, dtype=np.float16)  # storage OK in f16
+
+#     # ---- pre-scan trial lengths to get T_max ----
+#     T_list = []
+#     for t in range(n_trials):
+#         v = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)
+#         dt_s = dx / v
+#         total_time = float(np.cumsum(dt_s, dtype=np.float32)[-1])
+#         T_list.append(int(np.ceil(total_time / float(dt_constant))))
+#     T_max = int(max(T_list))
+
+#     # ---- pre-allocate outputs (f16 to save RAM) ----
+#     dend_vm_padded = np.full((n_trials, n_dendrites, T_max), np.nan, dtype=np.float16)
+
+#     # Reusable scratch buffers (largest needed)
+#     L_prev = 1200
+#     two_len_max = L_prev + T_max + L_prev
+#     two_track = np.empty(two_len_max, dtype=np.float16)   # reused every cell
+#     t_idx_full = np.arange(two_len_max, dtype=np.int32)
+
+#     # Optional: only build warped_list when needed
+#     if not optimization_time:
+#         warped_list = []
+
+#     # ---- block size over EC cells ----
+#     block = 64  # tune (32/64/96) based on memory
+#     # Accumulator for each trial’s dendrite×time (f32 compute; downcast later)
+#     accum = np.empty((n_dendrites, T_max), dtype=np.float32)
+
+#     for t in range(n_trials):
+#         # Build time axis
+#         v = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)
+#         dt_s = dx / v
+#         time_points = np.cumsum(dt_s, dtype=np.float32)
+#         total_time = float(time_points[-1])
+#         t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32)
+#         T = t_axis.size
+
+#         # Prime holder using cell 0
+#         firing0 = EC_input_matrix[0, :, t].astype(np.float32, copy=False)
+#         valid0 = np.isfinite(firing0)
+#         warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+#                    if valid0.sum() >= 2 else np.zeros(1, dtype=np.float32))
+#         holder = warped0.astype(np.float16, copy=False)
+#         holder = holder[-L_prev:] if holder.size >= L_prev else holder
+
+#         if not optimization_time:
+#             warped_array = np.empty((n_EC, T), dtype=np.float16)
+
+#         # zero the accumulator for this trial
+#         accum[:, :T] = 0.0
+
+#         # ---- process EC cells in blocks ----
+#         for start in range(0, n_EC, block):
+#             end = min(start + block, n_EC)
+#             B = end - start
+
+#             # rows for this block (B × T) as f16 storage, cast to f32 at matmul
+#             rows_block = np.empty((B, T), dtype=np.float16)
+
+#             for bi, cell in enumerate(range(start, end)):
+#                 firing = EC_input_matrix[cell, :, t].astype(np.float32, copy=False)
+#                 valid = np.isfinite(firing)
+#                 warped = (np.interp(t_axis, time_points[valid], firing[valid])
+#                           if valid.sum() >= 2 else np.zeros(1, dtype=np.float32))
+
+#                 # stitch holder | warped | holder into two_track (all f16)
+#                 hL = len(holder)
+#                 two_len = hL + warped.size + hL
+#                 tt = two_track[:two_len]
+#                 tt[:hL] = holder
+#                 w16 = warped.astype(np.float16, copy=False)
+#                 tt[hL:hL + w16.size] = w16
+#                 tt[hL + w16.size:] = holder
+
+#                 # update holder for next cell
+#                 holder = w16[-L_prev:] if w16.size >= L_prev else w16
+
+#                 # thinning; upcast to f32 for the function if it expects f32
+#                 spike_times = get_inhom_poisson_spike_times_by_thinning(
+#                     tt.astype(np.float32, copy=False), t_idx_full[:two_len],
+#                     dt=dt_ms, refractory=3., generator=None, rng=rng).astype(np.int32, copy=False)
+
+#                 epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
+#                 last_EPSP = epsps
+#                 rows_block[bi, :] = epsps[hL:hL + T].astype(np.float16, copy=False)
+
+#                 if not optimization_time:
+#                     warped_array[cell, :] = w16  # store warped for debug/viz
+
+#             # matmul for this block: (n_EC_block × n_dendrites)^T @ (n_EC_block × T)
+#             # weights slice is f32; rows upcast to f32 for compute
+#             W_blk = weights_EC[start:end, :]                           # (B, n_dendrites) f32
+#             accum[:, :T] += (W_blk.T @ rows_block.astype(np.float32))  # (n_dendrites, T)
+
+#         # store this trial’s result in f16
+#         dend_vm_padded[t, :, :T] = accum[:, :T].astype(np.float16, copy=False)
+
+#         if not optimization_time:
+#             warped_list.append(warped_array)
+
+#     # final tensor
+#     dend_contribution_EC = dend_vm_padded  # (trials, dendrites, T_max) f16
+
+#     # Vm transform: compute f32, store f16
+#     Vm_dict = {}
+#     for d in range(dend_contribution_EC.shape[1]):
+#         vm_array = dend_contribution_EC[:, d, :].astype(np.float32, copy=False)
+#         Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+#         Vm_dict[d] = Vm.astype(np.float16, copy=False)
+#     dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float16, copy=False)
+
+#     if not optimization_time:
+#         return dend_activity, weights_EC, last_EPSP, warped_list
+#     else:
+#         return dend_activity, weights_EC, last_EPSP
+
+
+
+############################################################################################################# good version 
+
+
+
+def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=None, n_dendrites=100, rng=None, debug=False, optimization_time=None, mean=None, std=None):
+
+    # if optimization_time:
+    assert dt_constant is not None
+    dt_ms = float(dt_constant * 1000.0)
+
+    EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float32, copy=False)
+    n_EC, n_pos, n_trials = EC_input_matrix.shape
+
+    dx = np.float32(180.0 / n_pos)
+
+    weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng, mean=mean, std=std).astype(np.float32, copy=False)
+
+    kernel = np.asarray(kernel, dtype=np.float32)
+
+    L_prev = 1200  
+    last_EPSP = None
     dend_vm_list = []  
+    if debug:
+        proc_peak_start = _get_peak_rss_bytes()
+
+    if not optimization_time:
+        warped_list = []
+
+    for t in range(n_trials):
+        if debug:
+            trial_wall_start = time.perf_counter()
+            trial_peak_before = _get_peak_rss_bytes()
+            trial_curr_before = _get_current_rss_bytes()
+
+
+        v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)  # (n_pos,)
+        dt_s   = dx / v_cm_s                                                                 # (n_pos,)
+        time_points = np.cumsum(dt_s, dtype=np.float32)                                      # len n_pos
+        total_time  = float(time_points[-1])
+        t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32)           # (T,)
+        T = t_axis.size
+
+        rows = np.empty((n_EC, T), dtype=np.float32)
+        firing0 = EC_input_matrix[0, :, t].astype(np.float32, copy=False)
+        valid0  = np.isfinite(firing0)
+        warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+                if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
+        warped0 = warped0.astype(np.float32, copy=False)
+        holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
+
+        two_len = len(holder) + T + len(holder)
+        two_track_length = np.empty(two_len, dtype=np.float32)
+        t_idx = np.arange(two_len, dtype=np.int32)
+
+        if not optimization_time:
+            warped_array = np.empty((n_EC, T), dtype=np.float32)
+
+        for cell in range(n_EC):
+            firing = EC_input_matrix[cell, :, t].astype(np.float32, copy=False)
+            valid  = np.isfinite(firing)
+            if valid.sum() >= 2:
+                warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+            else:
+                warped = np.full(1, np.nan, dtype=np.float32)
+
+            hL = len(holder)
+            two_track_length[:hL] = holder
+            two_track_length[hL:hL + warped.size] = warped
+            two_track_length[hL + warped.size:] = holder
+
+            holder = warped[-L_prev:] if warped.size >= L_prev else warped
+
+            spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(np.int32, copy=False)
+
+            epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
+            epsps = epsps[hL:hL + T]  
+
+            rows[cell, :] = epsps.astype(np.float32, copy=False)
+            if not optimization_time:
+                warped_array[cell, :] = warped
+
+            last_EPSP = epsps  
+
+        dend_vm_over_time = (weights_EC.astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T)
+
+        dend_vm_list.append(dend_vm_over_time)
+
+        if (t & 7) == 7:
+            import gc; gc.collect()
+
+        if not optimization_time:
+            warped_list.append(warped_array.astype(np.float32, copy=False))
+
+        if debug:
+            trial_wall_end = time.perf_counter()
+            trial_peak_after = _get_peak_rss_bytes()
+            trial_curr_after = _get_current_rss_bytes()
+            trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
+                else (trial_peak_after - trial_peak_before)
+            proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
+                else (trial_peak_after - proc_peak_start)
+            print(
+                f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
+                f"RSS now={_fmt_bytes(trial_curr_after)}  "
+                f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
+                f"proc peak={_fmt_bytes(trial_peak_after)}  "
+                f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
+            )
+
+        del rows, two_track_length, warped0, warped, firing, firing0
+
+    num_trials = len(dend_vm_list)
+    n_dendrites_ = dend_vm_list[0].shape[0]
+    max_T = max(arr.shape[1] for arr in dend_vm_list)
+
+    dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+    for i, arr in enumerate(dend_vm_list):
+        Ti = arr.shape[1]
+        dend_vm_padded[i, :, :Ti] = arr
+
+    dend_contribution_EC = dend_vm_padded  # (trials, dendrites, time) f16
+
+    if dend_contribution_EC.shape[1] != 100:
+        print("dend_contribution_EC dendrites in the wrong axis")
+
+    Vm_dict = {}
+    for d in range(dend_contribution_EC.shape[1]):
+        vm_array = dend_contribution_EC[:, d, :].astype(np.float32, copy=False)
+        Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+        Vm_dict[d] = Vm.astype(np.float32, copy=False)
+
+    dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
+
+    if not optimization_time:
+        return dend_activity, weights_EC, last_EPSP, warped_list
+    else:
+        return dend_activity, weights_EC, last_EPSP
+
+
+##############################################################################################################
+
+
+
+
+
+def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt_constant=None, n_dendrites=100, rng=None, debug=False, optimization_time=None, mean=None, std=None):
+
+    # if optimization_time:
+    assert dt_constant is not None
+    dt_ms = float(dt_constant * 1000.0)
+
+    EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float32, copy=False)
+    n_EC, n_pos, n_trials = EC_input_matrix.shape
+
+
+    SST_input_matrix = np.stack(dend_list_SST, axis=0).astype(np.float32, copy=False)
+    n_SST, n_pos, n_trials = SST_input_matrix.shape
+
+
+    NDNF_input_matrix = np.stack(dend_list_NDNF, axis=0).astype(np.float32, copy=False)
+    n_NDNF, n_pos, n_trials = NDNF_input_matrix.shape
+
+    input_pop_list = [EC_input_matrix, SST_input_matrix, NDNF_input_matrix]
+
+    dx = np.float32(180.0 / n_pos)
+
+    weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng, mean=mean, std=std).astype(np.float32, copy=False)
+
+    weights_SST = sample_weights("Equal", n_SST, n_dendrites, rng=rng, mean=SST_sf_opt).astype(np.float32, copy=False)
+
+    weights_NDNF = sample_weights("Equal", n_NDNF, n_dendrites, rng=rng, mean=NDNF_sf_opt).astype(np.float32, copy=False)
+
+    weights_list = [weights_EC, weights_SST, weights_NDNF]
+
+
+    # W64 = sample_weights(dist, n_EC, n_dendrites, rng=rng, mean=mean, std=std)  # float64 by default
+    # print("pre-cast finite?", np.isfinite(W64).all(), "max:", W64.max())
+
+    # W16 = W64.astype(np.float16, copy=False)
+    # print("post-cast finite?", np.isfinite(W16).all(), "num inf:", np.isinf(W16).sum())
+
+    # kernel used by epsp add — keep as f16
+    kernel = np.asarray(kernel, dtype=np.float32)
+
+    L_prev = 1200  # history prepend/append
+    last_EPSP = None
+   
 
     if debug:
-        proc_peak_start = _get_peak_rss_bytes()   # peak at loop start
+        proc_peak_start = _get_peak_rss_bytes()
 
-    warped_list = []
+    if not optimization_time:
+        warped_dict = {}
 
-    last_EPSP = None
+    dend_vm_dict = {}
 
-    
+    label_list = ["EC", "SST", "NDNF"]
 
-    min_trial_length = 1000000
-    
 
-    for t in range(EC_input_matrix.shape[2]):
-        
+    for idx, input_population in enumerate(input_pop_list):
+
+        label = label_list[idx]
 
         if debug:
             trial_wall_start = time.perf_counter()
             trial_peak_before = _get_peak_rss_bytes()
             trial_curr_before = _get_current_rss_bytes()
 
-        start_time = time.time()
-        v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]) 
-        dt_s   = dx / v_cm_s                             
-        edges_s = np.concatenate(([0.0], np.cumsum(dt_s)))
-        total_time = float(edges_s[-1])
+        dend_vm_list = []  # per-trial, shape (n_dendrites, T_t) in f16
+
+        if not optimization_time:
+            warped_list = []
 
 
-        # constant-time axis in seconds
-        t_axis = np.arange(0.0, total_time, dt_constant, dtype=np.float64)
+        for t in range(n_trials):
+
+            v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)  # (n_pos,)
+            dt_s   = dx / v_cm_s                                                                 # (n_pos,)
+            time_points = np.cumsum(dt_s, dtype=np.float32)                                      # len n_pos
+            total_time  = float(time_points[-1])
+            t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32)           # (T,)
+            T = t_axis.size
+        
+            # rows = np.empty((n_EC, T), dtype=np.float32)
+            rows = np.zeros((input_population.shape[0], T), dtype=np.float32)
+
+            firing0 = input_population[0, :, t].astype(np.float32, copy=False)
+            valid0  = np.isfinite(firing0)
+            warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+                    if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
+            warped0 = warped0.astype(np.float32, copy=False)
+            holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
+
+            # total two-track buffer in f16
+            two_len = len(holder) + T + len(holder)
+            two_track_length = np.empty(two_len, dtype=np.float32)
+            t_idx = np.arange(two_len, dtype=np.int32)
+
+            if not optimization_time:
+                warped_array = np.empty((input_population.shape[0], T), dtype=np.float32)
+
+            for cell in range(input_population.shape[0]):
+                firing = input_population[cell, :, t].astype(np.float32, copy=False)
+                valid  = np.isfinite(firing)
+                if valid.sum() >= 2:
+                    warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+                else:
+                    warped = np.full(1, np.nan, dtype=np.float32)
+
+                hL = len(holder)
+                two_track_length[:hL] = holder
+                two_track_length[hL:hL + warped.size] = warped
+                two_track_length[hL + warped.size:] = holder
+
+                holder = warped[-L_prev:] if warped.size >= L_prev else warped
+
+                spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(np.int32, copy=False)
+
+                epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
+                epsps = epsps[hL:hL + T]  # crop back to the middle warped region (length T)
+
+                # rows[cell, :] = epsps.astype(np.float32, copy=False)
+                if label in ("SST", "NDNF"):
+                    epsps *= -1.0
+
+                rows[cell, :] += epsps.astype(np.float32, copy=False)
+                if not optimization_time:
+                    warped_array[cell, :] = warped
+
+                last_EPSP = epsps  
+
+            # ----- dendritic VM = W^T @ rows ; do compute in f32 then downcast -----
+            # weights_EC: (n_EC, n_dendrites), rows: (n_EC, T)
+            # dend_vm_over_time = (weights_EC.astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T) #### dendrite contribution
+
+            dend_vm_contribution = (weights_list[idx].astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T) #### dendrite contribution
+
+            dend_vm_list.append(dend_vm_contribution)
+            
+            if (t & 7) == 7:
+                import gc; gc.collect()
+
+            if not optimization_time:
+                warped_list.append(warped_array.astype(np.float32, copy=False))
+
+            if debug:
+                trial_wall_end = time.perf_counter()
+                trial_peak_after = _get_peak_rss_bytes()
+                trial_curr_after = _get_current_rss_bytes()
+                trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
+                    else (trial_peak_after - trial_peak_before)
+                proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
+                    else (trial_peak_after - proc_peak_start)
+                print(
+                    f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
+                    f"RSS now={_fmt_bytes(trial_curr_after)}  "
+                    f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
+                    f"proc peak={_fmt_bytes(trial_peak_after)}  "
+                    f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
+                )
+
+            # free large temporaries as we go
+            del rows, two_track_length, warped0, warped, firing, firing0
+
+    # ----- optional padding (still f16) -----
+        num_trials = len(dend_vm_list)
+        n_dendrites_ = dend_vm_list[0].shape[0]
+        max_T = max(arr.shape[1] for arr in dend_vm_list)
+
+        dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+        for i, arr in enumerate(dend_vm_list):
+            Ti = arr.shape[1]
+            dend_vm_padded[i, :, :Ti] = arr
+
+        dend_contribution = dend_vm_padded  # (trials, dendrites, time) f16
+
+        dend_vm_dict[label] = dend_contribution
+        warped_dict[label] = warped_list
+
+    overall_dend_contribution = dend_vm_dict["EC"] + dend_vm_dict["SST"] + dend_vm_dict["NDNF"]
+
+    if dend_contribution.shape[1] != 100:
+        print("dend_contribution_EC dendrites in the wrong axis")
+
+    # ----- Vm transform (compute f32; store f16) -----
+    Vm_dict = {}
+    for d in range(overall_dend_contribution.shape[1]):
+        vm_array = overall_dend_contribution[:, d, :].astype(np.float32, copy=False)
+        Vm, _, _ = activity_to_dend_vm_2d(
+            vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+        Vm_dict[d] = Vm.astype(np.float32, copy=False)
+
+    dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
+
+    if not optimization_time:
+        return dend_activity, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict
+    else:
+        return dend_activity, weights_EC, last_EPSP
+
+    # else:
+
+    #     assert dt_constant is not None
+    #     dt_ms = float(dt_constant * 1000.0)
+
+    #     EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float16, copy=False)
+    #     n_EC, n_pos, n_trials = EC_input_matrix.shape
+    #     dx = np.float32(180.0 / n_pos)
+
+    #     weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng, mean=mean, std=std).astype(np.float16, copy=False)
+
+    #     # kernel used by epsp add — keep as f16
+    #     kernel = np.asarray(kernel, dtype=np.float16)
+
+    #     L_prev = 1200  # history prepend/append
+    #     last_EPSP = None
+    #     dend_vm_list = []  # per-trial, shape (n_dendrites, T_t) in f16
+
+    #     if debug:
+    #         proc_peak_start = _get_peak_rss_bytes()
+
+    #     warped_list = []
+
+    #     for t in range(n_trials):
+    #         if debug:
+    #             trial_wall_start = time.perf_counter()
+    #             trial_peak_before = _get_peak_rss_bytes()
+    #             trial_curr_before = _get_current_rss_bytes()
+
+    #         # ----- build time axis (f32 compute, then cast) -----
+    #         v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)  # (n_pos,)
+    #         dt_s   = dx / v_cm_s                                                                 # (n_pos,)
+    #         time_points = np.cumsum(dt_s, dtype=np.float32)                                      # len n_pos
+    #         total_time  = float(time_points[-1])
+    #         t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32)           # (T,)
+    #         T = t_axis.size
+
+    #         # Prealloc buffers (f16 storage)
+    #         rows = np.empty((n_EC, T), dtype=np.float16)
+    #         firing0 = EC_input_matrix[0, :, t].astype(np.float32, copy=False)
+    #         valid0  = np.isfinite(firing0)
+    #         warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+    #                 if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
+    #         warped0 = warped0.astype(np.float16, copy=False)
+    #         holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
+
+    #         # total two-track buffer in f16
+    #         two_len = len(holder) + T + len(holder)
+    #         two_track_length = np.empty(two_len, dtype=np.float16)
+    #         t_idx = np.arange(two_len, dtype=np.int32)
+
+    #         warped_array = np.empty((n_EC, T), dtype=np.float16)
+            
+
+    #         for cell in range(n_EC):
+    #             firing = EC_input_matrix[cell, :, t].astype(np.float32, copy=False)
+    #             valid  = np.isfinite(firing)
+    #             if valid.sum() >= 2:
+    #                 warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float16, copy=False)
+    #             else:
+    #                 warped = np.full(1, np.nan, dtype=np.float16)
+
+    #             # stitch [holder | warped | holder] into two_track_length
+    #             hL = len(holder)
+    #             two_track_length[:hL] = holder
+    #             two_track_length[hL:hL + warped.size] = warped
+    #             two_track_length[hL + warped.size:] = holder
+
+    #             # update holder for next cell
+    #             holder = warped[-L_prev:] if warped.size >= L_prev else warped
+
+    #             # spikes + EPSPs
+    #             spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(np.int32, copy=False)
+
+    #             epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float16, copy=False)
+    #             epsps = epsps[hL:hL + T]  # crop back to the middle warped region (length T)
+
+    #             rows[cell, :] = epsps
+    #             warped_array[cell, :] = warped
+
+    #             last_EPSP = epsps  
+
+    #         # ----- dendritic VM = W^T @ rows ; do compute in f32 then downcast -----
+    #         # weights_EC: (n_EC, n_dendrites), rows: (n_EC, T)
+    #         dend_vm_over_time = (weights_EC.astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float16, copy=False)  # (n_dendrites, T)
+
+    #         dend_vm_list.append(dend_vm_over_time)
+    #         warped_list.append(warped_array)
+
+    #         if debug:
+    #             trial_wall_end = time.perf_counter()
+    #             trial_peak_after = _get_peak_rss_bytes()
+    #             trial_curr_after = _get_current_rss_bytes()
+    #             trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
+    #                 else (trial_peak_after - trial_peak_before)
+    #             proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
+    #                 else (trial_peak_after - proc_peak_start)
+    #             print(
+    #                 f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
+    #                 f"RSS now={_fmt_bytes(trial_curr_after)}  "
+    #                 f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
+    #                 f"proc peak={_fmt_bytes(trial_peak_after)}  "
+    #                 f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
+    #             )
+
+    #         # free large temporaries as we go
+    #         del rows, two_track_length, warped0, warped, firing, firing0
+
+    #     # ----- optional padding (still f16) -----
+    #     num_trials = len(dend_vm_list)
+    #     n_dendrites_ = dend_vm_list[0].shape[0]
+    #     max_T = max(arr.shape[1] for arr in dend_vm_list)
+
+    #     dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float16)
+    #     for i, arr in enumerate(dend_vm_list):
+    #         Ti = arr.shape[1]
+    #         dend_vm_padded[i, :, :Ti] = arr
+
+    #     dend_contribution_EC = dend_vm_padded  # (trials, dendrites, time) f16
+
+    #     if dend_contribution_EC.shape[1] != 100:
+    #         print("dend_contribution_EC dendrites in the wrong axis")
+
+    #     # ----- Vm transform (compute f32; store f16) -----
+    #     Vm_dict = {}
+    #     for d in range(dend_contribution_EC.shape[1]):
+    #         vm_array = dend_contribution_EC[:, d, :].astype(np.float32, copy=False)
+    #         Vm, _, _ = activity_to_dend_vm_2d(
+    #             vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+    #         Vm_dict[d] = Vm.astype(np.float16, copy=False)
+
+    #     dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float16, copy=False)
+
+    #     return dend_activity, weights_EC, last_EPSP, warped_list
+    
+
+
+
+
+# def turn_rates_into_spikes(dend_list_EC, an_velocity, dist, kernel, dt_constant=None, n_dendrites=100,rng=None, debug=False):
+
+#     print(f"dt_constant {dt_constant}")
+
+#     dt_ms = dt_constant*1000.
+
+#     EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float16, copy=False)
+
+#     # for i in range(EC_input_matrix.shape[0]):
+#     #     EC_input_matrix[i]
+
+#     # SST_input_matrix = np.stack(dend_list_SST[:n_SST], axis=0)
+#     # NDNF_input_matrix = np.stack(dend_list_NDNF[:n_NDNF], axis=0)
+
+#     n_EC = EC_input_matrix.shape[0]
+#     n_pos = EC_input_matrix.shape[1]
+#     n_trials = EC_input_matrix.shape[2]
+
+#     dx = np.float32(180.0 / n_pos)
+
+#     # vel = an_velocity
+#     # if vel.shape != (n_pos, n_trials):
+#     #     raise ValueError(f"velocity shape {vel.shape} != {(n_pos, n_trials)}")
+
+#     # if constant_vel:
+#     #     an_velocity = np.full((an_velocity.shape), 43.)
+
+#     L_prev = 1200
+
+#     # precomputed_prepend = np.zeros(L_prev)
+#     weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng).astype(np.float16, copy=False)
+#     max_length = 0
+#     dend_vm_list = []  
+
+#     kernel = np.asarray(kernel, dtype=np.float16)
+
+#     if debug:
+#         proc_peak_start = _get_peak_rss_bytes()   # peak at loop start
+
+#     warped_list = []
+
+#     last_EPSP = None
+
+    
+
+#     min_trial_length = 1000000
+    
+
+#     for t in range(EC_input_matrix.shape[2]):
         
 
-        max_time_over_cells = 0
-        T = t_axis.size
+#         if debug:
+#             trial_wall_start = time.perf_counter()
+#             trial_peak_before = _get_peak_rss_bytes()
+#             trial_curr_before = _get_current_rss_bytes()
 
-        firing_example = EC_input_matrix[0, :, t].astype(np.float64, copy=False)
-        valid = np.isfinite(firing_example)
-        time_points = np.cumsum(dt_s)
-        
-        firing_zero = EC_input_matrix[0, :, t].astype(np.float64, copy=False)
-        warped_zero = np.interp(t_axis, time_points[valid], firing_zero[valid]).astype(np.float32, copy=False)
-        min_trial_length = warped_zero.shape[0]
+#         start_time = time.time()
+#         v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)  # (n_pos,)
+#         dt_s   = dx / v_cm_s                             
+#         edges_s = np.concatenate(([0.0], np.cumsum(dt_s)))
+#         total_time = float(edges_s[-1])
 
-        holder = warped_zero[-L_prev:]
-        # ender = warped_zero[-L_prev:]
 
-        warped_rows = [] 
-
-        rows = np.empty((n_EC, T), dtype=np.float32)   
-
-        two_track_length = np.empty(len(holder) + len(warped_zero) + len(holder))
-        # two_track_length = np.empty(len(holder) + len(warped_zero))
-
-        # two_track_length_list = []
-        # EPSP_LIST = []
-
-        t_ms = np.arange(two_track_length.size, dtype=int) * dt_ms
-
+#         # constant-time axis in seconds
+#         t_axis = np.arange(0.0, total_time, float(dt_constant), dtype=np.float32) 
         
 
+#         max_time_over_cells = 0
+#         T = t_axis.size
 
-        for cell in range(n_EC):
-            firing = EC_input_matrix[cell, :, t].astype(np.float64, copy=False)
-            valid = np.isfinite(firing)
-            if valid.sum() >= 2:
-                time_points = np.cumsum(dt_s)  # length n_pos
+#         # Prealloc buffers (f16 storage)
+#         rows = np.empty((n_EC, T), dtype=np.float16)
+#         # we’ll reuse holder as f16
+#         # first cell’s warped determines initial holder
+#         firing0 = EC_input_matrix[0, :, t].astype(np.float32, copy=False)
+#         valid0  = np.isfinite(firing0)
+#         warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
+#                    if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
+#         warped0 = warped0.astype(np.float16, copy=False)
+#         holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
 
-                warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
+#         # total two-track buffer in f16
+#         two_len = len(holder) + T + len(holder)
+#         two_track_length = np.empty(two_len, dtype=np.float16)
+#         # time index for spike gen: plain indices; dt passed separately
+#         t_idx = np.arange(two_len, dtype=np.int32)
+
+#         firing_example = EC_input_matrix[0, :, t].astype(np.float64, copy=False)
+#         valid = np.isfinite(firing_example)
+#         time_points = np.cumsum(dt_s)
+        
+#         firing_zero = EC_input_matrix[0, :, t].astype(np.float64, copy=False)
+#         warped_zero = np.interp(t_axis, time_points[valid], firing_zero[valid]).astype(np.float32, copy=False)
+#         #min_trial_length = warped_zero.shape[0]
+
+#         holder = warped_zero[-L_prev:]
+#         # ender = warped_zero[-L_prev:]
+
+#         # warped_rows = [] 
+
+#         rows = np.empty((n_EC, T), dtype=np.float32)   
+
+#         two_track_length = np.empty(len(holder) + len(warped_zero) + len(holder))
+#         # two_track_length = np.empty(len(holder) + len(warped_zero))
+
+#         # two_track_length_list = []
+#         # EPSP_LIST = []
+
+#         t_ms = np.arange(two_track_length.size, dtype=int) * dt_ms
+
+        
+
+
+#         for cell in range(n_EC):
+#             firing = EC_input_matrix[cell, :, t].astype(np.float64, copy=False)
+#             valid = np.isfinite(firing)
+#             if valid.sum() >= 2:
+#                 time_points = np.cumsum(dt_s)  # length n_pos
+
+#                 warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
                 
-                # holder = warped[:L_prev]
-                # ender = warped[-L_prev:]
-            else:
-                warped = np.full(1, np.nan, dtype=np.float32)
-                # holder = warped[-L_prev:]
-                # holder = warped[:L_prev]
-                # ender = warped[-L_prev:]
-            
-            warped_rows.append(warped)
+#             else:
+#                 warped = np.full(1, np.nan, dtype=np.float32)
 
-            two_track_length[:len(holder)] = holder
-            two_track_length[-len(holder):] = holder
-            two_track_length[len(holder):len(holder)+len(warped)] = warped
-            # two_track_length[len(holder):] = warped
+#             # warped_rows.append(warped)
+
+#             two_track_length[:len(holder)] = holder
+#             two_track_length[-len(holder):] = holder
+#             two_track_length[len(holder):len(holder)+len(warped)] = warped
+
+#             holder = warped[-L_prev:]
 
 
-            # two_track_length_list.append(two_track_length)
+#             spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
 
-            holder = warped[-L_prev:]
-
-
-            spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_ms, dt=dt_ms, refractory=3., generator=None, rng=rng).astype(int) 
-            # spike_train = np.zeros(two_track_length.shape)
-            # spike_train[spike_times] = 1
-
-            # epsps_full = np.convolve(spike_train, kernel, mode='full')[:two_track_length.size]  
-
-            epsps = epsps_event_add(spike_times, two_track_length.shape[0], kernel).astype(np.float16, copy=False)
-            epsps = epsps[L_prev:L_prev+warped.size]
+#             epsps = epsps_event_add(spike_times, two_track_length.shape[0], kernel).astype(np.float16, copy=False)
+#             epsps = epsps[L_prev:L_prev+warped.size]
 
 
-            # epsps = epsps[L_prev:]
-
-            # EPSP_LIST.append(epsps)
-
-            last_EPSP = epsps
+#             last_EPSP = epsps
 
             
-            if len(epsps) > max_time_over_cells:
-                max_time_over_cells = len(epsps)
-            rows[cell,:] = epsps
+#             if len(epsps) > max_time_over_cells:
+#                 max_time_over_cells = len(epsps)
+#             rows[cell,:] = epsps
 
-        # epsp_array = np.array(EPSP_LIST)
-        # plt.plot(np.mean(epsp_array, axis=0))
-        # plt.title(f"trial {t}")
-        # plt.show()
+#         # epsp_array = np.array(EPSP_LIST)
+#         # plt.plot(np.mean(epsp_array, axis=0))
+#         # plt.title(f"trial {t}")
+#         # plt.show()
 
-        # two_track_length_array = np.array(two_track_length_list)
-        # plt.plot(np.mean(two_track_length_array, axis=0))
-        # plt.title("mean two track length")
-        # plt.show()
+#         # two_track_length_array = np.array(two_track_length_list)
+#         # plt.plot(np.mean(two_track_length_array, axis=0))
+#         # plt.title("mean two track length")
+#         # plt.show()
 
-        warped_rows_array = np.array(warped_rows)
-
-        print(f"warped_rows_array.shape {warped_rows_array.shape}")
-
-        warped_list.append(warped_rows_array) 
         
-        X_trial = np.stack(rows, axis=0).astype(np.float16, copy=False)
+        
+#         #warped_rows_array = np.array(warped_rows)
+#         #warped_list.append(warped_rows_array) 
+        
 
-        print(f"X_trial.shape {X_trial.shape}")
+
+#         # X_trial = np.stack(rows, axis=0).astype(np.float16, copy=False)
 
   
 
-        dendy_list = []
+#         dendy_list = []
 
-        for dend in range(n_dendrites):
-            w = weights_EC[:, dend]            # shape (n_EC,)
-            vm_t = w @ X_trial 
-            dendy_list.append(vm_t)
+#         for dend in range(n_dendrites):
+#             w = weights_EC[:, dend]            # shape (n_EC,)
+#             vm_t = w @ rows 
+#             dendy_list.append(vm_t)
             
-        dend_vm_over_time = np.array(dendy_list, dtype=np.float16)
+#         dend_vm_over_time = np.array(dendy_list, dtype=np.float16)
 
 
-        # dend_vm_over_time = weights_EC @ X_trial
+#         # dend_vm_over_time = weights_EC @ X_trial
 
-        if len(dend_vm_over_time) > max_length:
-            max_length = len(dend_vm_over_time)
+#         if len(dend_vm_over_time) > max_length:
+#             max_length = len(dend_vm_over_time)
 
-        dend_vm_list.append(dend_vm_over_time)
+#         dend_vm_list.append(dend_vm_over_time)
 
-        
-        if debug:
-            end_time = time.time()
 
-            end_time = time.time()
-            # --- memory + timing report ---
-            trial_wall_end = time.time()
-            trial_peak_after = _get_peak_rss_bytes()
-            trial_curr_after = _get_current_rss_bytes()
 
-            trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
-                else (trial_peak_after - trial_peak_before)
-            proc_peak_total  = trial_peak_after
-            proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
-                else (trial_peak_after - proc_peak_start)
+#     num_trials   = len(dend_vm_list)
+#     n_dendrites_ = dend_vm_list[0].shape[0]   # assume constant across trials
 
-            print(
-                f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
-                f"RSS now={_fmt_bytes(trial_curr_after)}  "
-                f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
-                f"proc peak={_fmt_bytes(proc_peak_total)}  "
-                f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
-            )
-            print(f"total time {end_time-start_time}")
 
-        del rows, X_trial, dend_vm_over_time, epsps, 
+#     print(f"num_trials{num_trials} n_dendrites_ {n_dendrites_}")
 
-    return dend_vm_list, weights_EC, last_EPSP, min_trial_length, warped_list
+#     num_trials = len(dend_vm_list)
+#     n_dendrites_ = dend_vm_list[0].shape[0]
+#     max_T = max(arr.shape[1] for arr in dend_vm_list)  # <-- time axis length
+
+#     print(f"num_trials={num_trials}  n_dendrites_={n_dendrites_}  max_T={max_T}")
+
+#     dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+
+#     for i, arr in enumerate(dend_vm_list):
+#         if arr.shape[0] != n_dendrites_:
+#             raise ValueError(f"Trial {i}: n_dendrites mismatch: {arr.shape[0]} != {n_dendrites_}")
+#         Ti = arr.shape[1]               # current trial's time length
+#         dend_vm_padded[i, :, :Ti] = arr # pad along time axis
+
+#     dend_contribution_EC = dend_vm_padded
+
+#     if dend_contribution_EC.shape[1] != 100:
+#         print("dend_contribution_EC dendrites in the wrong axis")
+
+
+
+#     Vm_dict = {}
+#     for dend in range(dend_contribution_EC.shape[1]):
+#         vm_array_shaped = dend_contribution_EC[:, dend, :]
+#         Vm, _, _ = activity_to_dend_vm_2d(
+#             vm_array_shaped,
+#             Vrest=-70.0,
+#             vm_scale=0.1,
+#             center_across="time")
+#         Vm_dict[dend] = Vm
+
+#     vm_list = []
+#     for trial in Vm_dict:
+#         vm_list.append(Vm_dict[trial])
+
+#     dend_activity = np.array(vm_list)
+
+
+
+    
+#     if debug:
+#         end_time = time.time()
+
+#         end_time = time.time()
+#         # --- memory + timing report ---
+#         trial_wall_end = time.time()
+#         trial_peak_after = _get_peak_rss_bytes()
+#         trial_curr_after = _get_current_rss_bytes()
+
+#         trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
+#             else (trial_peak_after - trial_peak_before)
+#         proc_peak_total  = trial_peak_after
+#         proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
+#             else (trial_peak_after - proc_peak_start)
+
+#         print(
+#             f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
+#             f"RSS now={_fmt_bytes(trial_curr_after)}  "
+#             f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
+#             f"proc peak={_fmt_bytes(proc_peak_total)}  "
+#             f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
+#         )
+#         print(f"total time {end_time-start_time}")
+
+#     del rows, dend_vm_over_time, epsps, 
+
+#     return dend_activity, weights_EC, last_EPSP #, min_trial_length #, warped_list
 
 def load_yaml_cfg(path: str) -> Tuple[SimConfig, StoreFlags]:
     with open(path, "r") as f:
@@ -1214,74 +2223,80 @@ class SpikeSimModel:
         state["W_dist_name"] = getattr(self, "W_dist_name", None)
         return state
 
-    def evaluate(self,important_dict: Dict[str, Any],seeds: List[int],*,dend_threshold: float,include_inhibition: bool = True,vel_applied: str = "real",example_cell: int = 15,target_total: float = 120.0,target_frac: np.ndarray = None) -> Tuple[float, Dict[str, float]]:
-        if target_frac is None:
-            target_frac = np.full(10, 0.1, dtype=float)
+    def evaluate(self, christine_overrepresentation_array=None, seeds=None,*,dend_threshold: float,include_inhibition: bool = True,vel_applied: str = "real",example_cell: int = 15,target_total: float = 120.0,target_frac: np.ndarray = None) -> Tuple[float, Dict[str, float]]:
 
-        dvms = important_dict["dend_vm_per_seed_dict"]
-        num_plateaus_per_dend = important_dict["num_plateaus_per_dend_dict"]
+        start_pos_cnt50_dict = self.start_pos_cnt50_dict
 
-        outs = []
-        for s in seeds:
-            num_per_dend = np.asarray(num_plateaus_per_dend[s], dtype=int)  # (n_dend,)
-            total_plateaus = float(num_per_dend.sum())
-            if total_plateaus <= 0:
-                frac10 = np.zeros(10, float)
-            else:
-                frac10 = np.full(10, 0.1, dtype=float)
-            violations = np.maximum(0.0, num_per_dend - 2.0)  # plateaus per dend > 2 as a violation
-            outs.append((total_plateaus, frac10, violations, num_per_dend))
+        plateau_list = self._plateau_arr_list_dict
 
-        # Aggregate
-        totals     = [o[0] for o in outs]
-        frac_sum   = sum(o[1] for o in outs)
-        violations = [float(o[2].sum()) for o in outs]
-        total_violations = float(np.sum(violations))
+        first_seed = seeds[0]
 
-        active_fracs, f12_act_list = [], []
-        for (_t, _frac10, _viol, num_per_dend) in outs:
-            active_mask = (num_per_dend > 0)
-            active_fracs.append(float(active_mask.mean()))
-            if active_mask.any():
-                f12 = (num_per_dend == 1) | (num_per_dend == 2)
-                f12_act_list.append(float(f12[active_mask].mean()))
-            else:
-                f12_act_list.append(0.0)
+        n_dendrites = len(plateau_list[first_seed])
 
-        frac_active = float(np.mean(active_fracs)) if active_fracs else 0.0
-        f12_active  = float(np.mean(f12_act_list)) if f12_act_list else 0.0
-        mean_total  = float(np.mean(totals)) if totals else 0.0
+        dendrites_with_plateau_count = 0
+        total_dends = 0
 
-        if mean_total < 1.0:
-            loss = 1e7 + (mean_total - target_total) ** 2
-            metrics = dict(mean_total=mean_total, violations=total_violations,
-                        frac_active=frac_active, f12_active=f12_active,
-                        mse_total=None, mse_frac=None, pen_sparsity=None, pen_12only=None)
-        elif total_violations > 0:
-            loss = float(1e6 * total_violations)
-            metrics = dict(mean_total=mean_total, violations=total_violations,
-                        frac_active=frac_active, f12_active=f12_active,
-                        mse_total=None, mse_frac=None, pen_sparsity=None, pen_12only=None)
+        
+
+        for seed in range(len(plateau_list)):
+            for dendrite in range(len(plateau_list[seed])):
+                dendrite_plateau_array = plateau_list[seed][dendrite]
+                
+                if np.any(dendrite_plateau_array==1):
+                    dendrites_with_plateau_count+=1
+
+                total_dends +=1
+
+        frac_dends_with_plateau = dendrites_with_plateau_count / total_dends
+
+
+        summed_plateaus_over_seeds = []
+        for seed in start_pos_cnt50_dict:
+            start_pos_cnt50_list = start_pos_cnt50_dict[seed]
+            n_bins = 10
+            bin_size = int(50 / n_bins)
+            summed_plateaus = np.zeros(n_bins)
+            for i in range(n_bins):
+                start = i * bin_size
+                end = (i + 1) * bin_size
+                summed_data = np.sum(start_pos_cnt50_list[start:end])
+                summed_plateaus[i] = summed_data
+            summed_plateaus_over_seeds.append(summed_plateaus)
+
+
+        arr = np.asarray(summed_plateaus_over_seeds)  # expect (n_seeds, n_bins)
+        if arr.ndim != 2:
+            raise ValueError(f"Expected 2D array, got {arr.shape}")
+
+        # If bins are on axis 0, transpose to (n_seeds, n_bins)
+        if arr.shape[0] in (10, 50) and arr.shape[1] not in (10, 50):
+            arr = arr.T
+
+        mean_over_seeds = np.mean(arr, axis=0)
+
+
+        mean_over_seeds = np.mean(arr, axis=0)
+
+        totals = arr.sum(axis=1)  # shape (n_seeds,)
+        valid = totals > 0        # seeds that actually have any plateau events
+
+        if not np.any(valid):
+            p_model_allcells = np.zeros_like(christine_overrepresentation_array, dtype=float)
         else:
-            mse_total = (mean_total - target_total) ** 2
-            mean_frac = frac_sum / max(len(seeds), 1)
-            mse_frac  = float(np.mean((mean_frac - target_frac) ** 2))
-            w_sparsity, w_shape12 = 2.0, 1.0
-            pen_sparsity = (frac_active - 0.30) ** 2
-            pen_12only   = (1.0 - f12_active) ** 2
-            loss = float(mse_total + mse_frac + w_sparsity*pen_sparsity + w_shape12*pen_12only)
-            metrics = dict(mean_total=mean_total, violations=total_violations,
-                        frac_active=frac_active, f12_active=f12_active,
-                        mse_total=float(mse_total), mse_frac=float(mse_frac),
-                        pen_sparsity=float(pen_sparsity), pen_12only=float(pen_12only))
-        # stash a copy for __getstate__
-        self._results["metrics"] = metrics
-        self.dend_threshold = dend_threshold
-        return loss, metrics
+            frac = np.empty_like(arr, dtype=float)
+            frac[:] = np.nan
+            frac[valid] = arr[valid] / totals[valid, None]   # rows sum to 1 for valid seeds
+
+            p_model = np.nanmean(frac, axis=0)               # (10,)
+            p_model = np.nan_to_num(p_model, nan=0.0)        # guard rare all-NaN columns
+            p_model_allcells = p_model * frac_dends_with_plateau
+
+        p_chr = christine_overrepresentation_array / 100.0
+        p_chr_allcells = p_chr * 0.25
 
 
-
-        ############ figure out how to use this to get the outputs that I want 
+        loss = np.mean((p_model_allcells - p_chr_allcells)**2)
+        return loss
 
 
 
@@ -1342,92 +2357,66 @@ class SpikeSimModel:
     def _precompute_once(self):
         if self._precomputed is not None:
             return
-        # put any conv kernels, dt, time axes here if you need them
         self._precomputed = True
 
-    def _simulate_one_seed(self, seed: int):
-        residual_activity_dict_EC = self.residual_activity_dict_EC
-        fixed_residual_activity_dict_NDNF_newest = self.fixed_residual_activity_dict_NDNF_newest
-        residual_activity_dict_SST = self.residual_activity_dict_SST
-        factors_dict_EC = self.factors_dict_EC
-        factors_dict_SST = self.factors_dict_SST
-        factors_dict_NDNF_newest = self.factors_dict_NDNF_newest
-        GLM_params_EC = self.GLM_params_EC
-        GLM_params_NDNF_newest = self.GLM_params_NDNF_newest
-        GLM_params_SST = self.GLM_params_SST
-        mean_new_average_vel_array = self.mean_new_average_vel_array
-        real_vel = self.real_vel
-        constant_vel = self.constant_vel
-        add_inh = self.add_inh
-        make_it_spike = self.make_it_spike
-        SST_bias_factor = self.SST_bias_factor
-        dist = self.dist
-        vel_applied = self.vel_applied
-        use_averaged_velocity = self.use_averaged_velocity
+    def _simulate_one_seed(self, seed: int, debug=False):
+        
+        if debug:
+            import psutil, os
+            print("RSS GB:", psutil.Process(os.getpid()).memory_info().rss/1e9, flush=True) 
 
         activity_NDNF = 0
         activity_SST  = 0
 
+        if debug:
+
+            rank = MPI.COMM_WORLD.Get_rank()
+            pid = os.getpid()
+
+            t0 = time.time()
+            print(f"[{t0:.3f}] rank={rank} pid={pid} START seed={seed}", flush=True)
+            sys.stdout.flush()
+            report_mem("pre get_dend_contribution")
+
+        if self.optimization_time:
+            (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP) = get_dend_contribution(self.kernel, self.dt_constant, self.residual_activity_dict_EC, self.fixed_residual_activity_dict_NDNF_newest, self.residual_activity_dict_SST, self.factors_dict_EC, self.factors_dict_SST, self.factors_dict_NDNF_newest,
+                self.GLM_params_EC, self.GLM_params_NDNF_newest, self.GLM_params_SST, self.NDNF_sf_opt, self.SST_sf_opt, include_inh=self.include_inh, multiple_dendrites=True, dist=self.dist, make_it_spike=self.make_it_spike, seed=seed, animal_by_animal=self.animal_by_animal, input_animal=self.input_animal, include_beta=self.include_beta, flat_input=self.flat_input, optimization_time=True, debug=debug, mean=self.mean, std=self.std)
+        else:
+            (an_velocity, dend_activity, NDNF_pop_list, SST_pop_list, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_list) = get_dend_contribution(self.kernel, self.dt_constant, self.residual_activity_dict_EC, self.fixed_residual_activity_dict_NDNF_newest,self.residual_activity_dict_SST, self.factors_dict_EC, self.factors_dict_SST, self.factors_dict_NDNF_newest,
+                self.GLM_params_EC, self.GLM_params_NDNF_newest, self.GLM_params_SST, self.NDNF_sf_opt, self.SST_sf_opt, include_inh=self.include_inh, multiple_dendrites=True, dist=self.dist, make_it_spike=self.make_it_spike, seed=seed, animal_by_animal=self.animal_by_animal, input_animal=self.input_animal, constant_vel = self.constant_vel, include_beta=self.include_beta, flat_input=self.flat_input, optimization_time=False, debug=debug, mean=self.mean, std=self.std)
         
+        if debug:
+            report_mem("post get_dend_contribution")
 
-        (an_velocity, dend_vm_list, dend_list_EC_interp, NDNF_pop_list, SST_pop_list,NDNF_sf_opt, SST_sf_opt, NDNF_contribution_sum, SST_contribution_sum, weights_EC, weights_SST, weights_NDNF, last_EPSP, min_trial_length) = get_dend_contribution(self.kernel, self.dt_constant,
-            residual_activity_dict_EC, fixed_residual_activity_dict_NDNF_newest,
-            residual_activity_dict_SST, factors_dict_EC, factors_dict_SST, factors_dict_NDNF_newest,
-            GLM_params_EC, GLM_params_NDNF_newest, GLM_params_SST, mean_new_average_vel_array,
-            real_vel=real_vel, constant_vel=constant_vel, use_residuals=True, use_model_EC=self.use_model_EC,
-            multiple_dendrites=True, add_inh=add_inh, SST_bias_factor=SST_bias_factor,
-            dist=dist, use_averaged_velocity=use_averaged_velocity, make_it_spike=make_it_spike,
-            seed=seed, store_intermediates=False, animal_by_animal=self.animal_by_animal, input_animal=self.input_animal, include_beta=self.include_beta, flat_input=self.flat_input)
-        
-        # important_dict = {"an_velocity":an_velocity,
-        #                   "dendrite_contribution_EC":dendrite_contribution_EC,
-        #                   "NDNF_pop_list":NDNF_pop_list,
-        #                   "SST_pop_list":SST_pop_list,
-        #                   "NDNF_sf_opt":NDNF_sf_opt,
-        #                   "SST_sf_opt":SST_sf_opt,
-        #                   "NDNF_contribution_sum":NDNF_contribution_sum,
-        #                   "SST_contribution_sum":SST_contribution_sum,
-        #                   "weights_EC":weights_EC,
-        #                   "weights_SST":weights_SST,
-        #                   "weights_NDNF":weights_NDNF,
-        #                   "last_EPSP":last_EPSP}
+            nbytes(weights_EC, "weights_EC")
+            nbytes(weights_SST, "weights_SST")
+            nbytes(weights_NDNF, "weights_NDNF")
 
-        # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/important_dict.pkl"
-        
-        # with open(save_path, 'wb') as f:
-        #     pickle.dump(important_dict, f)
+        if debug:
+            report_mem("pre get_activity_multidendrite")
 
-        # with open(save_path, 'rb') as f:
-        #     important_dict = pickle.load(f)
-
-        # an_velocity = important_dict["an_velocity"]
-        # dendrite_contribution_EC = important_dict["dendrite_contribution_EC"]
-        # NDNF_pop_list = important_dict["NDNF_pop_list"]
-        # SST_pop_list = important_dict["SST_pop_list"]
-        # NDNF_sf_opt = important_dict["NDNF_sf_opt"]
-        # SST_sf_opt = important_dict["SST_sf_opt"]
-        # NDNF_contribution_sum = important_dict["NDNF_contribution_sum"]
-        # SST_contribution_sum = important_dict["SST_contribution_sum"]
-        # weights_EC = important_dict["weights_EC"]
-        # weights_SST = important_dict["weights_SST"]
-        # weights_NDNF = important_dict["weights_NDNF"]
-        # last_EPSP = important_dict["last_EPSP"]
-        
-
-        (padded_warped_activity_list, dend_contribution_EC, dend_vm, plateau_positions_counter,
+        (padded_warped_activity_list, plateau_positions_counter,
         plateau_start_positions_counter, plateau_array_per_dendrite_list,
         dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list,
-        EC_used, dist, num_plateaus_per_dend_list) = get_activity_multidendrite(an_velocity, dend_vm_list, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt,dend_threshold=self.dend_threshold, vel_applied=vel_applied, example_cell=17, dist=dist, n_dendrites=100,n_SST=75, n_EC=792, n_NDNF=73, include_inhibition=add_inh, use_model_EC=False, make_it_spike=make_it_spike)
+        EC_used, num_plateaus_per_dend_list) = get_activity_multidendrite(an_velocity, dend_activity,dend_threshold=self.dend_threshold, example_cell=17, n_dendrites=100, make_it_spike=self.make_it_spike)
+
+
+        if debug:
+            report_mem("post get_activity_multidendrite")
+
+        if self.optimization_time:
+            return (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+                    plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
+                    num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP,
+                    weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST, activity_NDNF)
+        else:
+            return (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+                    plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
+                    num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP,
+                    weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST, activity_NDNF, warped_list)
         
-
-
-        return (dend_contribution_EC, dend_vm, dend_list_EC_interp, plateau_positions_counter, padded_warped_activity_list,
-                plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
-                num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP,
-                weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST, activity_NDNF,
-                SST_sf_opt, NDNF_sf_opt, min_trial_length)
-
-    def simulate(self, seeds, export=False, plot=False):
+            
+    def simulate(self, seeds, export=False, plot=False, debug=False):
         self._precompute_once()
         seeds = list(seeds)
         self.seeds = seeds
@@ -1450,80 +2439,132 @@ class SpikeSimModel:
         SST_sf_opt_dict = {}
         NDNF_sf_opt_dict = {}
         dend_contribution_EC_dict = {}
+        dend_activity_dict = {}
+        warped_list_dict = {}
+
 
         for seed in seeds:
-            (dend_contribution_EC, dend_vm, dend_list_EC_interp, plateau_positions_counter, padded_warped_activity_list,
-            plateau_start_positions_counter, plateau_array_per_dendrite_list,
-            dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
-            last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
-            activity_NDNF, SST_sf_opt, NDNF_sf_opt, min_trial_length) = self._simulate_one_seed(int(seed))
 
-            dend_vm_per_seed_dict[seed] = dend_vm
-            _pos_cnt_dict[seed] = plateau_positions_counter
-            padded_warped_activity_list_dict[seed] = padded_warped_activity_list
-            start_pos_cnt50_dict[seed] = plateau_start_positions_counter
-            _plateau_arr_list_dict[seed] = plateau_array_per_dendrite_list
-            _mask_dict[seed] = dendrite_plateau_mask
-            num_plateaus_per_dend_dict[seed] = num_plateaus_per_dend_list
-            _starts_list_dict[seed] = plateau_start_times_list_mega_list
-            last_EPSP_dict[seed] = last_EPSP
-            weights_EC_dict[seed] = weights_EC
-            weights_SST_dict[seed] = weights_SST
-            weights_NDNF_dict[seed] = weights_NDNF
-            an_velocity_dict[seed] = an_velocity
-            activity_SST_dict[seed] = activity_SST
-            activity_NDNF_dict[seed] = activity_NDNF
-            SST_sf_opt_dict[seed] = SST_sf_opt
-            NDNF_sf_opt_dict[seed] = NDNF_sf_opt
-            dend_contribution_EC_dict[seed] = dend_contribution_EC
-
-        # stash for plotting/evaluate
-        important_dict = dict(
-            dend_vm_per_seed_dict=dend_vm_per_seed_dict,
-            _pos_cnt_dict=_pos_cnt_dict,
-            padded_warped_activity_list_dict=padded_warped_activity_list_dict,
-            start_pos_cnt50_dict=start_pos_cnt50_dict,
-            _plateau_arr_list_dict=_plateau_arr_list_dict,
-            _mask_dict=_mask_dict,
-            num_plateaus_per_dend_dict=num_plateaus_per_dend_dict,
-            _starts_list_dict=_starts_list_dict,
-            last_EPSP=last_EPSP_dict,
-            weights_EC=weights_EC_dict,
-            weights_SST_dict=weights_SST_dict,
-            weights_NDNF_dict=weights_NDNF_dict,
-            an_velocity_dict=an_velocity_dict,
-            activity_SST_dict=activity_SST_dict,
-            activity_NDNF_dict=activity_NDNF_dict,
-            SST_sf_opt_dict=SST_sf_opt_dict,
-            NDNF_sf_opt_dict=NDNF_sf_opt_dict,
-        )
-
-        # cache for plotting convenience
-        self.dend_vm_per_seed_dict=dend_vm_per_seed_dict
-        self.padded_warped_activity_list_dict = padded_warped_activity_list_dict
-        self._pos_cnt_dict = _pos_cnt_dict
-        self.start_pos_cnt50_dict = start_pos_cnt50_dict
-        self._plateau_arr_list_dict = _plateau_arr_list_dict
-        self._mask_dict = _mask_dict
-        self._starts_list_dict = _starts_list_dict
-        self.num_plateaus_per_dend_list_dict = num_plateaus_per_dend_dict
-        self.last_EPSP_dict = last_EPSP_dict
-        self.weights_EC_dict = weights_EC_dict
-        self.weights_SST_dict = weights_SST_dict
-        self.weights_NDNF_dict = weights_NDNF_dict
-        self.dend_contribution_EC_dict = dend_contribution_EC_dict
-        self.an_velocity_dict = an_velocity_dict
-        self.activity_SST_dict = activity_SST_dict
-        self.activity_NDNF_dict = activity_NDNF_dict
-        self.SST_sf_opt_dict = SST_sf_opt_dict
-        self.NDNF_sf_opt_dict = NDNF_sf_opt_dict
-        self.min_trial_length = min_trial_length
-        self.dend_list_EC_interp = dend_list_EC_interp
-
-        print(f"AHHHHHHHHHHHH self. {self.constant_vel}")
+            if self.optimization_time:
+                (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+                plateau_start_positions_counter, plateau_array_per_dendrite_list,
+                dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
+                last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
+                activity_NDNF) = self._simulate_one_seed(int(seed), debug=debug)
+            else:
+                (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+                plateau_start_positions_counter, plateau_array_per_dendrite_list,
+                dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
+                last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
+                activity_NDNF, warped_list) = self._simulate_one_seed(int(seed), debug=debug)
 
 
-        return important_dict
+            #min_trial_length
+
+            if self.optimization_time:
+
+                # dend_vm_per_seed_dict[seed] = dend_vm
+                # _pos_cnt_dict[seed] = plateau_positions_counter
+                # padded_warped_activity_list_dict[seed] = padded_warped_activity_list
+                start_pos_cnt50_dict[seed] = plateau_start_positions_counter
+                _plateau_arr_list_dict[seed] = plateau_array_per_dendrite_list
+                # _mask_dict[seed] = dendrite_plateau_mask
+                # num_plateaus_per_dend_dict[seed] = num_plateaus_per_dend_list
+                # _starts_list_dict[seed] = plateau_start_times_list_mega_list
+                # last_EPSP_dict[seed] = last_EPSP
+                # weights_EC_dict[seed] = weights_EC
+                # weights_SST_dict[seed] = weights_SST
+                # weights_NDNF_dict[seed] = weights_NDNF
+                # an_velocity_dict[seed] = an_velocity
+                # activity_SST_dict[seed] = activity_SST
+                # activity_NDNF_dict[seed] = activity_NDNF
+                # SST_sf_opt_dict[seed] = SST_sf_opt
+                # NDNF_sf_opt_dict[seed] = NDNF_sf_opt
+                # dend_contribution_EC_dict[seed] = dend_contribution_EC
+
+            else:
+                # dend_vm_per_seed_dict[seed] = dend_vm
+                _pos_cnt_dict[seed] = plateau_positions_counter
+                padded_warped_activity_list_dict[seed] = padded_warped_activity_list
+                start_pos_cnt50_dict[seed] = plateau_start_positions_counter
+                _plateau_arr_list_dict[seed] = plateau_array_per_dendrite_list
+                _mask_dict[seed] = dendrite_plateau_mask
+                num_plateaus_per_dend_dict[seed] = num_plateaus_per_dend_list
+                _starts_list_dict[seed] = plateau_start_times_list_mega_list
+                last_EPSP_dict[seed] = last_EPSP
+                weights_EC_dict[seed] = weights_EC
+                weights_SST_dict[seed] = weights_SST
+                weights_NDNF_dict[seed] = weights_NDNF
+                an_velocity_dict[seed] = an_velocity
+                activity_SST_dict[seed] = activity_SST
+                activity_NDNF_dict[seed] = activity_NDNF
+                SST_sf_opt_dict[seed] = SST_sf_opt
+                NDNF_sf_opt_dict[seed] = NDNF_sf_opt
+                # dend_contribution_EC_dict[seed] = dend_contribution_EC
+                dend_activity_dict[seed] = dend_activity
+                warped_list_dict[seed] = warped_list
+
+
+        if self.optimization_time:
+
+            self.start_pos_cnt50_dict = start_pos_cnt50_dict
+            self._plateau_arr_list_dict = _plateau_arr_list_dict
+
+
+        else:
+
+            
+            
+            
+                # stash for plotting/evaluate
+            important_dict = dict(
+                dend_vm_per_seed_dict=dend_vm_per_seed_dict,
+                _pos_cnt_dict=_pos_cnt_dict,
+                padded_warped_activity_list_dict=padded_warped_activity_list_dict,
+                start_pos_cnt50_dict=start_pos_cnt50_dict,
+                _plateau_arr_list_dict=_plateau_arr_list_dict,
+                _mask_dict=_mask_dict,
+                num_plateaus_per_dend_dict=num_plateaus_per_dend_dict,
+                _starts_list_dict=_starts_list_dict,
+                last_EPSP=last_EPSP_dict,
+                weights_EC=weights_EC_dict,
+                weights_SST_dict=weights_SST_dict,
+                weights_NDNF_dict=weights_NDNF_dict,
+                an_velocity_dict=an_velocity_dict,
+                activity_SST_dict=activity_SST_dict,
+                activity_NDNF_dict=activity_NDNF_dict,
+                SST_sf_opt_dict=SST_sf_opt_dict,
+                NDNF_sf_opt_dict=NDNF_sf_opt_dict,
+                warped_list_dict = warped_list_dict
+            )
+
+            # cache for plotting convenience
+            self.dend_vm_per_seed_dict=dend_vm_per_seed_dict
+            self.padded_warped_activity_list_dict = padded_warped_activity_list_dict
+            self._pos_cnt_dict = _pos_cnt_dict
+            self.start_pos_cnt50_dict = start_pos_cnt50_dict
+            self._plateau_arr_list_dict = _plateau_arr_list_dict
+            self._mask_dict = _mask_dict
+            self._starts_list_dict = _starts_list_dict
+            self.num_plateaus_per_dend_list_dict = num_plateaus_per_dend_dict
+            self.last_EPSP_dict = last_EPSP_dict
+            self.weights_EC_dict = weights_EC_dict
+            self.weights_SST_dict = weights_SST_dict
+            self.weights_NDNF_dict = weights_NDNF_dict
+            self.dend_contribution_EC_dict = dend_contribution_EC_dict
+            self.an_velocity_dict = an_velocity_dict
+            self.activity_SST_dict = activity_SST_dict
+            self.activity_NDNF_dict = activity_NDNF_dict
+            self.SST_sf_opt_dict = SST_sf_opt_dict
+            self.NDNF_sf_opt_dict = NDNF_sf_opt_dict
+            # self.min_trial_length = min_trial_length
+            # self.dend_list_EC_interp = dend_list_EC_interp
+            self.dend_activity_dict = dend_activity_dict
+            self.warped_list_dict = warped_list_dict
+
+
+
+            return important_dict
 
    
 @click.group(context_settings=dict(help_option_names=["-h","--help"]))
@@ -1666,6 +2707,8 @@ def plot_cmd(pickle_path, out):
     NDNF_contribution_sum = None, #state["NDNF_contribution_sum"], 
     SST_contribution_sum = None, #state["SST_contribution_sum"], 
     animal_by_animal = state["animal_by_animal"]) #state["animal_by_animal"])
+
+    warped_list_dict
 
 
     # tau_ms

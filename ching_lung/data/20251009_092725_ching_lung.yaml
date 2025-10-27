@@ -1,0 +1,36 @@
+bounds:
+  tau_et:
+   - 50.0
+   - 3000.0
+  tau_is:
+   - 50.0
+   - 2000.0
+  lam_et:
+   - 0.1
+   - 500.0
+  lam_is:
+   - 0.1
+   - 50.0
+  eta_ms:
+   - 0.00001
+   - 0.005
+
+kwargs:
+  save_path: "/Users/michaelfinch/CA1-interneuron-GLM/ching_lung/ching_lung_pickles/optimization_results.pkl"
+  data_file_path: "/Users/michaelfinch/CA1-interneuron-GLM/ching_lung/"
+
+stages:
+  - source: ching_lung_nested_script     
+    compute_features: compute_features
+    get_objectives: get_objectives
+
+param_gen: PopulationAnnealing
+param_gen_source: nested.optimize_utils
+optimization_title: ching_lung_figure_2_pop_anneal
+
+x0:
+  tau_et: 1500.0
+  tau_is: 500.0
+  lam_et: 200.0
+  lam_is: 4.0
+  eta_ms: 0.002

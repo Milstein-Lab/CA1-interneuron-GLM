@@ -1,0 +1,77 @@
+# mpiexec -n 4 python -m mpi4py.futures -m nested.optimize \
+#   --config-file-path=config/ec_nested.yaml \
+#   --framework=mpi \
+#   --pop_size=3 --path_length=1 --max_iter=1 \
+#   --num-workers=3 \
+#   --num_network_seeds=3 \
+#   --disp --network_start_seed=0 --network_end_seed=3 --vel_applied='real' --animal_by_animal=False --constant_vel=False --include_beta=False --flat_input=True
+
+bounds:
+  tau_ms:
+   - 5.0
+   - 200.0
+  dend_threshold:
+   - -70.0
+   - -50.0
+  weights_mean:
+   - 0.05
+   - 5.0
+  weights_std:
+   - 0.05
+   - 5.0
+
+kwargs:
+  data_root: /Users/michaelfinch/CA1-interneuron-GLM
+  animal: animal_3
+  weight_dist: Normal
+  inner_jobs: 7
+  network_start_seed: 0
+  network_end_seed: 2
+  ec_animal_average: True
+  vel_applied: real
+  dend_threshold: -65.
+  use_averaged_velocity: 'actual_velocity' #"cell_type_av" 
+  dist: 'Lognormal'
+  add_inh: 'neither'
+  make_it_spike: True
+  SST_bias_multi: 1.4
+  real_vel: True
+  constant_vel: False
+  use_model_EC: False
+  SST_bias_factor: 2.0
+  dt_constant : 0.0001
+  tau_ms : 5.0
+  # reshold
+  dt_constant: 0.001
+  dx: 3.6         
+  store: mean    
+  debug: false
+  spikes: false
+  epsps: true
+  warp_axes: true
+  seed_start: 0
+  export: true
+  save_path: /Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/
+  plot: true
+  animal_by_animal: false 
+  input_animal: 'animal_1'
+  include_beta: true
+  flat_input: true
+  optimization_time: true
+  load: false
+
+
+stages:
+  - source: ec_nested_stage_parallel
+    get_args_static: get_args
+    compute_features: compute_features
+    filter_features: filter_features
+    get_objectives: get_objectives
+param_gen: PopulationAnnealing
+param_gen_source: nested.optimize_utils
+optimization_title: EC_multidendrite_pop_anneal
+x0:
+  tau_ms: 50.0
+  dend_threshold: -60.0
+  weights_mean: 0.5
+  weights_std: 0.5
