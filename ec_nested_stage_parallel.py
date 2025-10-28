@@ -185,11 +185,10 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
     
     param_dict = param_array_to_dict(params, context.param_names)
 
-    model_selection_dict = {
-        "constant_vel" : str_true_false_to_bool(context.constant_vel),
-        "include_beta" : str_true_false_to_bool(context.include_beta),
-        "flat_input" : str_true_false_to_bool(context.flat_input)
-        }
+    
+    constant_vel = str_true_false_to_bool(context.constant_vel)
+    include_beta = str_true_false_to_bool(context.include_beta)
+    flat_input = str_true_false_to_bool(context.flat_input)
     
     # tau_ms = param_dict['tau_ms']
     # dend_threshold = param_dict['dend_threshold']
@@ -219,13 +218,33 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
                "dend_threshold": getattr(context, "dend_threshold", None)}, flush=True)
         log_mem("A: before building model")
 
+    # store_intermediates=None,
+    # multiple_dendrites=True,
+    # residuals_activity_dict = None,
+    # make_it_spike = None,
+    # GLM_params_dict=None,
+    # behav_factors_dict=None,
+    # animal_by_animal=None,
+    # input_animal = None,
+    # max_num_trials=58,
+    # num_pos_bins=50,
+    # av_animals_velocity=0.43,
+    # hz_target_for_scaling=50,
+    # constant_vel=None, 
+    # include_beta=None,
+    # flat_input=None,
+    # dend_threshold=None,
+    # tau_ms=None,
+    # EC_weights_mean=None,
+    # EC_weights_std=None,
+
 
     model = SpikeSimModel(kernel=kernel, weight_config_dict=context.weight_config_dict, dt=context.dt, dx=context.dx,
                           store_intermediates=context.store_intermediates,
                           residuals_activity_dict=context.residuals_activity_dict,
                           GLM_params_dict=context.GLM_params_dict, behav_factors_dict=context.behav_factors_dict, 
                           animal_by_animal = str_true_false_to_bool(context.animal_by_animal), input_animal = context.input_animal, 
-                        make_it_spike = str_true_false_to_bool(context.make_it_spike), param_dict = param_dict, model_selection_dict=model_selection_dict)
+                        constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dend_threshold=param_dict['dend_threshold'], tau_ms=param_dict['tau_ms'], EC_weights_mean=param_dict['EC_weights_mean'], EC_weights_std=param_dict['EC_weights_std'],)
 
     if context.debug:
         log_mem("B: after building empty model")
@@ -249,6 +268,8 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
 
     if context.debug:
         log_mem("C: after attaching attrs, pre simulate")
+
+    print(f"network_seed {network_seed} context.debug {context.debug}")
     
     (dend_activity, plateau_positions_counter, padded_warped_activity_list,
      start_pos_cnt50_dict, _plateau_arr_list_dict,
