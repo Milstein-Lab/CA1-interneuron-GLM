@@ -60,18 +60,6 @@ context = Context()
 
 def config_worker():
 
-    # df_10  = load_two_numeric_cols(context.data_file_path + "ching_lung_csv/backwards_fig_2d_10hz.csv")
-    # df_20  = load_two_numeric_cols(context.data_file_path + "ching_lung_csv/backwards_fig_2d_20hz.csv")
-    # df_40  = load_two_numeric_cols(context.data_file_path + "ching_lung_csv/backwards_fig_2d_40hz.csv")
-    # df_100  = load_two_numeric_cols(context.data_file_path + "ching_lung_csv/backwards_fig_2d_100hz.csv")
-    # df_full  = load_two_numeric_cols(context.data_file_path + "ching_lung_csv/full_btsp_kernel_fig2c.csv")
-
-    # df_list = [df_10, df_20, df_40, df_100] # df_full
-    # hz_list = [10, 20, 40, 100, 20]
-    # string_list = ["10Hz", "20Hz", "40Hz", "100Hz"] #, "20Hz"
-    # taus_list  = [1.44, 1.75, 1.80, 1.03] 
-
-
     save_path = "/Users/michaelfinch/CA1-interneuron-GLM/ching_lung/pickle_of_all_experimental_data.pkl"
     with open(save_path, 'rb') as f:
         cleaned_data_dict = pickle.load(f)

@@ -9,10 +9,13 @@
 from __future__ import annotations  # defer evaluation of type hints
 
 # stdlib / third-party
-import yaml
-from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Tuple, Optional
+import os, time, gc, json, pickle, random, yaml
+from dataclasses import dataclass, replace, asdict
+from typing import Any, Dict, List, Tuple, Optional, Iterable, Literal
 
+import numpy as np
+import numpy.typing as npt
+import matplotlib.pyplot as plt
 import click
 
 # your project imports (AFTER third-party)
@@ -78,92 +81,92 @@ def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
                 k = (np.float32(target) * k) / np.float32(max(area, 1e-12))
             return k
 
-def get_inhom_poisson_spike_times_by_thinning(rate, t, dt=0.02, refractory=3., generator=None, rng=None):
-    """
-    Given a time series of instantaneous spike rates in Hz, produce a spike train
-    consistent with an inhomogeneous Poisson process with an absolute refractory period.
-    - rate: Hz at times t (ms)
-    - t:    ms (monotonic)
-    - dt:   ms grid for interpolation & returned spike times
-    - refractory: ms absolute deadtime
-    """
-    # Choose RNG (backward compatible with your original signature)
-    if generator is None and rng is None:
-        rng = np.random.default_rng()
-    if rng is None:
-        # wrap a Python random.Random as a minimal interface
-        class _PyRandWrapper:
-            def random(self, size=None):
-                if size is None:
-                    return generator.random()
-                # vectorized draw
-                return np.array([generator.random() for _ in range(size)], dtype=float)
-            def exponential(self, scale, size=None):
-                # inverse-transform using .random()
-                u = self.random(size=size)
-                return -np.log(u) * scale
-        rng = _PyRandWrapper()
+# def get_inhom_poisson_spike_times_by_thinning(rate, t, dt=0.02, refractory=3., generator=None, rng=None):
+#     """
+#     Given a time series of instantaneous spike rates in Hz, produce a spike train
+#     consistent with an inhomogeneous Poisson process with an absolute refractory period.
+#     - rate: Hz at times t (ms)
+#     - t:    ms (monotonic)
+#     - dt:   ms grid for interpolation & returned spike times
+#     - refractory: ms absolute deadtime
+#     """
+#     # Choose RNG (backward compatible with your original signature)
+#     if generator is None and rng is None:
+#         rng = np.random.default_rng()
+#     if rng is None:
+#         # wrap a Python random.Random as a minimal interface
+#         class _PyRandWrapper:
+#             def random(self, size=None):
+#                 if size is None:
+#                     return generator.random()
+#                 # vectorized draw
+#                 return np.array([generator.random() for _ in range(size)], dtype=float)
+#             def exponential(self, scale, size=None):
+#                 # inverse-transform using .random()
+#                 u = self.random(size=size)
+#                 return -np.log(u) * scale
+#         rng = _PyRandWrapper()
 
-    # Interpolate onto uniform grid (ms). Same as your original.
-    t0 = float(t[0])
-    t_end = float(t[-1])
-    interp_t = np.arange(t0, t_end + dt, dt, dtype=float)
-    interp_rate = np.interp(interp_t, t, rate).astype(float, copy=False)
+#     # Interpolate onto uniform grid (ms). Same as your original.
+#     t0 = float(t[0])
+#     t_end = float(t[-1])
+#     interp_t = np.arange(t0, t_end + dt, dt, dtype=float)
+#     interp_rate = np.interp(interp_t, t, rate).astype(float, copy=False)
 
-    # Convert Hz -> kHz (per ms), then apply refractory correction (identical math)
-    interp_rate /= 1000.0
-    mask = interp_rate > 0.0
-    interp_rate[mask] = 1.0 / (1.0 / interp_rate[mask] - refractory)
+#     # Convert Hz -> kHz (per ms), then apply refractory correction (identical math)
+#     interp_rate /= 1000.0
+#     mask = interp_rate > 0.0
+#     interp_rate[mask] = 1.0 / (1.0 / interp_rate[mask] - refractory)
 
-    max_rate = float(np.max(interp_rate))
-    if not np.isfinite(max_rate) or max_rate <= 0.0:
-        return np.empty(0, dtype=float)
+#     max_rate = float(np.max(interp_rate))
+#     if not np.isfinite(max_rate) or max_rate <= 0.0:
+#         return np.empty(0, dtype=float)
 
-    # Ogata thinning: jump in time with Exp(max_rate), accept with r(t)/max_rate,
-    # and enforce absolute refractory in ms.
-    # We work in continuous time then snap to the dt-grid indices.
-    spikes = []
-    t_curr = t0
-    last_spike_t = -math.inf  # enforce refractory in ms
-    # Draw in batches to minimize Python overhead
-    batch = 1024
+#     # Ogata thinning: jump in time with Exp(max_rate), accept with r(t)/max_rate,
+#     # and enforce absolute refractory in ms.
+#     # We work in continuous time then snap to the dt-grid indices.
+#     spikes = []
+#     t_curr = t0
+#     last_spike_t = -math.inf  # enforce refractory in ms
+#     # Draw in batches to minimize Python overhead
+#     batch = 1024
 
-    while t_curr < t_end:
-        # Draw a batch of proposed ISIs (ms)
-        isis = rng.exponential(scale=1.0/max_rate, size=batch)
-        # Cumulative jump times for the whole batch
-        cum = np.cumsum(isis)
-        # Turn into absolute proposal times (ms)
-        props = t_curr + cum
+#     while t_curr < t_end:
+#         # Draw a batch of proposed ISIs (ms)
+#         isis = rng.exponential(scale=1.0/max_rate, size=batch)
+#         # Cumulative jump times for the whole batch
+#         cum = np.cumsum(isis)
+#         # Turn into absolute proposal times (ms)
+#         props = t_curr + cum
 
-        # Stop at first proposal beyond t_end; process those within
-        valid_n = int(np.searchsorted(props, t_end, side='right'))
-        if valid_n == 0:
-            # advance time and continue
-            t_curr = props[-1]
-            continue
+#         # Stop at first proposal beyond t_end; process those within
+#         valid_n = int(np.searchsorted(props, t_end, side='right'))
+#         if valid_n == 0:
+#             # advance time and continue
+#             t_curr = props[-1]
+#             continue
 
-        # Convert proposal times to nearest grid index (floor)
-        idx = np.floor((props[:valid_n] - t0) / dt).astype(int)
-        idx = np.clip(idx, 0, interp_t.size - 1)
-        accept_prob = interp_rate[idx] / max_rate
+#         # Convert proposal times to nearest grid index (floor)
+#         idx = np.floor((props[:valid_n] - t0) / dt).astype(int)
+#         idx = np.clip(idx, 0, interp_t.size - 1)
+#         accept_prob = interp_rate[idx] / max_rate
 
-        # Draw uniforms for accept/reject
-        u = rng.random(size=valid_n)
-        accepted = u <= accept_prob
+#         # Draw uniforms for accept/reject
+#         u = rng.random(size=valid_n)
+#         accepted = u <= accept_prob
 
-        # Apply refractory: keep only those with (props - last_spike_t) >= refractory
-        if accepted.any():
-            for k in np.nonzero(accepted)[0]:
-                tp = props[k]
-                if tp - last_spike_t >= refractory:
-                    spikes.append(tp)
-                    last_spike_t = tp
+#         # Apply refractory: keep only those with (props - last_spike_t) >= refractory
+#         if accepted.any():
+#             for k in np.nonzero(accepted)[0]:
+#                 tp = props[k]
+#                 if tp - last_spike_t >= refractory:
+#                     spikes.append(tp)
+#                     last_spike_t = tp
 
-        # Advance base time by the last ISI in the batch
-        t_curr = props[valid_n-1] if valid_n > 0 else props[-1]
+#         # Advance base time by the last ISI in the batch
+#         t_curr = props[valid_n-1] if valid_n > 0 else props[-1]
 
-    return np.asarray(spikes, dtype=float)
+#     return np.asarray(spikes, dtype=float)
 
 def epsps_event_add(spike_idx, T, kernel):
     """

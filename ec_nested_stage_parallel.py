@@ -184,23 +184,29 @@ def get_args():
 def compute_features(params, network_seed, model_id=None, export=False, plot=False):
     
     param_dict = param_array_to_dict(params, context.param_names)
+
+    model_selection_dict = {
+        "constant_vel" : str_true_false_to_bool(context.constant_vel),
+        "include_beta" : str_true_false_to_bool(context.include_beta),
+        "flat_input" : str_true_false_to_bool(context.flat_input)
+        }
     
-    tau_ms = param_dict['tau_ms']
-    dend_threshold = param_dict['dend_threshold']
-    EC_weights_mean = param_dict['EC_weights_mean']
-    EC_weights_std  = param_dict['EC_weights_std']
+    # tau_ms = param_dict['tau_ms']
+    # dend_threshold = param_dict['dend_threshold']
+    # EC_weights_mean = param_dict['EC_weights_mean']
+    # EC_weights_std  = param_dict['EC_weights_std']
     
     if 'EC' in context.weight_config_dict:
         if not all([param_name in param_dict for param_name in ['EC_weights_mean', 'EC_weights_std']]):
             raise Exception('missing EC weight mean and/or std in param_dict')
-        context.weight_config_dict['EC']['mean'] = EC_weights_mean
-        context.weight_config_dict['EC']['std'] = EC_weights_std
+        context.weight_config_dict['EC']['mean'] = param_dict['EC_weights_mean']
+        context.weight_config_dict['EC']['std'] = param_dict['EC_weights_std']
     
     dt_ms   = context.dt * 1000.0
     AMP     = 1.0
     MODE    = "peak"
     
-    kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
+    kernel  = exp_kernel(param_dict["tau_ms"], dt_ms, n_taus=5, norm=MODE, target=AMP)
     
     rank = MPI.COMM_WORLD.Get_rank()
     host = MPI.Get_processor_name()
@@ -217,30 +223,29 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
     model = SpikeSimModel(kernel=kernel, weight_config_dict=context.weight_config_dict, dt=context.dt, dx=context.dx,
                           store_intermediates=context.store_intermediates,
                           residuals_activity_dict=context.residuals_activity_dict,
-                          GLM_params_dict=context.GLM_params_dict, behav_factors_dict=context.behav_factors_dict)
+                          GLM_params_dict=context.GLM_params_dict, behav_factors_dict=context.behav_factors_dict, 
+                          animal_by_animal = str_true_false_to_bool(context.animal_by_animal), input_animal = context.input_animal, 
+                        make_it_spike = str_true_false_to_bool(context.make_it_spike), param_dict = param_dict, model_selection_dict=model_selection_dict)
 
     if context.debug:
         log_mem("B: after building empty model")
     
-    model.real_vel = (context.vel_applied == "real")
-    model.constant_vel = str_true_false_to_bool(context.constant_vel)
-    # model.add_inh = context.add_inh             # ← was bare add_inh
-    model.make_it_spike = str_true_false_to_bool(context.make_it_spike)
+    # model.real_vel = (context.vel_applied == "real")
+    
     # model.SST_bias_factor = context.SST_bias_multi
     # model.vel_applied = context.vel_applied
     # model.use_averaged_velocity = context.use_averaged_velocity
     # model.use_model_EC = context.use_model_EC
-    model.tau_ms = tau_ms #context.tau_ms
-    model.dend_threshold = dend_threshold #context.dend_threshold
-    model.animal_by_animal = str_true_false_to_bool(context.animal_by_animal)
-    model.input_animal = context.input_animal
-    model.include_beta = str_true_false_to_bool(context.include_beta)
-    model.flat_input = str_true_false_to_bool(context.flat_input)
+    
+    # model.tau_ms = tau_ms #context.tau_ms
+    # model.dend_threshold = dend_threshold #context.dend_threshold
+    
+    
+    
+    
     
     t0 = time.time()
     
-    if context.disp:
-        print(f"model.optimization_time {model.optimization_time}")
 
     if context.debug:
         log_mem("C: after attaching attrs, pre simulate")
@@ -556,10 +561,6 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
         dt=dt)
         
 
-        # save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/dend_activity_dict.pkl"
-        # with open(save_path, 'wb') as f:
-        #     pickle.dump(dend_activity_dict, f)
-
         plot_multidendrite_EC_err_across_seeds(
             loss, context.christine_overrepresentation_array, warped_list_dict, residual_activity_dict_EC,
             tau_ms = tau_ms, seeds = context.seeds_array, last_EPSP = last_EPSP, weights_EC = weights_EC_dict[0],
@@ -568,9 +569,7 @@ def filter_features(features_dict_list, previous_features, model_id=None, export
         padded_warped_activity_list = padded_warped_activity_list_dict, an_velocity = an_velocity_dict[0], dend_threshold = dend_threshold,
         _pos_cnt_dict = _pos_cnt_dict, start_pos_cnt50_dict = start_pos_cnt50_dict, _plateau_arr_list_dict = _plateau_arr_list_dict, _mask_dict = _mask_dict, _starts_list_dict = _starts_list_dict,
         dist = dist, num_plateaus_per_dend_list = num_plateaus_per_dend_dict, animal=input_animal, example_cell=17, include_inhibition=False, #include inhibiiton,
-        NDNF_contribution_sum = None, #state["NDNF_contribution_sum"], 
-        SST_contribution_sum = None, #state["SST_contribution_sum"], 
-        animal_by_animal = animal_by_animal, constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dt=dt) #state["animal_by_animal"])
+        NDNF_contribution_sum = None, SST_contribution_sum = None, animal_by_animal = animal_by_animal, constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dt=dt)
 
     
 

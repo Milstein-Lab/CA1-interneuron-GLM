@@ -1,7 +1,5 @@
 
 # oct24_justec_5seeds_number1_velTbetaFinputT
-
-
 bounds:
   tau_ms:
    - 5.0
@@ -15,7 +13,7 @@ bounds:
   EC_weights_std:
    - 0.05
    - 3.0
-
+   
 kwargs:
   data_root: '.'
   dend_threshold: -65.
@@ -42,7 +40,7 @@ kwargs:
   constant_vel: True
   include_beta: False
   flat_input: True
-  optimization_time: true
+  store_intermediates: true ########################
   pkl_name: 'saved_data.pkl'
   load: false
   include_inh: false
@@ -67,7 +65,6 @@ x0:
   dend_threshold: -60.0
   EC_weights_mean: 0.5
   EC_weights_std: 0.5
-
 
   # inner_jobs: 7
   # network_start_seed: 0

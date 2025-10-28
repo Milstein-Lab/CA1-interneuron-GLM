@@ -1993,9 +1993,9 @@ def plot_fixed_data(context, products_dict, fixed_c=0.01, fit_grid=True):
 
     ax5 = axs[4]
     ax5.plot(xfwd,  yfwd,  'o', color='k', label='forward data (exp)')
-    ax5.plot(x_fit_f,  y_fit_f,  '-', lw=2, color='r',      label=f'forward fit (τ={tauf:.2f})')
+    ax5.plot(x_fit_f,  y_fit_f,  '-', lw=2, color='r',      label=f'forward fit c={fixed_c} (τ={tauf:.2f})')
     ax5.plot(xmfwd, ymfwd, 'o', color='b', label='forward data (model)')
-    ax5.plot(x_fit_fm, y_fit_fm, '-', lw=2, color='purple', label=f'forward fit model (τ={taumf:.2f})')
+    ax5.plot(x_fit_fm, y_fit_fm, '-', lw=2, color='purple', label=f'forward fit model c={fixed_c} (τ={taumf:.2f})')
     ax5.set_title('20 Hz — forward arm')
     ax5.set_ylim(0, 3)
     ax5.set_xlabel('Time from plateau (s)')

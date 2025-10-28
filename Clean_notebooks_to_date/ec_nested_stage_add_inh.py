@@ -13,13 +13,21 @@
 #   --num_network_seeds=2 \
 #   --disp --network_start_seed=0 --vel_applied='real' --animal_by_animal=False --constant_vel=False --include_beta=False --flat_input=True --debug=True --optimization_time=False --plot --param-file-path=model_key_yaml_opt.yaml --model-key=oct21_justec_5seeds_serial_number1_velTbetaFinputT
 
-from nested.utils import Context
+import nested
+import optuna
+from optuna.trial import TrialState
+import numpy as np
+from pathlib import Path
+from nested.utils import Context, param_array_to_dict
 
+from mpi4py import MPI
+import os, resource, sys, time
+
+from spiking_model_utils import load_data_regular
 from build_a_model_object_per_animal import *
 
 
-import os, time, psutil
-
+import os, time, psutil, gc
 
 def _rank_tag():
     comm = MPI.COMM_WORLD
@@ -58,6 +66,8 @@ def str_true_false_to_bool(s):
     if t == "false":
         return False
     raise ValueError(f"Unrecognized boolean string: {s!r}")
+
+import pickle
 
 
 def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
@@ -112,6 +122,8 @@ def config_worker():
     context.update(locals())
 
 import pickle
+from types import SimpleNamespace
+
 
 
 def get_args():
@@ -176,7 +188,6 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
     model.mean_new_average_vel_array = context.mean_new_average_vel_array
 
     model.real_vel = (context.vel_applied == "real")
-    model.constant_vel = context.constant_vel
     model.add_inh = context.add_inh             # ← was bare add_inh
     model.make_it_spike = context.make_it_spike
     model.SST_bias_factor = context.SST_bias_multi
@@ -192,6 +203,7 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
     model.dt_constant = context.dt_constant
     model.include_beta = context.include_beta
     model.flat_input = context.flat_input
+    model.constant_vel = context.constant_vel
     model.weights_mean = weights_mean
     model.weights_std = weights_std
     model.include_inh = include_inh
@@ -232,8 +244,7 @@ def compute_features(params, network_seed, previous_features=None, model_id=None
         "t_end": t1,
         "duration_s": t1 - t0,
         "start_pos_cnt50_dict":start_pos_cnt50_dict,
-        "_plateau_arr_list_dict":_plateau_arr_list_dict,
-        }
+        "_plateau_arr_list_dict":_plateau_arr_list_dict}
         return features_dict
 
     else:

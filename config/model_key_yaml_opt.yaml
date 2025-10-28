@@ -4,8 +4,8 @@
 oct24_justec_5seeds_number1_velTbetaFinputT:
   tau_ms: 5.273837546293319
   dend_threshold: -54.01799785339066
-  mean: 1.3266467907522272
-  std: 0.8042842801289596
+  EC_weights_mean: 1.3266467907522272
+  EC_weights_std: 0.8042842801289596
 
 # 5.6170875510788365e-05
 # /ocean/projects/bio250022p/mfinch/data/20251024_011053_nested_optimization_history_PopulationAnnealing_EC_multidendrite_pop_anneal_277024628926042555335503840201844253202.hdf5
