@@ -2977,171 +2977,155 @@ def multi_wrap_contribution(residual_activity_dict_EC, fixed_residual_activity_d
         
 # def get_activity_multidendrite(an_velocity, dend_activity, activity_NDNF, activity_SST, NDNF_sf_opt, SST_sf_opt, dend_threshold=20, vel_applied="real", example_cell=15, dist="Uniform", n_dendrites=100, include_inhibition=True, use_model_EC=False, make_it_spike=None):
 
-def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, example_cell=15, n_dendrites=100, use_model_EC=False, make_it_spike=None):
+def get_activity_multidendrite(an_velocity, dend_activity, dend_threshold=20, example_cell=15, n_dendrites=100):
 
-    # if use_model_EC:
+    n_pos = 50
+    n_trials = 58
+    dx=180/50
+    dt = 0.001
+
+    plateau_positions_counter = np.zeros(n_pos)
+    plateau_start_positions_counter = np.zeros(n_pos)
+    plateau_array_per_dendrite_list = []
+    num_plateaus_per_dend_list = []
+    dendrite_plateau_mask = np.zeros((dend_activity.shape[0], n_pos), dtype=bool)
+    # padded_warped_activity_list = []
+    plateau_start_times_list_mega_list = []
+
+    n_dendrites, n_trials, T_max = dend_activity.shape
+    print(f"dend_activity.shape {dend_activity.shape}")
+
+    ragged_dend_list = []
+    valid_lengths_per_dend = []   # <-- store per-trial valid lengths
+
+    for d_idx in range(dend_activity.shape[0]):
+        # padded_warped_activity_list.append(dend_activity[d_idx,:,:])
+        ragged_trial_list = []
+        trial_lengths = [] 
+
+        sum_data = 0
+        for trial in range(dend_activity.shape[1]):
+            trial_activity = dend_activity[d_idx,trial,:]
+            valid = ~np.isnan(trial_activity)
+            valid_trial_activity = trial_activity[valid]
+            sum_data+=len(valid_trial_activity)
+            trial_lengths.append(len(valid_trial_activity))
+            ragged_trial_list.append(valid_trial_activity)
+
         
-    #     dend_list = []
-    #     for j in range(792):
-    #         ts_list = []
-    #         for i in range(58):
-    #             ts = random_timeseries(1.0, 0.005, 49)
-    #             ts_list.append(ts)
 
-    #         dend_contribution_EC = np.array(ts_list).T
-    #         dend_list.append(dend_contribution_EC)
-            
-    #     EC_input_matrix = np.array(dend_list)
+        ragged_trial_list_flat = np.hstack(ragged_trial_list)
 
-    if make_it_spike:
+        ragged_dend_list.append(ragged_trial_list_flat)
+        valid_lengths_per_dend.append(trial_lengths)
 
-        n_pos = 50
-        n_trials = 58
-        dx=180/50
-        dt = 0.001
+    for d_idx in range(n_dendrites):
 
-        plateau_positions_counter = np.zeros(n_pos)
-        plateau_start_positions_counter = np.zeros(n_pos)
-        plateau_array_per_dendrite_list = []
-        num_plateaus_per_dend_list = []
-        dendrite_plateau_mask = np.zeros((dend_activity.shape[0], n_pos), dtype=bool)
-        padded_warped_activity_list = []
-        plateau_start_times_list_mega_list = []
+        flat_signal = ragged_dend_list[d_idx]                  # 1-D concatenated trace
+        flat_plateau_array = np.zeros_like(flat_signal, dtype=np.uint8)
 
-        n_dendrites, n_trials, T_max = dend_activity.shape
-        print(f"dend_activity.shape {dend_activity.shape}")
+        i = 0
+        while i < flat_signal.size:
+            if flat_signal[i] > float(dend_threshold):
+                flat_plateau_array[i:i+300] = 1
+                i += 800
+            else:
+                i += 100
 
-        ragged_dend_list = []
-        valid_lengths_per_dend = []   # <-- store per-trial valid lengths
+        lengths = valid_lengths_per_dend[d_idx]
+        cursor = 0
+        per_trial_padded = []
+        for L in lengths:
+            if L > 0:
+                seg = flat_plateau_array[cursor:cursor+L]
+                cursor += L
+                # pad back to T_max on the right with zeros to recover (T_max,)
+                padded = np.zeros(T_max, dtype=np.uint8)
+                padded[:L] = seg
+            else:
+                padded = np.zeros(T_max, dtype=np.uint8)
+            per_trial_padded.append(padded)
 
-        for d_idx in range(dend_activity.shape[0]):
-            padded_warped_activity_list.append(dend_activity[d_idx,:,:])
-            ragged_trial_list = []
-            trial_lengths = [] 
+        plateau_array = np.stack(per_trial_padded, axis=0)     # shape (n_trials, T_max)
+        plateau_array_per_dendrite_list.append(plateau_array)
+                    
+        proper_velocity = an_velocity*100
 
-            sum_data = 0
-            for trial in range(dend_activity.shape[1]):
-                trial_activity = dend_activity[d_idx,trial,:]
-                valid = ~np.isnan(trial_activity)
-                valid_trial_activity = trial_activity[valid]
-                sum_data+=len(valid_trial_activity)
-                trial_lengths.append(len(valid_trial_activity))
-                ragged_trial_list.append(valid_trial_activity)
+        animal_velocity = proper_velocity
 
-            
-
-            ragged_trial_list_flat = np.hstack(ragged_trial_list)
-
-            ragged_dend_list.append(ragged_trial_list_flat)
-            valid_lengths_per_dend.append(trial_lengths)
-
-        for d_idx in range(n_dendrites):
-
-            flat_signal = ragged_dend_list[d_idx]                  # 1-D concatenated trace
-            flat_plateau_array = np.zeros_like(flat_signal, dtype=np.uint8)
-
-            i = 0
-            while i < flat_signal.size:
-                if flat_signal[i] > float(dend_threshold):
-                    flat_plateau_array[i:i+300] = 1
-                    i += 800
-                else:
-                    i += 100
-
-            lengths = valid_lengths_per_dend[d_idx]
-            cursor = 0
-            per_trial_padded = []
-            for L in lengths:
-                if L > 0:
-                    seg = flat_plateau_array[cursor:cursor+L]
-                    cursor += L
-                    # pad back to T_max on the right with zeros to recover (T_max,)
-                    padded = np.zeros(T_max, dtype=np.uint8)
-                    padded[:L] = seg
-                else:
-                    padded = np.zeros(T_max, dtype=np.uint8)
-                per_trial_padded.append(padded)
-
-            plateau_array = np.stack(per_trial_padded, axis=0)     # shape (n_trials, T_max)
-            plateau_array_per_dendrite_list.append(plateau_array)
-                        
-            proper_velocity = an_velocity*100
-
-            animal_velocity = proper_velocity
-
-            plateau_start_times_list = []
-            
-            for trial in range(plateau_array.shape[0]):
-                velocity_trial = animal_velocity[:, trial]
-                dt_trial = dx / velocity_trial  # in seconds
-                time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
-
-                plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
-                plateau_start_times = plateau_start_indices * dt  # in seconds
-                plateau_start_times_list.append(plateau_start_times)
-
-                for pt_start_time in plateau_start_times:
-                    if pt_start_time != 0.0:
-                        for pos_idx in range(50):
-                            if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
-                                plateau_start_positions_counter[pos_idx] += 1
-                                break
-
-            plateau_start_times_list_mega_list.append(plateau_start_times_list)
-
-            num_plateaus_list = []
-            for trial in range(plateau_array.shape[0]):
-                velocity_trial = animal_velocity[:, trial]
-                dt_trial = dx / velocity_trial  # in seconds
-                time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
-
-                plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
-
-                plateau_start_times = plateau_start_indices * dt  # in seconds
-                num_plateaus_list.append(len(plateau_start_times))
-
-                for pt_start_time in plateau_start_times:
-                    if pt_start_time != 0.0:
-                        for pos_idx in range(50):
-                            if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
-                                dendrite_plateau_mask[d_idx, pos_idx] = True
-                                break
-
-            num_plateaus_per_dend_list.append(np.sum(num_plateaus_list))
-
-            num_trials, num_time_bins = plateau_array.shape
-            position_bins = 50
-
-            for trial in range(num_trials):
-                velocity_trial = animal_velocity[:, trial]  # shape (50,)
-                dt_trial = dx / velocity_trial              # shape (50,)
-                bin_edges = np.concatenate([[0], np.cumsum(dt_trial)])  # shape (51,)
-
-                time_bins = np.arange(num_time_bins) * dt  # shape (num_time_bins,)
-
-                plateau_indices = np.where(plateau_array[trial] == 1)[0]  # shape (n_plateaus,)
-
-                if len(plateau_indices) == 0:
-                    continue
-
-                pt_times = time_bins[plateau_indices] 
-
-                pos_bin_idxs = np.searchsorted(bin_edges, pt_times, side='right') - 1
-
-                valid_mask = (pos_bin_idxs >= 0) & (pos_bin_idxs < position_bins)
-                pos_bin_idxs = pos_bin_idxs[valid_mask]
-
-                bin_counts = np.bincount(pos_bin_idxs, minlength=position_bins)
-
-                # --- Accumulate into global counter
-                plateau_positions_counter += bin_counts
-                
-        plateau_start_times_list = plateau_start_times_list_mega_list[example_cell]
+        plateau_start_times_list = []
         
-        EC_used = use_model_EC
+        for trial in range(plateau_array.shape[0]):
+            velocity_trial = animal_velocity[:, trial]
+            dt_trial = dx / velocity_trial  # in seconds
+            time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
+
+            plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
+            plateau_start_times = plateau_start_indices * dt  # in seconds
+            plateau_start_times_list.append(plateau_start_times)
+
+            for pt_start_time in plateau_start_times:
+                if pt_start_time != 0.0:
+                    for pos_idx in range(50):
+                        if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
+                            plateau_start_positions_counter[pos_idx] += 1
+                            break
+
+        plateau_start_times_list_mega_list.append(plateau_start_times_list)
+
+        num_plateaus_list = []
+        for trial in range(plateau_array.shape[0]):
+            velocity_trial = animal_velocity[:, trial]
+            dt_trial = dx / velocity_trial  # in seconds
+            time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
+
+            plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
+
+            plateau_start_times = plateau_start_indices * dt  # in seconds
+            num_plateaus_list.append(len(plateau_start_times))
+
+            for pt_start_time in plateau_start_times:
+                if pt_start_time != 0.0:
+                    for pos_idx in range(50):
+                        if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
+                            dendrite_plateau_mask[d_idx, pos_idx] = True
+                            break
+
+        num_plateaus_per_dend_list.append(np.sum(num_plateaus_list))
+
+        num_trials, num_time_bins = plateau_array.shape
+        position_bins = 50
+
+        for trial in range(num_trials):
+            velocity_trial = animal_velocity[:, trial]  # shape (50,)
+            dt_trial = dx / velocity_trial              # shape (50,)
+            bin_edges = np.concatenate([[0], np.cumsum(dt_trial)])  # shape (51,)
+
+            time_bins = np.arange(num_time_bins) * dt  # shape (num_time_bins,)
+
+            plateau_indices = np.where(plateau_array[trial] == 1)[0]  # shape (n_plateaus,)
+
+            if len(plateau_indices) == 0:
+                continue
+
+            pt_times = time_bins[plateau_indices] 
+
+            pos_bin_idxs = np.searchsorted(bin_edges, pt_times, side='right') - 1
+
+            valid_mask = (pos_bin_idxs >= 0) & (pos_bin_idxs < position_bins)
+            pos_bin_idxs = pos_bin_idxs[valid_mask]
+
+            bin_counts = np.bincount(pos_bin_idxs, minlength=position_bins)
+
+            # --- Accumulate into global counter
+            plateau_positions_counter += bin_counts
+            
+    plateau_start_times_list = plateau_start_times_list_mega_list[example_cell]
+    
+    # EC_used = use_model_EC
 
 
-        return padded_warped_activity_list, plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, EC_used, num_plateaus_per_dend_list    
+    return plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list, num_plateaus_per_dend_list    
             
                 
 

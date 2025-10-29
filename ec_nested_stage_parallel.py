@@ -239,12 +239,22 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
     # EC_weights_std=None,
 
 
+    sim_config = SimConfig(
+    dt_constant=getattr(context, "dt", 0.001),
+    dx=getattr(context, "dx", None),
+    debug=str_true_false_to_bool(context.debug),
+    multiple_dendrites=True,
+    make_it_spike=True,
+    num_dendrites=int(getattr(context, "num_dendrites", 100)),
+    seed=int(getattr(context, "network_start_seed", 42)),
+    dist="Lognormal",)
+
     model = SpikeSimModel(kernel=kernel, weight_config_dict=context.weight_config_dict, dt=context.dt, dx=context.dx,
                           store_intermediates=context.store_intermediates,
                           residuals_activity_dict=context.residuals_activity_dict,
                           GLM_params_dict=context.GLM_params_dict, behav_factors_dict=context.behav_factors_dict, 
                           animal_by_animal = str_true_false_to_bool(context.animal_by_animal), input_animal = context.input_animal, 
-                        constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dend_threshold=param_dict['dend_threshold'], tau_ms=param_dict['tau_ms'], EC_weights_mean=param_dict['EC_weights_mean'], EC_weights_std=param_dict['EC_weights_std'],)
+                        constant_vel=constant_vel, include_beta=include_beta, flat_input=flat_input, dend_threshold=param_dict['dend_threshold'], tau_ms=param_dict['tau_ms'], EC_weights_mean=param_dict['EC_weights_mean'], EC_weights_std=param_dict['EC_weights_std'],sim_config=sim_config)
 
     if context.debug:
         log_mem("B: after building empty model")
@@ -270,15 +280,21 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
         log_mem("C: after attaching attrs, pre simulate")
 
     print(f"network_seed {network_seed} context.debug {context.debug}")
+
+ 
     
-    (dend_activity, plateau_positions_counter, padded_warped_activity_list,
+    (dend_activity, plateau_positions_counter,
      start_pos_cnt50_dict, _plateau_arr_list_dict,
      dendrite_plateau_mask, num_plateaus_per_dend_list, plateau_start_times_list_mega_list,
-     last_EPSP, weights_EC, weights_SST, weights_NDNF, an_velocity, activity_SST,
-     activity_NDNF, warped_list) = model.simulate(int(network_seed), debug=context.debug)
+     last_EPSP_dict, weights_pop_dict, an_velocity, warped_list_dict) = model.simulate(int(network_seed), debug=context.debug)
+    
+    #padded_warped_activity_list,
     
     # if plot:
     #   model.plot_summary()
+
+    print(f"context.interactive {context.interactive}")
+
     
     if not context.interactive:
         
@@ -316,7 +332,7 @@ def compute_features(params, network_seed, model_id=None, export=False, plot=Fal
             "dendrite_plateau_mask":dendrite_plateau_mask,
             "num_plateaus_per_dend_list":num_plateaus_per_dend_list,
             "plateau_start_times_list_mega_list":plateau_start_times_list_mega_list,
-            "last_EPSP":last_EPSP,
+            "last_EPSP":last_EPSP_dict,
             "weights_EC":weights_EC,
             "weights_SST":weights_SST,
             "weights_NDNF":weights_NDNF,
