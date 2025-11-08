@@ -1,0 +1,244 @@
+
+import sys
+import torch
+import slicetca
+import pickle
+import os
+# import utils as ut
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+import umap
+from sklearn.decomposition import PCA
+import ruptures as rpt
+
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+import torch
+import slicetca
+
+# import utils as ut
+# import plot as pt
+plt.rcParams.update({'font.size': 12,
+                    'axes.spines.right': False,
+                    'axes.spines.top':   False,
+                    'legend.frameon':    False,})
+
+
+import sys
+from scipy.stats import sem
+sys.path.append('/Users/michaelfinch/CA1-interneuron-GLM')
+
+from utils_TCA_clustering_scratchpad import *
+from GLM_regression_plotting import *
+
+
+from modelling_to_date_utils import *
+from SliceTCA_example import *
+
+################## UMAP then contiguous KMEAMS ##############
+
+
+def get_real_animal_tensor(residual_activity_dict_SST, animal_num=1):
+    real_animal_activity = residual_activity_dict_SST[f'animal_{animal_num}']
+    real_animal_data_list = []
+    for neuron in real_animal_activity:
+        cell_activity = real_animal_activity[neuron]
+        real_animal_data_list.append(cell_activity)
+    animal_tensor = np.array(real_animal_data_list)
+    animal_tensor = animal_tensor.transpose(2, 0, 1)
+
+    return animal_tensor
+
+
+def get_per_cell_sliceTCA_reconstruction_contig_00x(model, neuron_activity, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=True):
+    MSE_list = []
+    #     X_umap_list = []
+    labels_list = []
+    indices_for_cluster_number_list = []
+    TCA_reconstructions_list = []
+    Recon_by_cluster_av_list = []
+    cluster_trial_mean_list = []
+
+    for clusters_chosen in range(max_clusters):
+
+        reconstruction_cell = model.construct().numpy(force=True)
+        TCA_reconstructions_list.append(reconstruction_cell)
+
+        f = model.vectors[2][1].detach()
+        print(f"f.shape {f.shape}")
+        f1 = f.permute(2, 0, 1)  # [5, 40, 212]
+
+        f1 = f1.reshape(-1, f1.shape[-1]).T  # [200, 212]
+        print(f"f1.shape {f1.shape}")
+
+        f1 = torch.abs(f1)
+
+        algo = rpt.Binseg(model="l2", min_size=3).fit(f1)
+        bkps = algo.predict(n_bkps=clusters_chosen)
+
+        labels = np.zeros(f1.shape[0], dtype=int)
+
+        start = 0
+        for cluster_id, end in enumerate(bkps):
+            labels[start:end] = cluster_id
+            start = end
+
+        labels_list.append(labels)
+
+        # animal_tensor = get_real_animal_tensor(residual_activity_dict_SST, animal_id)
+
+
+        valid_cluster_mean_trials_list = []
+        valid_cluster_indices = []
+        for n in range(clusters_chosen):
+            trial_indices = np.where(labels == n)[0]
+
+            if len(trial_indices) > 2:
+
+                cluster_trials = reconstruction_cell[trial_indices, 0, :]  # shape (num_trials, time)
+
+                mean_cluster = cluster_trials.mean(axis=0)
+                valid_cluster_mean_trials_list.append(mean_cluster)
+
+                valid_cluster_indices.append((n, trial_indices))
+
+            else:
+                print(f"Skipping cluster {n} (only {len(trial_indices)} trials)")
+        cluster_trial_mean_list.append(valid_cluster_mean_trials_list)
+        cluster_trial_indices = {n: np.where(labels == n)[0] for n in range(clusters_chosen)}
+        indices_for_cluster_number_list.append(cluster_trial_indices)
+
+        empty_cell = np.zeros(neuron_activity.shape)
+
+        for i, (n, trials) in enumerate(valid_cluster_indices):
+            empty_cell[trials, :] = valid_cluster_mean_trials_list[i]
+        Recon_by_cluster_av_list.append(empty_cell)
+
+        neuron_MSE = np.mean(np.square(neuron_activity - empty_cell))
+        MSE_list.append(neuron_MSE)
+
+    internals_dict = {
+        "MSE_list": MSE_list,
+        #         "X_umap_list" : X_umap_list,
+        "labels_list": labels_list,
+        "indices_for_cluster_number_list": indices_for_cluster_number_list,
+        "TCA_reconstructions_list": TCA_reconstructions_list,
+        "Recon_by_cluster_av_list": Recon_by_cluster_av_list,
+        "cluster_trial_mean_list": cluster_trial_mean_list,
+
+    }
+
+    return internals_dict
+
+    # return MSE_list, x_pca_list, labels_list, indices_for_cluster_number, Recon_by_cluster_av_list, TCA_reconstructions_list, cluster_trial_mean_list
+
+def run(residual_activity_dict_NDNF_newest, cell_id=None, animal_id=None):
+
+
+# MSE_list, x_pca_list, labels_list, indices_for_cluster_number, Recon_by_cluster_av_list, TCA_reconstructions_list, cluster_trial_mean_list = get_per_cell_sliceTCA_reconstruction_MSE(SST_every_cell_model_list, residual_activity_dict_SST, max_clusters=12, animal_id=1, cell_id=2, display=False)
+# Load data
+#filename = "SSTindivsomata_GLM"
+#filename = "NDNFindivsomata_GLM"
+# filename = "EC_GLM"
+
+# cell_id = int(sys.argv[1])         # SLURM_ARRAY_TASK_ID
+# animal_id = int(sys.argv[2])       # Provided via command-line argument
+# ranks = int(sys.argv[3])
+
+# cell_id = 3
+# animal_id = 0
+# ranks = 40
+
+    # filename="NDNF_E0A1B1_251107"
+
+    # filepath = os.path.join("datasets", filename + ".mat")
+    # activity_dict, factors_dict = ut.preprocess_data(filepath)
+    # filtered_factors_dict = ut.subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
+    # GLM_params, predicted_activity_dict = ut.fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
+    # residual_activity_dict = ut.get_residual_activity_dict(activity_dict, predicted_activity_dict)
+
+
+    # cell_array = np.empty((len(residual_activity_dict[animal_id]), 50, residual_activity_dict[animal_id][cell_id].shape[1]))
+
+    # for cell in residual_activity_dict[animal_id]:
+
+
+
+
+
+    # GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="NDNF_E0A1B1_251107", new_NDNF=True)
+
+
+
+    # tensor_list_by_animal_all_SST = []
+    # for animal in residual_activity_dict:
+    #     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
+    #     neural_data_tensor = torch.tensor(neural_data)
+    #     # Normalize per cell
+    #     for i in range(neural_data_tensor.shape[1]):
+    #         cell = neural_data_tensor[:, i, :]
+    #         min_val = cell.min()
+    #         max_val = cell.max()
+    #         neural_data_tensor[:, i, :] = (cell - min_val) / (max_val - min_val + 1e-8)
+    #     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+
+
+    # tensor_for_animal = tensor_list_by_animal_all_SST[animal_id]
+
+
+    cell_data = residual_activity_dict_NDNF_newest[animal_id][cell_id].T
+    cell_data = ((cell_data-np.min(cell_data)) / np.max(cell_data) - np.min(cell_data))
+    cell_data_3d = np.expand_dims(cell_data, axis=1)
+
+    print(f"cell_data_3d.shape {cell_data_3d.shape}")
+
+    # Get activity data in shape (trials x neurons x timebins)
+
+    # cell_of_interest = tensor_for_animal[:,cell_id,:].unsqueeze(1)
+
+
+    cell_of_interest = torch.from_numpy(cell_data_3d)
+
+
+    cell_of_interest.requires_grad_()
+    components, model = slicetca.decompose(cell_of_interest,
+                                    number_components=(0, 0, 20),  # (trials, neurons, time bins)
+                                    positive=True,
+                                    learning_rate=1 * 10 ** -3,
+                                    min_std=10 ** -5, #max_iter=150, 
+                                    max_iter=5000, iter_std=4000,
+                                        seed=0)
+
+    
+    neuron_activity = cell_of_interest.detach().numpy()
+
+
+    internals_dict = get_per_cell_sliceTCA_reconstruction_contig_00x(model, neuron_activity, residual_activity_dict_NDNF_newest, max_clusters=5, animal_id=animal_id, cell_id=cell_id, display=False)
+
+    save_dir = fr"/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/ndnf_cell_types/Newest_NDNF_model_ranks20_contigkmeans_00x_cue_track"
+    os.makedirs(save_dir, exist_ok=True)  # Ensure directory exists
+
+    save_path = os.path.join(save_dir, f"MSE_EC_cell_latent_20_animal{animal_id}_cell_id{cell_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump([model, internals_dict], f)
+
+    print(f"Saved model for animal {animal_id} cell {cell_id} to {save_path}")
+
+
+if __name__ == "__main__":
+    GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="NDNF_E0A1B1_251107", new_NDNF=True)
+
+    cued_activity_dict_NDNF_newest = {}
+    for idx, animal in enumerate(activity_dict_NDNF_newest):
+        if idx > 28:
+            cued_activity_dict_NDNF_newest[f"animal_{idx+1}"] = activity_dict_NDNF_newest[animal]
+
+
+    for animal in cued_activity_dict_NDNF_newest:
+        for cell in cued_activity_dict_NDNF_newest[animal]:
+            run(cued_activity_dict_NDNF_newest, cell_id=cell, animal_id=animal)
+
+
+###############################################################################
