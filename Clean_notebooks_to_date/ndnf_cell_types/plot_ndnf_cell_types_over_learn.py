@@ -169,7 +169,7 @@ def get_most_expressed_cluster(TT_list, activity_list, cp_list_NDNF, early_late_
 
 
 
-def eval_proportion(most_expressed_label_dict_animal_early, most_expressed_label_dict_animal_late, group=None, ax=None):
+def eval_proportion(most_expressed_label_dict_animal_early, most_expressed_label_dict_animal_late, group=None, ax=None, color=None):
     early_vals = []
     late_vals  = []
 
@@ -191,12 +191,12 @@ def eval_proportion(most_expressed_label_dict_animal_early, most_expressed_label
 
     # plot means
     ax.plot([0,1], [early_vals.mean(), late_vals.mean()],
-            color='red', marker='o', linewidth=2)
+            color=color, marker='o', linewidth=2)
 
     ax.set_xticks([0,1])
     ax.set_xticklabels(['Early','Late'])
-    ax.set_ylabel("Fraction of Trials in Learning Block")
-    ax.set_title(f"{group} Paired t-test (p = {p:.3f})")
+    ax.set_ylabel("Fraction of Trials")
+    ax.set_title(f"{group} \n Paired t-test (p = {p:.3f})")
 
 
 def get_activity_cut_learn(fixed_residual_activity_dict_NDNF_newest, cp_dict_NDNF):
@@ -308,18 +308,15 @@ def get_activity_cut_learn(fixed_residual_activity_dict_NDNF_newest, cp_dict_NDN
 #     # plt.tight_layout()
 #     # plt.show()
 
-from scipy.stats import sem
-import numpy as np
 
 def plot_no_learn_cell_types(
     most_expressed_label_dict_animal_cluster_0_all,
     most_expressed_label_dict_animal_cluster_1_all,
     least_expressed_label_dict_animal_all_group0,
     least_expressed_label_dict_animal_all_group1,
-    elbow_kmeans_array,
     group=None,
     most_expressed=True,
-    axs_list=None
+    axs_list=None, color_dict=None
 ):
     """
     Expects axs_list length == 8 laid out however you want.
@@ -353,8 +350,9 @@ def plot_no_learn_cell_types(
     least_mean_1_fractions_list = []
 
     # Panel 0: Group0 per-cell traces
-    ax = axs_list[0]
-    ax.set_title("Group0: per-cell")
+    # ax = axs_list[0]
+    axs_list[0].set_title("Cell Type 0 \n Most Expressed")
+    axs_list[2].set_title("Cell Type 0 \n Least Expressed")
     for cell in most_expressed_label_dict_animal_cluster_0_all:
         arr_most = most_expressed_label_dict_animal_cluster_0_all[cell]["cluster_activity"]
         arr_least = least_expressed_label_dict_animal_all_group0[cell]["cluster_activity"]
@@ -362,13 +360,15 @@ def plot_no_learn_cell_types(
         arr_least_mean = np.mean(arr_least, axis=1)
         mean_0_list_most.append(arr_most_mean)
         mean_0_list_least.append(arr_least_mean)
-        ax.plot(arr_most_mean, alpha=0.4)
+        axs_list[0].plot(arr_most_mean, alpha=0.4, color='gray')
+        axs_list[2].plot(arr_least_mean, alpha=0.4, color='gray')
         most_mean_0_fractions_list.append(most_expressed_label_dict_animal_cluster_0_all[cell]["fraction"])
         least_mean_0_fractions_list.append(least_expressed_label_dict_animal_all_group0[cell]["fraction"])
 
 
-    ax = axs_list[1]
-    ax.set_title("Group1: per-cell")
+    # ax = axs_list[1]
+    axs_list[1].set_title("Cell Type 1 \n Most Expressed")
+    axs_list[3].set_title("Cell Type 1 \n Least Expressed")
     for cell in most_expressed_label_dict_animal_cluster_1_all:
         arr_most = most_expressed_label_dict_animal_cluster_1_all[cell]["cluster_activity"]
         arr_least = least_expressed_label_dict_animal_all_group1[cell]["cluster_activity"]
@@ -376,7 +376,8 @@ def plot_no_learn_cell_types(
         arr_least_mean = np.mean(arr_least, axis=1)
         mean_1_list_most.append(arr_most_mean)
         mean_1_list_least.append(arr_least_mean)
-        ax.plot(arr_most_mean, alpha=0.4)
+        axs_list[1].plot(arr_most_mean, alpha=0.4, color='gray')
+        axs_list[3].plot(arr_least_mean, alpha=0.4, color='gray')
         most_mean_1_fractions_list.append(most_expressed_label_dict_animal_cluster_1_all[cell]["fraction"])
         least_mean_1_fractions_list.append(least_expressed_label_dict_animal_all_group1[cell]["fraction"])
 
@@ -412,20 +413,42 @@ def plot_no_learn_cell_types(
     sem_0_least = sem(mean_0_array_least, axis=0, nan_policy='omit') 
     sem_1_least = sem(mean_1_array_least, axis=0, nan_policy='omit')
 
-    ax = axs_list[2]
+    axs_list[0].plot(mean_mean_0_array_most, linewidth=4, color=color_dict["Most_0"])
+    axs_list[0].set_xlabel("Position Bins")
+    axs_list[2].set_xlabel("Position Bins")
+    axs_list[0].set_ylabel("Z-Scored DF/F")
+    axs_list[2].set_ylabel("Z-Scored DF/F")
+    axs_list[0].set_ylim(-1.5, 4)
+    axs_list[2].plot(mean_mean_0_array_least, linewidth=4, color=color_dict["Least_0"])
+    axs_list[2].set_ylim(-1.5, 4)
+
+    axs_list[1].set_xlabel("Position Bins")
+    axs_list[3].set_xlabel("Position Bins")
+    axs_list[1].set_ylabel("Z-Scored DF/F")
+    axs_list[3].set_ylabel("Z-Scored DF/F")
+    axs_list[1].plot(mean_mean_1_array_most, linewidth=4, color=color_dict["Most_1"])
+    axs_list[1].set_ylim(-1.5, 4)
+    axs_list[3].plot(mean_mean_1_array_least, linewidth=4, color=color_dict["Least_1"])
+    axs_list[3].set_ylim(-1.5, 4)
+
+    ax = axs_list[4]
     ax.set_title("Cell Type 0")
-    ax.plot(mean_mean_0_array_most, label="Most Expressed Trial Type")
-    ax.fill_between(range(len(mean_mean_0_array_most)), mean_mean_0_array_most - sem_0_most, mean_mean_0_array_most + sem_0_most, alpha=0.2)
-    ax.plot(mean_mean_0_array_least, label="Least Expressed Trial Type")
-    ax.fill_between(range(len(mean_mean_0_array_least)), mean_mean_0_array_least - sem_0_least, mean_mean_0_array_least + sem_0_least, alpha=0.2)
+    ax.set_xlabel("Position Bins")
+    ax.set_ylabel("Z-Scored DF/F")
+    ax.plot(mean_mean_0_array_most, label="Most Expressed Trial Type", color=color_dict["Most_0"])
+    ax.fill_between(range(len(mean_mean_0_array_most)), mean_mean_0_array_most - sem_0_most, mean_mean_0_array_most + sem_0_most, alpha=0.2, color=color_dict["Most_0"])
+    ax.plot(mean_mean_0_array_least, label="Least Expressed Trial Type", color=color_dict["Least_0"])
+    ax.fill_between(range(len(mean_mean_0_array_least)), mean_mean_0_array_least - sem_0_least, mean_mean_0_array_least + sem_0_least, alpha=0.2, color=color_dict["Least_0"])
     ax.legend(fontsize=6)
 
-    ax = axs_list[3]
+    ax = axs_list[5]
+    ax.set_xlabel("Position Bins")
     ax.set_title("Cell Type 1")
-    ax.plot(mean_mean_1_array_most, label="Most Expressed Trial Type")
-    ax.fill_between(range(len(mean_mean_1_array_most)), mean_mean_1_array_most - sem_1_most, mean_mean_1_array_most + sem_1_most, alpha=0.2)
-    ax.plot(mean_mean_1_array_least, label="Least Expressed Trial Type")
-    ax.fill_between(range(len(mean_mean_1_array_least)), mean_mean_1_array_least - sem_1_least, mean_mean_1_array_least + sem_1_least, alpha=0.2)
+    ax.plot(mean_mean_1_array_most, label="Most Expressed Trial Type", color=color_dict["Most_1"])
+    ax.fill_between(range(len(mean_mean_1_array_most)), mean_mean_1_array_most - sem_1_most, mean_mean_1_array_most + sem_1_most, alpha=0.2, color=color_dict["Most_1"])
+    ax.plot(mean_mean_1_array_least, label="Least Expressed Trial Type", color=color_dict["Least_1"])
+    ax.fill_between(range(len(mean_mean_1_array_least)), mean_mean_1_array_least - sem_1_least, mean_mean_1_array_least + sem_1_least, alpha=0.2, color=color_dict["Least_1"])
+    ax.set_ylabel("Z-Scored DF/F")
     ax.legend(fontsize=6)
     
     # # Panel 2: Group0 mean±SEM
@@ -459,11 +482,11 @@ def plot_no_learn_cell_types(
 
     print(f"len(most_mean_0_fractions_list) {len(most_mean_0_fractions_list)}")
 
-    ax = axs_list[4]
-    ax.hist(most_mean_0_fractions_list, bins=bins, alpha=0.35, label='Most', edgecolor='none')
-    ax.hist(least_mean_0_fractions_list, bins=bins, alpha=0.35, label='Least', edgecolor='none')
-    ax.set_title("Group0: fraction of trials")
-    ax.set_xlabel("Fraction"); ax.set_ylabel("Number of Cells")
+    ax = axs_list[6]
+    ax.hist(most_mean_0_fractions_list, bins=bins, alpha=0.35, label='Most', edgecolor='none', color=color_dict["Most_0"])
+    ax.hist(least_mean_0_fractions_list, bins=bins, alpha=0.35, label='Least', edgecolor='none', color=color_dict["Least_0"])
+    ax.set_title("Cell Type 0")
+    ax.set_xlabel("Fraction of Trials"); ax.set_ylabel("Number of Cells")
     ax.legend(frameon=False)
 
     # Panel 5: Group1 fraction histogram
@@ -477,11 +500,11 @@ def plot_no_learn_cell_types(
     all_vals = np.concatenate([most_mean_1_fractions_list, least_mean_1_fractions_list])
     bins = np.histogram_bin_edges(all_vals, bins='auto')
 
-    ax = axs_list[5]
-    ax.hist(most_mean_1_fractions_list, bins=bins, alpha=0.35, label='Most', edgecolor='none')
-    ax.hist(least_mean_1_fractions_list, bins=bins, alpha=0.35, label='Least', edgecolor='none')
-    ax.set_title("Group1: fraction of trials")
-    ax.set_xlabel("Fraction"); ax.set_ylabel("Number of Cells")
+    ax = axs_list[7]
+    ax.hist(most_mean_1_fractions_list, bins=bins, alpha=0.35, label='Most', edgecolor='none', color=color_dict["Most_1"])
+    ax.hist(least_mean_1_fractions_list, bins=bins, alpha=0.35, label='Least', edgecolor='none', color=color_dict["Least_1"])
+    ax.set_title("Cell Type 1")
+    ax.set_xlabel("Fraction of Trials"); ax.set_ylabel("Number of Cells")
     ax.legend(frameon=False)
 
     # # Panel 6: Overlay Group0 vs Group1 mean±SEM
@@ -498,13 +521,7 @@ def plot_no_learn_cell_types(
     # ax.legend(frameon=False)
 
     # Panel 7: Elbow histogram
-    ax = axs_list[7]
-    ax.hist(elbow_kmeans_array, bins=[1.5,2.5,3.5,4.5,5.5])
-    ax.set_xticks([2,3,4,5])
-    ax.set_xlim(1.5,5.5)
-    ax.set_title("Elbow Num Clusters Distribution")
-    ax.set_xlabel("Num Clusters")
-    ax.set_ylabel("Num Cells")
+    
 
 
 def plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, activity_array_late, K=2, title=""):
@@ -849,12 +866,12 @@ def run(most_expressed):
 
 
 
-    most_expressed_label_dict_animal_all_group0, _ = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_0, most_expressed=True)
-    most_expressed_label_dict_animal_all_group1, elbow_kmeans_array_group1 = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_1, most_expressed=True)
+    most_expressed_label_dict_animal_all_group0, elbow_kmeans_array_group0_most = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_0, most_expressed=True)
+    most_expressed_label_dict_animal_all_group1, elbow_kmeans_array_group1_most = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_1, most_expressed=True)
 
 
-    least_expressed_label_dict_animal_all_group0, _ = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_0, most_expressed=False)
-    least_expressed_label_dict_animal_all_group1, elbow_kmeans_array_group1 = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_1, most_expressed=False)
+    least_expressed_label_dict_animal_all_group0, elbow_kmeans_array_group0_least = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_0, most_expressed=False)
+    least_expressed_label_dict_animal_all_group1, elbow_kmeans_array_group1_least = get_most_expressed_cluster(TT_list, NDNF_activity_list, cp_list_NDNF, early_late_none="none", to_include=cells_group_1, most_expressed=False)
 
     
     
@@ -878,6 +895,11 @@ def run(most_expressed):
 
     fig, axs = plt.subplots(4, 4, figsize=(12, 12))  # or your preferred size
 
+    colors_dict = {"Most_0":"orange",
+                   "Least_0":"magenta",
+                   "Most_1":"purple",
+                   "Least_1":"red"}
+
     axs_list = [
         axs[0,0], axs[0,1],
         axs[1,0], axs[1,1],
@@ -889,46 +911,97 @@ def run(most_expressed):
         most_expressed_label_dict_animal_all_group1,
         least_expressed_label_dict_animal_all_group0,
         least_expressed_label_dict_animal_all_group1,
-        elbow_kmeans_array,
         group=None,
         most_expressed=most_expressed,
-        axs_list=axs_list
+        axs_list=axs_list, color_dict=colors_dict
     )
 
-    axs_list2 = [axs[0,2], axs[0,3]]
-    plot_early_late_activity_light(
-    most_expressed_label_dict_animal_early_group0,
-    most_expressed_label_dict_animal_late_group0,
-    ax_list = axs_list2,
-    most_expressed=True,
-    group="Cell Type 0")
+    # axs_list2 = [axs[0,2], axs[0,3]]
+    # plot_early_late_activity_light(
+    # most_expressed_label_dict_animal_early_group0,
+    # most_expressed_label_dict_animal_late_group0,
+    # ax_list = axs_list2,
+    # most_expressed=True,
+    # group="Cell Type 0")
+
+    eval_proportion(most_expressed_label_dict_animal_early_group0,
+                    most_expressed_label_dict_animal_late_group0,
+                    group="Cell Type 0 Most Expressed", ax=axs[0,2], color=colors_dict["Most_0"])
 
 
-    axs_list3 = [axs[1,2], axs[1,3]]
-    plot_early_late_activity_light(
-    least_expressed_label_dict_animal_early_group0,
-    least_expressed_label_dict_animal_late_group0,
-    ax_list = axs_list3,
-    most_expressed=False,
-    group="Cell Type 0")
+    # axs_list3 = [axs[1,2], axs[1,3]]
+    # plot_early_late_activity_light(
+    # least_expressed_label_dict_animal_early_group0,
+    # least_expressed_label_dict_animal_late_group0,
+    # ax_list = axs_list3,
+    # most_expressed=False,
+    # group="Cell Type 0")
 
 
-    axs_list4 = [axs[2,2], axs[2,3]]
-    plot_early_late_activity_light(
-    most_expressed_label_dict_animal_early_group1,
-    most_expressed_label_dict_animal_late_group1,
-    ax_list = axs_list4,
-    most_expressed=True,
-    group="Cell Type 1")
+    eval_proportion(least_expressed_label_dict_animal_early_group0,
+                    least_expressed_label_dict_animal_late_group0,
+                    group="Cell Type 0 Least Expressed", ax=axs[1,2], color=colors_dict["Least_0"])
 
 
-    axs_list5 = [axs[3,2], axs[3,3]]
-    plot_early_late_activity_light(
-    least_expressed_label_dict_animal_early_group1,
-    least_expressed_label_dict_animal_late_group1,
-    ax_list = axs_list5,
-    most_expressed=False,
-    group="Cell Type 1")
+    # axs_list4 = [axs[2,2], axs[2,3]]
+    # plot_early_late_activity_light(
+    # most_expressed_label_dict_animal_early_group1,
+    # most_expressed_label_dict_animal_late_group1,
+    # ax_list = axs_list4,
+    # most_expressed=True,
+    # group="Cell Type 1")
+
+
+    eval_proportion(most_expressed_label_dict_animal_early_group1,
+                    most_expressed_label_dict_animal_late_group1,
+                    group="Cell Type 1 Most Expressed", ax=axs[2,2], color=colors_dict["Most_1"])
+
+
+    # axs_list5 = [axs[3,2], axs[3,3]]
+    # plot_early_late_activity_light(
+    # least_expressed_label_dict_animal_early_group1,
+    # least_expressed_label_dict_animal_late_group1,
+    # ax_list = axs_list5,
+    # most_expressed=False,
+    # group="Cell Type 1")
+
+
+    eval_proportion(least_expressed_label_dict_animal_early_group1,
+                least_expressed_label_dict_animal_late_group1,
+                group="Cell Type 1 Least Expressed", ax=axs[3,2], color=colors_dict["Least_1"])
+    
+
+    ax=axs[0,3]
+    ax.hist(elbow_kmeans_array_group0_most, bins=[1.5,2.5,3.5,4.5,5.5], color=colors_dict["Most_0"])
+    ax.set_xticks([2,3,4,5])
+    ax.set_xlim(1.5,5.5)
+    ax.set_title("Most Expressed Cell Type 0")
+    ax.set_xlabel("Num Clusters")
+    ax.set_ylabel("Num Cells")
+
+    ax=axs[1,3]
+    ax.hist(elbow_kmeans_array_group0_least, bins=[1.5,2.5,3.5,4.5,5.5], color=colors_dict["Least_0"])
+    ax.set_xticks([2,3,4,5])
+    ax.set_xlim(1.5,5.5)
+    ax.set_title("Least Expressed Cell Type 0")
+    ax.set_xlabel("Num Clusters")
+    ax.set_ylabel("Num Cells")
+
+    ax=axs[2,3]
+    ax.hist(elbow_kmeans_array_group1_most, bins=[1.5,2.5,3.5,4.5,5.5], color=colors_dict["Most_1"])
+    ax.set_xticks([2,3,4,5])
+    ax.set_xlim(1.5,5.5)
+    ax.set_title("Most Expressed Cell Type 1")
+    ax.set_xlabel("Num Clusters")
+    ax.set_ylabel("Num Cells")
+
+    ax=axs[3,3]
+    ax.hist(elbow_kmeans_array_group1_least, bins=[1.5,2.5,3.5,4.5,5.5], color=colors_dict["Least_1"])
+    ax.set_xticks([2,3,4,5])
+    ax.set_xlim(1.5,5.5)
+    ax.set_title("Least Expressed Cell Type 1")
+    ax.set_xlabel("Num Clusters")
+    ax.set_ylabel("Num Cells")
 
 
     plt.tight_layout()

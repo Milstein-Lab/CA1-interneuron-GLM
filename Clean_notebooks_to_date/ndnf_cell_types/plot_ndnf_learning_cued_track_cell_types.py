@@ -30,7 +30,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import cdist
 
-
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 
 def get_cp_dict(cell_SST_model_ranks20_contig_x00):
@@ -594,7 +594,7 @@ def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_
     return means_dict_cluster
 
 
-def plot_mean_resid(residual_activity_dict_NDNF_newest, title, ax=None):
+def plot_mean_resid(residual_activity_dict_NDNF_newest, title, ax=None, plot=False):
     cue_residual_activity_dict_NDNF_newest = {}
     for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
         if idx > 30:
@@ -610,11 +610,12 @@ def plot_mean_resid(residual_activity_dict_NDNF_newest, title, ax=None):
     means = np.mean(good_array, axis=0)
     sems = sem(good_array, axis=0)
 
-    ax.plot(means)
-    ax.axvline(10, linestyle="--", color='red', label='Cue')
-    ax.fill_between(range(len(means)), means+sems, means-sems, alpha=0.2)
-    ax.legend()
-    ax.set_title(title)
+    if plot:
+        ax.plot(means)
+        ax.axvline(10, linestyle="--", color='red', label='Cue')
+        ax.fill_between(range(len(means)), means+sems, means-sems, alpha=0.2)
+        ax.legend()
+        ax.set_title(title)
 
     return cue_residual_activity_dict_NDNF_newest
 
@@ -699,18 +700,17 @@ def plot_cluster_traces_by_animal(
     fixed_activity_dict_NDNF_newest,    # to recompute TA traces
     cells_per_animal_dict,              # {animal: [global_cell_ids...]}
     K, 
-    ncol=None,                          # legend columns
+    ncol=1,                             # legend columns
     ylim=(-1.1, 2.6), 
-    spacing=None,  
+    spacing=0.25,                       # horizontal spacing between subplots (wspace)
     title_prefix="",
-    axs=None,                           # <-- pass a list/array of Axes (len >= #clusters) or None
+    axs=None,                           # list/array of Axes (len >= #clusters) or None
     legend="bottom",                    # "bottom", "right", "inside", or None
-    legend_ncol=1
-):
+color_list=None):
     """
-    If `axs` is None, creates a new figure with one row of subplots (one per cluster).
-    If `axs` is provided, it must be an array-like of Axes with length >= number of clusters.
-    Only calls plt.show() if it created the figure.
+    Plots trial-averaged (TA) traces per cluster, coloring each trace by its animal.
+    If `axs` is None, creates a new 1×(#clusters) figure (shared y). Otherwise draws into provided axes.
+    Legend shows animals with their colors and can be placed at 'bottom', 'right', 'inside', or disabled with None.
     """
 
     # --- build cell_id -> animal map ---
@@ -732,74 +732,107 @@ def plot_cluster_traces_by_animal(
 
     # --- color map per animal ---
     animals = sorted(set(cell_to_animal.values()))
-    cmap = plt.get_cmap("tab20", len(animals))
-    animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
+    cmap = plt.get_cmap("tab20", max(1, len(animals)))
+    animal_to_color = {a: cmap(i % cmap.N) for i, a in enumerate(animals)}
 
     # --- axes handling ---
     created_fig = False
     if axs is None:
-        fig, axs = plt.subplots(1, n_panels, figsize=(4*n_panels, 6), sharey=True)
+        fig, axs = plt.subplots(1, n_panels, figsize=(4 * n_panels, 6), sharey=True)
+        if n_panels == 1:
+            axs = np.array([axs])
         created_fig = True
     else:
-        # normalize axs to a 1D numpy array for indexing
         if not isinstance(axs, (list, tuple, np.ndarray)):
             axs = np.array([axs])
         else:
             axs = np.array(axs).ravel()
         if len(axs) < n_panels:
             raise ValueError(f"Provided axs has length {len(axs)} but need at least {n_panels} axes.")
-        fig = axs[0].figure  # figure hosting the provided axes
+        fig = axs[0].figure
 
-    if n_panels == 1 and axs.ndim == 0:
-        axs = np.array([axs])
+    # adjust spacing if requested
+    if spacing is not None:
+        fig.subplots_adjust(wspace=spacing)
 
     # --- draw each cluster ---
-    for lab in uniq:
+    for i, lab in enumerate(uniq):
         ax = axs[label_to_col[lab]]
         idx = np.asarray(clust_idx_dict[lab], dtype=int)
-        traces = ta[idx]                                   # (n_k, n_pos)
+        if idx.size == 0:
+            ax.set_title(f"Cluster {lab} (n=0)")
+            ax.set_xlim(0, n_pos - 1)
+            ax.set_ylim(*ylim)
+            continue
+
+        traces = ta[idx]  # (n_k, n_pos)
 
         # plot each cell trace colored by its animal
-        # (map cid -> row index once for speed)
-        row_index = {cid: i for i, cid in enumerate(idx)}
-        for cid in idx:
+        for j, cid in enumerate(idx):
             a = cell_to_animal.get(int(cid), "unknown")
             color = animal_to_color.get(a, (0.5, 0.5, 0.5, 0.6))
-            ax.plot(traces[row_index[int(cid)], :], lw=1.0, alpha=0.7, color=color)
+            ax.plot(traces[j, :], lw=1.0, alpha=0.7, color=color)
 
         # overlay mean ± SEM (neutral color)
-        if traces.size > 0:
-            m = traces.mean(axis=0)
-            s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
-            ax.plot(m, lw=2.0, color="k")
-            ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color="k")
+        m = traces.mean(axis=0)
+        s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
+        ax.plot(m, lw=2.0, color=color_list[i], zorder=5)
+        # ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color=color_list[i], zorder=4)
 
-        ax.set_title(f"Cluster {lab} (n={len(idx)})")
+        ax.set_title(f"{title_prefix} Cluster {lab} (n={len(idx)})".strip())
         ax.set_xlabel("Position bins")
         ax.set_ylim(*ylim)
 
     axs[0].set_ylabel("Z-scored dF/F")
 
+    # # --- legend handling ---
+    # if legend is not None and len(animals) > 0:
+    #     # make legend handles
+    #     handles = []
+    #     labels = []
+    #     for a in animals:
+    #         handles.append(plt.Line2D([0], [0], color=animal_to_color[a], lw=3))
+    #         labels.append(str(a))
+
+    #     if legend == "inside":
+    #         axs[-1].legend(handles, labels, frameon=True, loc="upper right", ncol=ncol)
+    #     elif legend == "right":
+    #         # put one consolidated legend on the right of the rightmost axis
+    #         leg = axs[-1].legend(handles, labels, frameon=False, loc="center left",
+    #                              bbox_to_anchor=(1.02, 0.5), ncol=ncol)
+    #         fig.subplots_adjust(right=0.78 if ncol == 1 else 0.88)
+    #     elif legend == "bottom":
+    #         # global legend at bottom of figure
+    #         fig.legend(handles, labels, loc="lower center", ncol=max(ncol, 1), frameon=False)
+    #         fig.subplots_adjust(bottom=0.15)
+    #     # else: unknown string → skip legend silently
+
+    # if created_fig:
+    #     plt.show()
+
+    return fig, axs
+
+
     # --- title ---
-    fig.suptitle(f"{title_prefix} Traces colored by animal — K={K}", y=0.98, fontsize=12)
+    # fig.suptitle(f"{title_prefix} Traces colored by animal — K={K}", y=0.98, fontsize=12)
 
-    # --- legend ---
-    if legend is not None and len(animals) > 0:
-        handles = [plt.Line2D([0],[0], color=animal_to_color[a], lw=2) for a in animals]
-        labels = [f"{a}" for a in animals]
+    # # --- legend ---
+    # if legend is not None and len(animals) > 0:
+    #     handles = [plt.Line2D([0],[0], color=animal_to_color[a], lw=2) for a in animals]
+    #     labels = [f"{a}" for a in animals]
 
-        if legend == "bottom":
-            fig.legend(handles, labels, loc="lower center", ncol=ncol or legend_ncol, frameon=False)
-            if created_fig:
-                fig.subplots_adjust(bottom=spacing if spacing is not None else 0.12, top=0.90, left=0.07, right=0.98)
-        elif legend == "right":
-            # put legend to the right of the last axis
-            axs[-1].legend(handles, labels, loc="center left", bbox_to_anchor=(1.02, 0.5),
-                           frameon=False, ncol=ncol or legend_ncol)
-            if created_fig:
-                fig.subplots_adjust(right=0.80, top=0.90, left=0.07, bottom=0.12)
-        elif legend == "inside":
-            axs[-1].legend(handles, labels, loc="upper right", frameon=False, ncol=ncol or legend_ncol)
+    #     if legend == "bottom":
+    #         fig.legend(handles, labels, loc="lower center", ncol=ncol or legend_ncol, frameon=False)
+    #         if created_fig:
+    #             fig.subplots_adjust(bottom=spacing if spacing is not None else 0.12, top=0.90, left=0.07, right=0.98)
+    #     elif legend == "right":
+    #         # put legend to the right of the last axis
+    #         axs[-1].legend(handles, labels, loc="center left", bbox_to_anchor=(1.02, 0.5),
+    #                        frameon=False, ncol=ncol or legend_ncol)
+    #         if created_fig:
+    #             fig.subplots_adjust(right=0.80, top=0.90, left=0.07, bottom=0.12)
+    #     elif legend == "inside":
+    #         axs[-1].legend(handles, labels, loc="upper right", frameon=False, ncol=ncol or legend_ncol)
 
     # only show if we created the figure
     if created_fig:
@@ -999,7 +1032,7 @@ def get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest):
     return data_truncated_array
 
 
-def plot_lick_vel_data_clust(means_dict_cluster_0x0_raw, num_clusters=3, use_vel=False, title=None, ax=None):
+def plot_lick_vel_data_clust(means_dict_cluster_0x0_raw, num_clusters=3, use_vel=False, title=None, ax=None, color_list=None):
 
     if use_vel:
         vel_data = means_dict_cluster_0x0_raw[num_clusters]["vel_data_sliced_dict"]
@@ -1008,15 +1041,15 @@ def plot_lick_vel_data_clust(means_dict_cluster_0x0_raw, num_clusters=3, use_vel
 
 
     # fig, axs = plt.subplots(1,len(vel_data), figsize=(len(vel_data)*4, 4))
-    for clust in vel_data:
+    for i, clust in enumerate(vel_data):
         vel_array = vel_data[clust]
         trial_av_vel_array = np.mean(vel_array, axis=2)
 
         mean_over_cells = np.mean(trial_av_vel_array, axis=0)
         sem_over_cells = sem(trial_av_vel_array, axis=0)
 
-        ax.plot(mean_over_cells, label=f"Cluster {clust} n={vel_array.shape[0]}")
-        ax.fill_between(range(len(mean_over_cells)), mean_over_cells-sem_over_cells, mean_over_cells+sem_over_cells, alpha=0.2)
+        ax.plot(mean_over_cells, label=f"Cluster {clust} n={vel_array.shape[0]}", color=color_list[i])
+        ax.fill_between(range(len(mean_over_cells)), mean_over_cells-sem_over_cells, mean_over_cells+sem_over_cells, alpha=0.2, color=color_list[i])
         # plt.title(f"Cluster {clust}")
         ax.set_xlabel("Position Bins")
         if use_vel:
@@ -1025,6 +1058,252 @@ def plot_lick_vel_data_clust(means_dict_cluster_0x0_raw, num_clusters=3, use_vel
             ax.set_ylabel(f"Normalized Lick Rate")
     ax.set_title(title)
     ax.legend()
+
+
+
+
+def lda_with_orthogonal_axis_2d(X, labels, title_prefix=""):
+    """
+    Returns a 2D embedding:
+    axis 1: Fisher LDA direction (max class separation)
+    axis 2: top-variance direction orthogonal to LDA (via PCA in orth subspace)
+    """
+    X = np.asarray(X)
+    y = np.asarray(labels)
+    n_samples, n_features = X.shape
+    if n_features < 2:
+        raise ValueError("Need at least 2 features to build an orthogonal second axis.")
+
+    # --- 1) Fit LDA (1 component) and get the discriminant vector w ---
+    lda = LinearDiscriminantAnalysis(n_components=1)
+    lda.fit(X, y)
+
+    # For binary classes, coef_ has shape (1, n_features)
+    w = lda.coef_[0].astype(float)
+    w_norm = np.linalg.norm(w)
+    if w_norm == 0:
+        # fallback: if degenerate, use mean-difference direction
+        classes = np.unique(y)
+        mu0 = X[y == classes[0]].mean(axis=0)
+        mu1 = X[y == classes[1]].mean(axis=0)
+        w = (mu1 - mu0)
+        w_norm = np.linalg.norm(w)
+        if w_norm == 0:
+            raise ValueError("Could not determine a discriminant direction (degenerate data).")
+    w /= w_norm  # unit vector
+
+    # --- 2) Build the orthogonal subspace and find its top-variance direction ---
+    # Project data onto the orthogonal complement of w
+    # X_perp = X - (X w) w
+    Xw = X @ w
+    X_perp = X - np.outer(Xw, w)
+
+    # Center X_perp (important for PCA)
+    X_perp_centered = X_perp - X_perp.mean(axis=0, keepdims=True)
+
+    # If all variance orthogonal to w vanishes, fall back to a random orth direction
+    if np.allclose(np.var(X_perp_centered, axis=0).sum(), 0.0, atol=1e-12):
+        # Random orth direction (Gram-Schmidt)
+        rand_vec = np.random.randn(n_features)
+        orth = rand_vec - (rand_vec @ w) * w
+        if np.linalg.norm(orth) < 1e-12:
+            # try again
+            rand_vec = np.random.randn(n_features)
+            orth = rand_vec - (rand_vec @ w) * w
+        orth /= np.linalg.norm(orth)
+    else:
+        # PCA in the orthogonal subspace to get the most informative 2nd axis
+        pca = PCA(n_components=1, svd_solver="full")
+        pca.fit(X_perp_centered)
+        # PCA component is in the *feature* space of X_perp_centered, already orthogonal to w
+        orth = pca.components_[0]
+        # Keep it strictly orthogonal (numerical safety)
+        orth = orth - (orth @ w) * w
+        orth /= np.linalg.norm(orth)
+
+    # --- 3) Project original X onto (w, orth) for 2D embedding ---
+    X_2d = np.column_stack((X @ w, X @ orth))
+    return X_2d
+
+
+
+
+
+def plot_lda_projection(X, labels, title_prefix="LDA Projection", cluster_subset=None):
+    """
+    If cluster_subset is given (e.g., (0,1)), restrict to those two classes.
+    For 2 classes -> 1D LDA projection (strip+hist).
+    For >=3 classes -> 2D LDA scatter (first two discriminants).
+    """
+    labels = np.asarray(labels)
+
+    # Optional: restrict to chosen clusters (e.g., (0,1))
+    if cluster_subset is not None:
+        mask = np.isin(labels, cluster_subset)
+        X = X[mask]
+        labels = labels[mask]
+
+    uniq = np.unique(labels)
+    uniq = np.unique(labels)
+
+    if len(uniq) == 2:
+        # 1) LDA axis
+        lda = LinearDiscriminantAnalysis(n_components=1).fit(X, labels)
+        w = lda.coef_[0].astype(float)
+        w /= np.linalg.norm(w) + 1e-12
+
+        # 2) Orthogonal top-variance axis (PCA in subspace ⟂ w)
+        Xw = X @ w
+        X_perp = X - np.outer(Xw, w)
+        X_perp -= X_perp.mean(axis=0, keepdims=True)
+
+        pca_orth = PCA(n_components=1, svd_solver="full").fit(X_perp)
+        orth = pca_orth.components_[0]
+        # enforce exact orthogonality (numerical safety)
+        orth = orth - (orth @ w) * w
+        orth /= np.linalg.norm(orth) + 1e-12
+
+        X_2d = np.column_stack((X @ w, X @ orth))
+
+        # fig, ax = plt.subplots(figsize=(7.5, 5))
+        for k in uniq:
+            m = labels == k
+            ax.scatter(X_2d[m, 0], X_2d[m, 1], s=40, alpha=0.6, label=f"C{k} (n={m.sum()})")
+        ax.set_xlabel("LDA axis (max class separation)")
+        ax.set_ylabel("Orthogonal axis (top variance ⟂ LDA)")
+        ax.set_title(f"LDA + Orthogonal PCA {title_prefix}")
+        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
+        fig.subplots_adjust(right=0.78)
+        plt.show()
+
+    else:
+        # standard LDA with up to 2 components for K>=3
+        lda = LinearDiscriminantAnalysis(n_components=min(2, len(uniq)-1))
+        X_lda = lda.fit_transform(X, labels)
+
+        fig, ax = plt.subplots(figsize=(7.5, 5))
+        for k in uniq:
+            m = labels == k
+            ax.scatter(X_lda[m, 0], X_lda[m, 1], s=40, alpha=0.6, label=f"C{k} (n={m.sum()})")
+        ax.set_xlabel("LDA Component 1")
+        ax.set_ylabel("LDA Component 2")
+        ax.set_title(f"LDA Projection {title_prefix}")
+        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
+        fig.subplots_adjust(right=0.78)
+        # plt.show()
+
+def get_cell_features(w1, f1, *,
+                      feature_mode="latent_pos_flat",  # "latent_pos_flat" | "latent_trials_flat" | "loadings" | "pos_profile"
+                      n_cells_expected=None,
+                      n_latents_expected=None):
+    """
+    Build per-cell feature matrix X (rows=cells).
+    Handles arbitrary axis orders from SliceTCA outputs across (x00, 0x0, 00x).
+    w1, f1 are torch tensors from model.vectors[which_vectors].
+
+    feature_mode:
+      - "latent_pos_flat":   (cells, latents*pos)        e.g., (115, 20*50)
+      - "latent_trials_flat":(cells, latents*trials)     e.g., (115, 20*100)
+      - "loadings":          (cells, latents)            e.g., (115, 20)
+      - "pos_profile":       (cells, pos) via weighted latent templates
+
+    Notes:
+      • If a chosen mode can’t be formed from the available axes, it raises a helpful error.
+      • Pass n_cells_expected=115 (and n_latents_expected=20) to make detection strict.
+    """
+    # to numpy
+    W = w1.detach().cpu().numpy()
+    F = f1.detach().cpu().numpy()
+
+    # small helpers
+    def find_axis_by_size(shape, target):
+        return shape.index(target) if (target in shape) else None
+
+    def move_front(a, ax):
+        return np.moveaxis(a, ax, 0)
+
+    # Try to detect latents axis (often 20)
+    Lw = find_axis_by_size(W.shape, n_latents_expected) if n_latents_expected else None
+    Lf = find_axis_by_size(F.shape, n_latents_expected) if n_latents_expected else None
+    # Detect cells axis (often 115)
+    Cw = find_axis_by_size(W.shape, n_cells_expected) if n_cells_expected else None
+    Cf = find_axis_by_size(F.shape, n_cells_expected) if n_cells_expected else None
+
+    # ---- Option 1: LOADINGS (cells × latents) ----
+    if feature_mode == "0x0":
+        # Prefer a (latents, cells) slice if present (W or F that directly has cells)
+        if (Lw is not None) and (Cw is not None) and W.ndim == 2:
+            # W (latents, cells) -> (cells, latents)
+            X = np.moveaxis(W, (Lw, Cw), (1, 0))
+            X = X.T  # (cells, latents)
+            return X
+        # Else try from F by reducing non-latent dims
+        if Cf is not None and Lf is not None and F.ndim >= 2:
+            # bring cells front, latents second
+            order = [Cf, Lf] + [ax for ax in range(F.ndim) if ax not in (Cf, Lf)]
+            G = np.transpose(F, order)     # (cells, latents, ...)
+            if G.ndim == 2:
+                return G  # already (cells, latents)
+            # average remaining dims (e.g., trials/pos) → (cells, latents)
+            X = G.mean(axis=tuple(range(2, G.ndim)))
+            return X
+        raise ValueError("Cannot form 'loadings': no (latents,cells) pairing found in W/F.")
+
+    # ---- Option 2: latent × pos flattened (cells × (L*P)) ----
+    if feature_mode == "x00":
+        # We need a tensor that contains (latents, cells, pos) in some order
+        # Check F first (most common)
+        if Cf is not None and Lf is not None and 3 <= F.ndim <= 4:
+            # find a pos-like axis: pick the remaining non-cells, non-latents axis
+            rem = [ax for ax in range(F.ndim) if ax not in (Cf, Lf)]
+            if not rem:
+                raise ValueError("No pos axis found in F for latent_pos_flat.")
+            pos_ax = rem[0]
+            # reorder to (cells, latents, pos, [maybe ...])
+            order = [Cf, Lf, pos_ax] + [ax for ax in rem[1:]]
+            G = np.transpose(F, order)
+            # if more dims exist, mean over them
+            if G.ndim > 3:
+                G = G.mean(axis=tuple(range(3, G.ndim)))
+            C, L, P = G.shape
+            X = G.reshape(C, L * P)
+            return X
+        # Else: if W has (latents, pos) and *no* cells, we can’t build per-cell features from W alone.
+        raise ValueError("Cannot form 'latent_pos_flat' from current W/F: need latents+cells+pos together (usually in F).")
+
+    # ---- Option 3: latent × trials flattened (cells × (L*T)) ----
+    if feature_mode == "00x":
+        # Need (latents, trials, cells) in some order
+        if Cf is not None and Lf is not None and 3 <= F.ndim <= 4:
+            rem = [ax for ax in range(F.ndim) if ax not in (Cf, Lf)]
+            if not rem:
+                raise ValueError("No trials axis found in F for latent_trials_flat.")
+            tr_ax = rem[0]
+            order = [Cf, Lf, tr_ax] + [ax for ax in rem[1:]]
+            G = np.transpose(F, order)  # (cells, latents, trials, [maybe ...])
+            if G.ndim > 3:
+                G = G.mean(axis=tuple(range(3, G.ndim)))
+            C, L, T = G.shape
+            X = G.reshape(C, L * T)
+            return X
+        raise ValueError("Cannot form 'latent_trials_flat': need latents+cells+trials together (usually in F).")
+
+    # ---- Option 4: pos_profile (cells × pos), via weighted templates if possible ----
+    if feature_mode == "pos_profile":
+        # If we have (latents,cells, pos) in F: average latents → (cells, pos)
+        if Cf is not None and Lf is not None and 3 <= F.ndim:
+            rem = [ax for ax in range(F.ndim) if ax not in (Cf, Lf)]
+            pos_ax = rem[0] if rem else None
+            if pos_ax is not None:
+                order = [Cf, Lf, pos_ax] + [ax for ax in rem[1:]]
+                G = np.transpose(F, order)  # (cells, latents, pos, ...)
+                if G.ndim > 3:
+                    G = G.mean(axis=tuple(range(3, G.ndim)))
+                X = G.mean(axis=1)  # avg over latents -> (cells, pos)
+                return X
+        raise ValueError("Cannot form 'pos_profile' from current W/F.")
+
+    raise ValueError(f"Unknown feature_mode: {feature_mode}")
     
 
 
@@ -1100,7 +1379,7 @@ def run():
     labels_cells_dict_all_K_NDNF_0x0_resid_cue = get_labels_all_different_Ks_single(model_20_NDNF_resid_0x0_cue, which_vectors=1)
 
 
-    cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals NDNF Cue Track", ax=axs[0,0])
+    cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals NDNF Cue Track", ax=axs[0,0], plot=False)
 
 
     means_dict_cluster_0x0_cue_resid = plot_reconstructions(labels_cells_dict_all_K_NDNF_0x0_resid_cue, cue_residual_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="NDNF 0x0 Cue Resid")
@@ -1110,12 +1389,16 @@ def run():
 
     cells_per_animal_dict = get_cells_per_animal_dict(cue_residual_activity_dict_NDNF_newest)
 
+
+    color_list = ["purple", "red"]
+
+
     plot_cluster_traces_by_animal(means_dict_cluster_0x0_cue_resid,
                                 cue_residual_activity_dict_NDNF_newest,
                                 cells_per_animal_dict,
                                 K=2,
                                 ncol=5, spacing=0.2,
-                                title_prefix="NDNF Cue Track 0x0 Residuals", axs=[axs[0,1],axs[0,2]])
+                                title_prefix="NDNF Cue Track 0x0 Residuals", axs=[axs[0,0],axs[0,1]], color_list = color_list)
     
 
     plot_cluster_animal_composition_stacked(means_dict_cluster_0x0_cue_resid, cells_per_animal_dict, K=2,
@@ -1123,8 +1406,51 @@ def run():
 
 
 
-    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=False, title="Licks NDNF Cued Track", ax=axs[1,2])
-    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=True, title="Velocity NDNF Cued Track", ax=axs[1,1])
+    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=False, title="Licks NDNF Cued Track", ax=axs[1,2], color_list=color_list)
+    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=True, title="Velocity NDNF Cued Track", ax=axs[1,1], color_list=color_list)
+
+    which_vectors=1
+
+    labels_cells_dict_all_K_NDNF = get_labels_all_different_Ks_single(model_20_NDNF_resid_0x0_cue, which_vectors=which_vectors)
+
+    labels = np.asarray(labels_cells_dict_all_K_NDNF[2])
+
+    w1 = model_20_NDNF_resid_0x0_cue.vectors[which_vectors][0]
+    f1 = model_20_NDNF_resid_0x0_cue.vectors[which_vectors][1]
+
+    labels = np.asarray(labels_cells_dict_all_K_NDNF[2])
+    n_latents_expected = 20
+    n_cells_expected = len(labels)  
+
+    X = get_cell_features(
+        w1, f1,
+        feature_mode="0x0",
+        n_cells_expected=n_cells_expected,
+        n_latents_expected=n_latents_expected,)
+
+
+    
+    if X.shape[0] != len(labels) and X.shape[1] == len(labels):
+        X = X.T
+    elif X.shape[0] != len(labels):
+        raise ValueError(f"Shape mismatch: X.shape={X.shape}, labels={len(labels)}")
+
+
+    # plot_lda_projection(X, labels, title_prefix="LDA Projection", cluster_subset=None, ax=axs[2,2])
+
+    uniq = np.unique(labels)
+    X_2d = lda_with_orthogonal_axis_2d(X, labels, title_prefix="")
+
+    for i, k in enumerate(uniq):
+        m = labels == k
+        axs[0,2].scatter(X_2d[m, 0], X_2d[m, 1], s=40, alpha=0.6, color=color_list[i], label=f"C{k} (n={m.sum()})")
+
+    axs[0,2].set_xlabel("LDA Component 1")
+    axs[0,2].set_ylabel("LDA Component 2")
+
+    leg = axs[0,2].legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
+    fig.subplots_adjust(right=0.78)
+    # plt.show()
 
     plt.tight_layout()
     plt.show()
