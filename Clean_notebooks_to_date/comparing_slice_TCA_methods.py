@@ -110,7 +110,7 @@ def get_labels_all_different_Ks_single(model_20_NDNF_resid, which_vectors: int):
     labels_cells_dict_all_K = {K: KMeans(n_clusters=K, n_init=100, random_state=42).fit_predict(Xz) for K in range(1, 11)}
     return labels_cells_dict_all_K
 
-def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix=""):
+def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="", plot=False):
 
 
     synthetic_mean_array = {}
@@ -184,21 +184,22 @@ def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_
 
 
     data_truncated_array_NDNF = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
-    data_truncated_array_NDNF_ta = np.mean(data_truncated_array_NDNF, axis=2)
-    fig, axs = plt.subplots(2,len(synthetic_mean_array), figsize=(30,8))
-    plt.suptitle(f"Reconstructed vs Real Trial Averaged Data {prefix}")
-    for num_clusters in synthetic_mean_array:
-        reconstructed_data = synthetic_mean_array[num_clusters]
-        reconstructed_data_ta = np.mean(reconstructed_data, axis=2)
-        axs[0,num_clusters-1].imshow(reconstructed_data_ta, aspect='auto')
-        axs[0,num_clusters-1].set_ylabel("Cell ID")
-        axs[0,num_clusters-1].set_title(f"Reconstructed K={num_clusters}")
-        axs[0,num_clusters-1].set_xlabel("Position Bin")
-        axs[1,num_clusters-1].imshow(data_truncated_array_NDNF_ta, aspect='auto')
-        axs[1,num_clusters-1].set_title("Real T.A. Data")
-        axs[1,num_clusters-1].set_xlabel("Position Bin")
-    plt.tight_layout()
-    plt.show()
+    data_truncated_array_NDNF_ta = np.mean(data_truncated_array_NDNF, axis=2),
+    if plot:
+        fig, axs = plt.subplots(2,len(synthetic_mean_array), figsize=(30,8))
+        plt.suptitle(f"Reconstructed vs Real Trial Averaged Data {prefix}")
+        for num_clusters in synthetic_mean_array:
+            reconstructed_data = synthetic_mean_array[num_clusters]
+            reconstructed_data_ta = np.mean(reconstructed_data, axis=2)
+            axs[0,num_clusters-1].imshow(reconstructed_data_ta, aspect='auto')
+            axs[0,num_clusters-1].set_ylabel("Cell ID")
+            axs[0,num_clusters-1].set_title(f"Reconstructed K={num_clusters}")
+            axs[0,num_clusters-1].set_xlabel("Position Bin")
+            axs[1,num_clusters-1].imshow(data_truncated_array_NDNF_ta, aspect='auto')
+            axs[1,num_clusters-1].set_title("Real T.A. Data")
+            axs[1,num_clusters-1].set_xlabel("Position Bin")
+        plt.tight_layout()
+        plt.show()
 
     return means_dict_cluster
 
@@ -798,7 +799,7 @@ def get_fixed_model_dict_NDNF_newest(cell_NDNF_model_ranks20_contig_x00):
             fixed_model_dict_NDNF_newest[20][animal-18] = cell_NDNF_model_ranks20_contig_x00[20][animal]
     return fixed_model_dict_NDNF_newest
 
-def plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, activity_array_late, K=2, title=""):
+def plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, activity_array_late, K=2, title="", cue=False):
     data_good = means_dict_cluster_0x0_raw[K]["labels_loc_dict"]
 
     fig, axs = plt.subplots(1,len(data_good), figsize=(4*len(data_good), 4))
@@ -823,6 +824,8 @@ def plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, 
         axs[i].plot(mean_sliced_late, label="Late")
         axs[i].fill_between(range(len(mean_sliced_late)), mean_sliced_late-sem_sliced_late, mean_sliced_late+sem_sliced_late, alpha=0.2)
         axs[i].set_title(f"Cluster {i} n={n}")
+        if cue:
+            axs[i].axvline(10,linestyle='--', color='r', label="Cue")
         axs[i].legend()
 
     plt.tight_layout()

@@ -52,3 +52,10 @@ oct24_justec_5seeds_number6_velFbetaTinputF:
   EC_weights_mean: 0.8430433525286931
   EC_weights_std: 0.9101819935355204
 
+EC_SST_example:
+  tau_ms: 5.0
+  dend_threshold: -60.
+  EC_weights_std: 1.0
+  SST_weights_std: 1.0
+  SST_sf: 11.0
+

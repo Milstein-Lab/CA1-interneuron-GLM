@@ -833,6 +833,11 @@ def run(most_expressed):
 
     cell_type_labels = labels_cells_dict_all_K_NDNF_0x0_raw[2]
 
+    save_path = "/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/ndnf_cell_types/cell_types_labels.pkl"
+    with open(save_path, 'wb') as f:
+        pickle.dump(cell_type_labels, f)
+
+
     cells_group_0 = np.where(cell_type_labels==0)[0]
     cells_group_1 = np.where(cell_type_labels==1)[0]
 
@@ -893,7 +898,7 @@ def run(most_expressed):
     # else:
     #     fig.suptitle("Least Expressed Cluster Across Trials")
 
-    fig, axs = plt.subplots(4, 4, figsize=(12, 12))  # or your preferred size
+    fig, axs = plt.subplots(4, 4, figsize=(10, 12))  # or your preferred size
 
     colors_dict = {"Most_0":"orange",
                    "Least_0":"magenta",

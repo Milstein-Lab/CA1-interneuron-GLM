@@ -835,10 +835,7 @@ color_list=None):
     #         axs[-1].legend(handles, labels, loc="upper right", frameon=False, ncol=ncol or legend_ncol)
 
     # only show if we created the figure
-    if created_fig:
-        plt.show()
 
-    return axs
 
 
 
@@ -1307,6 +1304,573 @@ def get_cell_features(w1, f1, *,
     
 
 
+
+# def get_selectivity_each_trial_cell_type(activity_dict_EC, cells_list, neg_sel=True, trial_av=False):
+#     """
+#     - get a selectivity for every trial of every cell and then average it to be the selectivity for that cell or trial_av will trial average first and then run the selectivity on that trial averaged trace  if the trial_av flag is False
+#     returns: animal_average_selectivity_dict - every cell gets a single value from either the selectivity of the trial averaged trace or the average of all selectivity metrics quantified for every trial individually
+#     """
+
+#     count=0
+
+
+#     animal_average_selectivity_dict = {}
+#     for animal in activity_dict_EC:
+#         cell_dict = {}
+#         for cell in activity_dict_EC[animal]:
+#             print(f"count {count} cells_list {cells_list} ")
+#             if count in cells_list:
+#                 cell_data = activity_dict_EC[animal][cell]
+#                 if trial_av:
+#                     trial_av_activity = np.mean(cell_data, axis=1) 
+#                     selectivity_trial_av = Vinje2000(trial_av_activity, norm='none', negative_selectivity=neg_sel)
+#                     cell_dict[cell] = selectivity_trial_av
+#                 else:
+#                     trial_selectivity_list = []
+#                     for trial in range(cell_data.shape[1]):
+#                         trial_activity = cell_data[:,trial] 
+#                         selectivity_trial = Vinje2000(trial_activity, norm='none', negative_selectivity=neg_sel)
+#                         trial_selectivity_list.append(selectivity_trial)
+                    
+#                     percentile_average_selectivity = np.mean(trial_selectivity_list)
+#                     cell_dict[cell] = percentile_average_selectivity
+#             count+=1
+#         animal_average_selectivity_dict[animal] = cell_dict
+#     return animal_average_selectivity_dict
+
+def Vinje2000(tuning_curve, norm='None', negative_selectivity=False):
+    if norm == 'min_max':
+        tuning_curve = (tuning_curve - np.min(tuning_curve)) / (np.max(tuning_curve) - np.min(tuning_curve))
+        if negative_selectivity:
+            tuning_curve = np.absolute(1 - tuning_curve)
+    elif norm == 'z_score':
+        tuning_curve = (tuning_curve - np.mean(tuning_curve)) / np.std(tuning_curve)
+        if negative_selectivity:
+            tuning_curve = np.absolute(1 - tuning_curve)
+    A = np.mean(tuning_curve) ** 2 / np.mean(tuning_curve ** 2)
+    return (1 - A) / (1 - 1 / len(tuning_curve))
+
+
+def get_selectivity_each_trial_cell_type(activity_dict_EC, cells_list, neg_sel=True, trial_av=True, norm=None):
+    count = 0
+    cells_set = set(int(x) for x in cells_list)
+
+    out = {}
+    animals_dict_data = {}
+    for animal in activity_dict_EC:
+        cell_dict = {}
+        cell_dict_data = {}
+        for cell in activity_dict_EC[animal]:
+            # print(f"count {count} cells_list {cells_list}")
+            if count in cells_set:
+                cell_data = activity_dict_EC[animal][cell]
+                if trial_av:
+                    trial_av_activity = np.mean(cell_data, axis=1)
+                    cell_dict_data[cell] = cell_data
+                    val = Vinje2000(trial_av_activity, norm=norm, negative_selectivity=neg_sel)
+
+                else:
+                    vals = [Vinje2000(cell_data[:, tr], norm='none', negative_selectivity=neg_sel)
+                            for tr in range(cell_data.shape[1])]
+                    val = float(np.mean(vals)) if len(vals) else np.nan
+                cell_dict[cell] = val
+            count += 1  # increment on EVERY cell
+        out[animal] = cell_dict
+        animals_dict_data[animal] = cell_dict_data
+    return out, animals_dict_data
+
+
+
+# def get_binned_data_for_CDF(animal_average_selectivity_dict_SST_r, n_bins=20):
+
+#     """
+#     params animal_average_selectivity_dict_SST_r: selectivity value for every cell in a dict
+#     returns binned_data: the cells with selectiivty values that fit within each bin (percent of data)
+#     """
+
+#     selectivity_list = []
+#     for animal in animal_average_selectivity_dict_SST_r:
+#         for cell in animal_average_selectivity_dict_SST_r[animal]:
+#             val = animal_average_selectivity_dict_SST_r[animal][cell]
+#             selectivity_list.append(val)
+
+#     selectivity_array = np.array(selectivity_list)
+
+#     edges = np.quantile(selectivity_array, np.linspace(0, 1, n_bins+1))  
+
+#     binned_data = []
+
+#     for idx in range(n_bins):
+#         low = edges[idx]
+#         high = edges[idx + 1]
+
+#         # Include low, exclude high except last bin
+#         if idx < 19:
+#             in_bin = selectivity_array[(selectivity_array >= low) & (selectivity_array < high)]
+#         else:
+#             in_bin = selectivity_array[(selectivity_array >= low) & (selectivity_array <= high)]
+
+#         binned_data.append(in_bin)
+
+#     return binned_data
+
+
+# def get_mean_sem_lists(binned_data):
+#     mean_data_list = []
+#     sem_data_list = []
+#     for i in range(len(binned_data)):
+#         bin_data = binned_data[i]
+#         mean_data_list.append(np.mean(bin_data))
+#         sem_data_list.append(sem(bin_data))
+#     return mean_data_list, sem_data_list
+
+def get_binned_data_for_CDF(animal_average_selectivity_dict, n_bins=20):
+    # collect values
+    vals = []
+    for animal in animal_average_selectivity_dict:
+        for cell in animal_average_selectivity_dict[animal]:
+            v = animal_average_selectivity_dict[animal][cell]
+            vals.append(v)
+
+    arr = np.asarray(vals, float)
+    arr = arr[np.isfinite(arr)]  # drop NaN/inf
+    if arr.size == 0:
+        # return n_bins empty arrays to keep the downstream shape
+        return [np.array([]) for _ in range(n_bins)]
+
+    # if fewer points than bins, reduce bins to available size
+    n_eff = min(n_bins, arr.size)
+
+    # quantile edges can repeat when many identical values
+    edges = np.quantile(arr, np.linspace(0, 1, n_eff + 1))
+
+    binned = []
+    for i in range(n_eff):
+        low, high = edges[i], edges[i+1]
+        if i < n_eff - 1:
+            mask = (arr >= low) & (arr < high)
+        else:
+            mask = (arr >= low) & (arr <= high)
+        binned.append(arr[mask])
+
+    # pad if n_eff < n_bins (keeps plotting code unchanged)
+    if n_eff < n_bins:
+        binned += [np.array([])] * (n_bins - n_eff)
+
+    return binned
+
+def get_mean_sem_lists(binned_data):
+    mean_data_list, sem_data_list = [], []
+    for bin_data in binned_data:
+        n = bin_data.size
+        if n == 0:
+            mean_data_list.append(np.nan)  # or choose a sentinel
+            sem_data_list.append(0.0)
+        elif n == 1:
+            mean_data_list.append(float(bin_data[0]))
+            sem_data_list.append(0.0)
+        else:
+            mean_data_list.append(float(np.mean(bin_data)))
+            sem_data_list.append(float(sem(bin_data)))  # ddof handled by scipy
+    return mean_data_list, sem_data_list
+
+
+
+def plot_the_CDF_early_late(binned_data_0_early, binned_data_1_early, binned_data_0_late, binned_data_1_late, title="Selectivity Distribution Across Cells +-SEM",  n_bins = None, ax=None):
+    mean_0_early, sem_0_early = get_mean_sem_lists(binned_data_0_early)
+    mean_1_early, sem_1_early = get_mean_sem_lists(binned_data_1_early)
+
+    mean_0_late, sem_0_late = get_mean_sem_lists(binned_data_0_late)
+    mean_1_late, sem_1_late = get_mean_sem_lists(binned_data_1_late)
+
+
+    percentiles = np.linspace(100 / (2 * n_bins), 100 - (100 / (2 * n_bins)), n_bins)  # e.g., 2.5, 7.5, ..., 97.5
+
+    # Plot: horizontal bars (x=selectivity, y=percentile)
+    # plt.figure(figsize=(7, 6))
+
+    ax.errorbar(mean_0_early, percentiles, xerr=sem_0_early, fmt='o-', label='Cell Type 0 Early', color='purple', capsize=3)
+    ax.errorbar(mean_0_late, percentiles, xerr=sem_0_late, fmt='o-', label='Cell Type 0 Late', color='magenta', capsize=3)
+    ax.errorbar(mean_1_early, percentiles, xerr=sem_1_early, fmt='o-', label='Cell Type 1 Early', color='red', capsize=3)
+    ax.errorbar(mean_1_late, percentiles, xerr=sem_1_late, fmt='o-', label='Cell Type 1 Late', color='orange', capsize=3)
+
+    ax.set_ylabel("Percentile of Cells")
+    ax.set_xlabel("Selectivity")
+    ax.set_title(title)
+    ax.legend(fontsize=6)
+
+
+def plot_the_CDF_celltypes(binned_data_0, binned_data_1, title="Selectivity Distribution Across Cells +-SEM",  n_bins = None, ax=None):
+    mean_0, sem_0 = get_mean_sem_lists(binned_data_0)
+    mean_1, sem_1 = get_mean_sem_lists(binned_data_1)
+
+    percentiles = np.linspace(100 / (2 * n_bins), 100 - (100 / (2 * n_bins)), n_bins)  # e.g., 2.5, 7.5, ..., 97.5
+
+    # Plot: horizontal bars (x=selectivity, y=percentile)
+    # plt.figure(figsize=(7, 6))
+
+    ax.errorbar(mean_0, percentiles, xerr=sem_0, fmt='o-', label='Cell Type 0', color='purple', capsize=3)
+    ax.errorbar(mean_1, percentiles, xerr=sem_1, fmt='o-', label='Cell Type 1', color='red', capsize=3)
+
+    ax.set_ylabel("Percentile of Cells")
+    ax.set_xlabel("Selectivity")
+    ax.set_title(title)
+    ax.legend()
+
+
+
+
+# def _flatten_selectivities(sel_dict):
+#     vals = [v for d in sel_dict.values() for v in d.values()]
+#     arr = np.asarray(vals, float)
+#     return arr[np.isfinite(arr)]
+
+# def _ecdf(arr):
+#     if arr.size == 0:
+#         return np.array([]), np.array([])
+#     x = np.sort(arr)
+#     y = (np.arange(1, x.size + 1) / x.size) * 100.0  # percent
+#     return x, y
+
+# def plot_ecdf_celltypes(sel_dict_0, sel_dict_1, title="Selectivity CDF"):
+#     a0 = _flatten_selectivities(sel_dict_0)
+#     a1 = _flatten_selectivities(sel_dict_1)
+
+#     x0, y0 = _ecdf(a0)
+#     x1, y1 = _ecdf(a1)
+
+#     plt.figure(figsize=(7,6))
+#     if x0.size:
+#         plt.step(x0, y0, where='post', label='Cell Type 0')
+#     if x1.size:
+#         plt.step(x1, y1, where='post', label='Cell Type 1')
+#     plt.xlabel("Selectivity")
+#     plt.ylabel("Cumulative % of cells")
+#     plt.title(title)
+#     plt.grid(True)
+#     plt.legend()
+#     plt.tight_layout()
+#     plt.show()
+
+
+def get_selectivity_each_trial_early_late_cluster(activity_dict_EC, cp_dict_EC, cell_cluster_list, neg_sel=True, trial_av=False, eml="early", norm=None):
+    """
+    - get a selectivity for every trial of every cell and then average it to be the selectivity for that cell or trial_av will trial average first and then run the selectivity on that trial averaged trace  if the trial_av flag is False
+    returns: animal_average_selectivity_dict - every cell gets a single value from either the selectivity of the trial averaged trace or the average of all selectivity metrics quantified for every trial individually
+    """
+
+    count=0
+
+    animal_dict_data = {}
+
+    animal_average_selectivity_dict = {}
+    for idx, animal in enumerate(activity_dict_EC):
+        cell_dict = {}
+        cell_dict_data = {}
+        for idt, cell in enumerate(activity_dict_EC[animal]):
+            
+            if count in cell_cluster_list:
+
+                cp = cp_dict_EC[idx][idt]
+                early_cut = cp[0]
+                late_cut = cp[1]
+                cell_data = activity_dict_EC[animal][cell]
+                if trial_av:
+                    if eml=="early":
+                        cell_data_early = cell_data[:,:early_cut]
+                        trial_av_activity = np.mean(cell_data_early, axis=1) 
+                        cell_dict_data[cell] = trial_av_activity
+                        selectivity_trial_av = Vinje2000(trial_av_activity, norm=norm, negative_selectivity=neg_sel)
+                        cell_dict[cell] = selectivity_trial_av
+                    elif eml=="middle":
+                        cell_data_late = cell_data[:,early_cut:late_cut]
+                        trial_av_activity = np.mean(cell_data_late, axis=1) 
+                        selectivity_trial_av = Vinje2000(trial_av_activity, norm=norm, negative_selectivity=neg_sel)
+                        cell_dict_data[cell] = trial_av_activity
+                        cell_dict[cell] = selectivity_trial_av
+                    elif eml=="late":
+                        cell_data_late = cell_data[:,-late_cut:]
+                        trial_av_activity = np.mean(cell_data_late, axis=1) 
+                        selectivity_trial_av = Vinje2000(trial_av_activity, norm=norm, negative_selectivity=neg_sel)
+                        cell_dict_data[cell] = trial_av_activity
+                        cell_dict[cell] = selectivity_trial_av
+                    else:
+                        raise ValueError("improper eml")
+                else:
+
+                    ####### have to fix this 
+                    trial_selectivity_list = []
+                    if eml=="early":
+                        for trial in range(cell_data.shape[1]):
+                            if trial <= early_cut:
+                                trial_activity = cell_data[:,trial] 
+                                selectivity_trial = Vinje2000(trial_activity, norm=norm, negative_selectivity=neg_sel)
+                                trial_selectivity_list.append(selectivity_trial)
+                                cell_dict_data[cell] = trial_activity
+                    else:
+                        for trial in range(cell_data.shape[1]):
+                            if trial >= late_cut:
+                                trial_activity = cell_data[:,trial] 
+                                selectivity_trial = Vinje2000(trial_activity, norm=norm, negative_selectivity=neg_sel)
+                                trial_selectivity_list.append(selectivity_trial)
+                                cell_dict_data[cell] = trial_activity
+
+                    percentile_average_selectivity = np.mean(trial_selectivity_list)
+                    cell_dict[cell] = percentile_average_selectivity
+            count+=1
+            animal_average_selectivity_dict[animal] = cell_dict
+            animal_dict_data[animal] = cell_dict_data
+    return animal_average_selectivity_dict, animal_dict_data
+
+
+
+def get_selectivity_array(animal_average_selectivity_dict):
+
+    all_cell_selectivity = []
+
+    for animal in animal_average_selectivity_dict:
+        for cell in animal_average_selectivity_dict[animal]:
+            selectivity_per_bin = animal_average_selectivity_dict[animal][cell]
+            if len(selectivity_per_bin) == 10:  # sanity check
+                all_cell_selectivity.append(selectivity_per_bin)
+
+    all_cell_selectivity = np.array(all_cell_selectivity)  # shape: [n_cells, 10]
+
+    return all_cell_selectivity
+
+
+def plot_selectivity_over_trials(group_0_selectivity, group_1_selectivity, color_list=None, ax=None):
+
+    mean_selectivity_0 = np.mean(group_0_selectivity, axis=0)
+    sem_selectivity_0 = sem(group_0_selectivity, axis=0)
+
+    mean_selectivity_1 = np.mean(group_1_selectivity, axis=0)
+    sem_selectivity_1 = sem(group_1_selectivity, axis=0)
+
+    x = np.arange(1, 11) 
+
+    ax.plot(x, mean_selectivity_0, color=color_list[0], label='Cell Type 0')
+    ax.fill_between(x, mean_selectivity_0 - sem_selectivity_0, mean_selectivity_0 + sem_selectivity_0, alpha=0.2, color=color_list[0])
+    ax.plot(x, mean_selectivity_1, color=color_list[1], label='Cell Type 1')
+    ax.fill_between(x, mean_selectivity_1 - sem_selectivity_1, mean_selectivity_1 + sem_selectivity_1, alpha=0.2, color=color_list[1])
+    ax.set_xticks(ticks=x, labels=[f"{int(p)}%" for p in np.linspace(0, 100, 10)])
+    ax.set_xlabel("Percentile of Trials")
+    ax.set_ylabel("Average Selectivity Across Cells")
+    ax.set_title("Selectivity Across Trials")
+    ax.legend()
+
+
+def get_percentlie_slices(activity_dict_SST):
+    percentile_slices = {}
+
+    for animal in activity_dict_SST:
+        percentile_slices_cell = {}
+        for cell in activity_dict_SST[animal]:
+            data = activity_dict_SST[animal][cell]
+            num_trials = data.shape[1]
+
+            cut_indices = [int(p * num_trials / 10) for p in range(1, 10)]  
+            cut_indices = [0] + cut_indices + [num_trials] 
+
+            cell_slices = []
+            for idx in range(10):
+                start = cut_indices[idx]
+                end = cut_indices[idx + 1]
+                data_slice = data[:, start:end]
+                cell_slices.append(data_slice)
+
+            percentile_slices_cell[cell] = cell_slices
+        percentile_slices[animal] = percentile_slices_cell
+
+    return percentile_slices
+
+
+def selectivity_from_percentile_slices(percentile_slices, norm='min_max', neg_sel=False):
+    """
+    percentile_slices[animal][cell] = list of 10 arrays, each (pos, trials_in_bin)
+    Returns array of shape (n_cells, 10) with one scalar selectivity per bin.
+    """
+    rows = []
+    for animal in percentile_slices:
+        for cell, list10 in percentile_slices[animal].items():
+            if len(list10) != 10:
+                continue
+            vec = []
+            for sl in list10:
+                # sl: (pos, trials) – average across trials, then compute selectivity across pos
+                if sl.size == 0:
+                    vec.append(np.nan)
+                    continue
+                ta = np.mean(sl, axis=1)  # (pos,)
+                vec.append(Vinje2000(ta, norm=norm, negative_selectivity=neg_sel))
+            rows.append(vec)
+    return np.asarray(rows, dtype=float)
+
+
+def plot_selectivity_seperated_by_learn_stage(type0, type1, colors_list=None, ax=None):
+
+    NDNF_means0, NDNF_sems0 = get_mean_selelectivity_by_cutpoint(type0)
+
+    NDNF_means1, NDNF_sems1 = get_mean_selelectivity_by_cutpoint(type1)
+
+    x = np.arange(3)
+    labels = ["Early", "Middle", "Late"]
+
+    ax.errorbar(x, NDNF_means0, yerr=NDNF_sems0, color=colors_list[0], label="Cell Type 0", capsize=4, fmt='-o')
+    ax.errorbar(x, NDNF_means1, yerr=NDNF_sems1, color=colors_list[1], label="Cell Type 1", capsize=4, fmt='-o')
+
+    ax.set_xticks(x, labels)
+    ax.set_ylabel("Average Selectivity Across Cells")
+    ax.set_xlabel("Contiguous K-Means Learning Stage")
+    ax.set_title("Selectivity by Learning Stage")
+    ax.legend()
+    
+
+def get_mean_selelectivity_by_cutpoint(animal_average_selectivity_dict_SST):
+    early_list_SST = []
+    middle_list_SST = []
+    late_list_SST = []
+
+    for animal in animal_average_selectivity_dict_SST:
+        for cell in animal_average_selectivity_dict_SST[animal]:
+            early_list_SST.append(animal_average_selectivity_dict_SST[animal][cell]["early_selectivity"])
+            middle_list_SST.append(animal_average_selectivity_dict_SST[animal][cell]["middle_selectivity"])
+            late_list_SST.append(animal_average_selectivity_dict_SST[animal][cell]["late_selectivity"])
+
+    early_mean = np.mean(early_list_SST)
+    middle_mean = np.mean(middle_list_SST)
+    late_mean = np.mean(late_list_SST)
+
+    early_sem = sem(early_list_SST)
+    middle_sem = sem(middle_list_SST)
+    late_sem = sem(late_list_SST)
+
+    SST_means = [early_mean, middle_mean, late_mean]
+    SST_sems = [early_sem, middle_sem, late_sem]
+    return SST_means, SST_sems
+
+
+def get_animal_average_selectivity_dict_eml(residual_activity_dict_SST, cp_dict_SST, neg_sel=True, trial_av=False):
+   
+    animal_average_selectivity_dict = {}
+    for idx, animal in enumerate(residual_activity_dict_SST):
+        average_selectivity_dict_cell = {}
+        for idt, cell in enumerate(residual_activity_dict_SST[animal]):
+            cell_data = residual_activity_dict_SST[animal][cell]
+
+            cp_e = cp_dict_SST[idx][idt][0]
+            cp_l = cp_dict_SST[idx][idt][1]
+            
+            for i in range(len(cell_data)):
+
+                if trial_av:
+                    trial_av_activity_e = np.mean(cell_data[:,:cp_e], axis=1)
+                    trial_av_activity_m = np.mean(cell_data[:,cp_e:cp_l], axis=1)
+                    trial_av_activity_l = np.mean(cell_data[:,-cp_l:], axis=1)
+
+                    selectivity_trial_av_e = Vinje2000(trial_av_activity_e, norm='none', negative_selectivity=neg_sel)
+                    selectivity_trial_av_m = Vinje2000(trial_av_activity_m, norm='none', negative_selectivity=neg_sel)
+                    selectivity_trial_av_l = Vinje2000(trial_av_activity_l, norm='none', negative_selectivity=neg_sel)
+
+                    average_selectivity_dict_cell[cell] = {"early_selectivity": selectivity_trial_av_e,
+                                                           "middle_selectivity": selectivity_trial_av_m,
+                                                           "late_selectivity": selectivity_trial_av_l,
+                                                           }
+                else:
+                    
+                    early_list = []
+                    middle_list = []
+                    late_list = []
+
+                    for trial in range(cell_data.shape[1]):
+                        if trial <= cp_e:
+                            data_trial = cell_data[:,trial]
+                            selectivity = Vinje2000(data_trial, norm='none', negative_selectivity=neg_sel)
+                            early_list.append(selectivity)
+                        elif cp_e < trial < cp_l: 
+                            data_trial = cell_data[:,trial]
+                            selectivity = Vinje2000(data_trial, norm='none', negative_selectivity=neg_sel)
+                            middle_list.append(selectivity)
+                        elif trial >= cp_l: 
+                            data_trial = cell_data[:,trial]
+                            selectivity = Vinje2000(data_trial, norm='none', negative_selectivity=neg_sel)
+                            late_list.append(selectivity)
+
+                    trial_av_selectivity_early = np.mean(early_list)
+                    trial_av_selectivity_middle = np.mean(middle_list)
+                    trial_av_selectivity_late = np.mean(late_list)
+                    
+                    average_selectivity_dict_cell[cell] = {"early_selectivity": trial_av_selectivity_early,
+                                                           "middle_selectivity": trial_av_selectivity_middle,
+                                                           "late_selectivity": trial_av_selectivity_late,
+                                                           }
+                    
+
+        animal_average_selectivity_dict[animal] = average_selectivity_dict_cell
+    
+    return animal_average_selectivity_dict
+
+
+
+
+def collect_eml_data(animal_average_selectivity_dict_NDNF_0_early):
+
+    cell_list = []
+
+    for animal in animal_average_selectivity_dict_NDNF_0_early:
+        for cell in animal_average_selectivity_dict_NDNF_0_early[animal]:
+            cell_list.append(animal_average_selectivity_dict_NDNF_0_early[animal][cell])
+
+    cell_array = np.array(cell_list)
+
+    return cell_array
+            
+
+def plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=None, color_list=None):
+
+    cell_array_0_early = collect_eml_data(animal_average_selectivity_dict_NDNF_0_early)
+    cell_array_1_early = collect_eml_data(animal_average_selectivity_dict_NDNF_1_early)
+
+    cell_array_0_middle = collect_eml_data(animal_average_selectivity_dict_NDNF_0_middle)
+    cell_array_1_middle = collect_eml_data(animal_average_selectivity_dict_NDNF_1_middle)
+
+    cell_array_0_late = collect_eml_data(animal_average_selectivity_dict_NDNF_0_late)
+    cell_array_1_late = collect_eml_data(animal_average_selectivity_dict_NDNF_1_late)
+
+
+    cell_array_0_early_mean = np.mean(cell_array_0_early)
+    cell_array_0_early_sem = sem(cell_array_0_early)
+
+    cell_array_1_early_mean = np.mean(cell_array_1_early)
+    cell_array_1_early_sem = sem(cell_array_1_early)
+
+    cell_array_0_middle_mean = np.mean(cell_array_0_middle)
+    cell_array_0_middle_sem = sem(cell_array_0_middle)
+
+    cell_array_1_middle_mean = np.mean(cell_array_1_middle)
+    cell_array_1_middle_sem = sem(cell_array_1_middle)
+
+    cell_array_0_late_mean = np.mean(cell_array_0_late)
+    cell_array_0_late_sem = sem(cell_array_0_late)
+
+    cell_array_1_late_mean = np.mean(cell_array_1_late)
+    cell_array_1_late_sem = sem(cell_array_1_late)
+
+    means0 = [cell_array_0_early_mean,cell_array_0_middle_mean, cell_array_0_late_mean]
+    sems0 = [cell_array_0_early_sem,cell_array_0_middle_sem, cell_array_0_late_sem]
+
+    means1 = [cell_array_1_early_mean,cell_array_1_middle_mean, cell_array_1_late_mean]
+    sems1 = [cell_array_1_early_sem,cell_array_1_middle_sem, cell_array_1_late_sem]
+
+    ax.errorbar(range(len(means0)), means0, yerr=sems0, label="Cell Type 0", color=color_list[0])
+    ax.errorbar(range(len(means1)), means1, yerr=sems1, label="Cell Type 1", color=color_list[1])
+    ax.set_xticks(np.arange(3), ["Early", "Middle", "Late"])
+    ax.legend()
+
+
+
+
+
 def run():
     GLM_params_SST, activity_dict_SST, double_predicted_activity_dict_SST, factors_dict_SST, filtered_factors_dict_SST, residual_activity_dict_SST = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="SSTindivsomata_GLM", new_NDNF=False)
     GLM_params_EC, activity_dict_EC, double_predicted_activity_dict_EC, factors_dict_EC, filtered_factors_dict_EC, residual_activity_dict_EC = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="EC_GLM", new_NDNF=False)
@@ -1344,6 +1908,10 @@ def run():
         if idx> 30:
             cued_activity_dict_NDNF_newest[f"animal_{idx+1}"] = activity_dict_NDNF_newest[animal]
 
+    cued_residual_activity_dict_NDNF_newest = {}
+    for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
+        if idx> 30:
+            cued_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
 
 
 ############ make this for the cued list and then make plot the run and licks
@@ -1373,13 +1941,13 @@ def run():
         print(save_path)
 
 
-    fig, axs = plt.subplots(3,3, figsize=(15,15))
+    fig, axs = plt.subplots(3,4, figsize=(15,15))
 
 
     labels_cells_dict_all_K_NDNF_0x0_resid_cue = get_labels_all_different_Ks_single(model_20_NDNF_resid_0x0_cue, which_vectors=1)
 
 
-    cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals NDNF Cue Track", ax=axs[0,0], plot=False)
+    cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals", ax=axs[0,0], plot=False)
 
 
     means_dict_cluster_0x0_cue_resid = plot_reconstructions(labels_cells_dict_all_K_NDNF_0x0_resid_cue, cue_residual_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="NDNF 0x0 Cue Resid")
@@ -1398,7 +1966,7 @@ def run():
                                 cells_per_animal_dict,
                                 K=2,
                                 ncol=5, spacing=0.2,
-                                title_prefix="NDNF Cue Track 0x0 Residuals", axs=[axs[0,0],axs[0,1]], color_list = color_list)
+                                title_prefix="Residuals", axs=[axs[0,0],axs[0,1]], color_list = color_list)
     
 
     plot_cluster_animal_composition_stacked(means_dict_cluster_0x0_cue_resid, cells_per_animal_dict, K=2,
@@ -1450,23 +2018,71 @@ def run():
 
     leg = axs[0,2].legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
     fig.subplots_adjust(right=0.78)
-    # plt.show()
+
+    cells_list_0 = np.where(labels==0)[0]
+    cells_list_1 = np.where(labels==1)[0]
+
+    # sel0 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_0, neg_sel=False, trial_av=True, norm="min_max")
+    # sel1 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
+
+    # plot_ecdf_celltypes(sel0, sel1, title="Selectivity CDF")
+
+
+    animal_average_selectivity_dict_NDNF_0, animals_dict_data_NDNF_0 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_0, neg_sel=False, trial_av=True, norm="min_max")
+    animal_average_selectivity_dict_NDNF_1, animals_dict_data_NDNF_1 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
+
+
+    binned_data_NDNF_0 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0, n_bins=20)
+    binned_data_NDNF_1 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1, n_bins=20)
+
+    plot_the_CDF_celltypes(binned_data_NDNF_0, binned_data_NDNF_1, title="Selectivity Distribution", n_bins = 20, ax=axs[2,2])
+
+
+
+    
+    animal_average_selectivity_dict_NDNF_0_early,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="early", norm="min_max")
+    animal_average_selectivity_dict_NDNF_1_early,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="early", norm="min_max")
+
+    animal_average_selectivity_dict_NDNF_0_late,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="late", norm="min_max")
+    animal_average_selectivity_dict_NDNF_1_late,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="late", norm="min_max")
+
+    animal_average_selectivity_dict_NDNF_0_middle,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="middle", norm="min_max")
+    animal_average_selectivity_dict_NDNF_1_middle,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="middle", norm="min_max")
+
+    print(f"animal_average_selectivity_dict_NDNF_1_middle {animal_average_selectivity_dict_NDNF_1_middle}")
+
+
+    binned_data_NDNF_0_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_early, n_bins=20)
+    binned_data_NDNF_1_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_early, n_bins=20)
+
+    binned_data_NDNF_0_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_late, n_bins=20)
+    binned_data_NDNF_1_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_late, n_bins=20)
+
+
+    plot_the_CDF_early_late(binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="Selectivity Distribution Early Late Learn", n_bins = 20, ax=axs[2,3])
+
+
+
+    percentile_slices_NDNF0 = get_percentlie_slices(animals_dict_data_NDNF_0)
+    percentile_slices_NDNF1 = get_percentlie_slices(animals_dict_data_NDNF_1)
+    
+
+    all_cells_NDNF_0 = selectivity_from_percentile_slices(percentile_slices_NDNF0, norm='min_max', neg_sel=False)
+    all_cells_NDNF_1 = selectivity_from_percentile_slices(percentile_slices_NDNF1, norm='min_max', neg_sel=False)
+
+    plot_selectivity_over_trials(all_cells_NDNF_0, all_cells_NDNF_1, color_list=color_list, ax=axs[1,3])
+
+
+    plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=axs[0,3], color_list=color_list)
+
+
 
     plt.tight_layout()
+
     plt.show()
 
 
 
-
-# @click.command()
-# @click.option(
-#     '--most-expressed/--no-most-expressed',
-#     default=False,
-#     help="Use the 'most expressed' scanning logic."
-# )
-# def cli(most_expressed):
-#     run(most_expressed)
-
 if __name__ == "__main__":
-    run()#cli()
+    run()
 

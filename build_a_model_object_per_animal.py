@@ -15,32 +15,116 @@ from dataclasses import dataclass, replace, asdict
 from typing import Any, Dict, List, Tuple, Optional, Iterable, Literal
 
 import numpy as np
+from scipy.stats import sem
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 import click
 
 # your project imports (AFTER third-party)
-from Fixing_dend_models_presentation import *
+# from Fixing_dend_models_presentation import *
 from spiking_model_utils import load_data_regular
 
 from mpi4py import MPI
-import os, sys, time, psutil
+import os, sys, time, psutil, resource
+from time import perf_counter
 _PROC = psutil.Process(os.getpid())
 
-import psutil, os, gc, time, numpy as np
-
-def report_mem(tag):
-    p = psutil.Process(os.getpid())
-    rss = p.memory_info().rss / 1e9
-    print(f"[{time.time():.3f}] {tag} RSS={rss:.2f} GB", flush=True)
-
-def nbytes(arr, name):
-    try:
-        print(f"  {name}.nbytes={arr.nbytes/1e6:.1f} MB", flush=True)
-    except Exception:
-        pass
 
 
+def exp_kernel(tau_ms, dt_ms, n_taus=5, norm="peak", target=1.0):
+    L = int(np.ceil(10.0 * tau_ms / max(dt_ms, 1e-6)))
+    t = np.arange(max(L, 1), dtype=np.float32) * np.float32(dt_ms)
+    k = np.exp(-t / np.float32(tau_ms)).astype(np.float32, copy=False)
+    if norm == "peak":
+        m = float(k.max()) if k.size else 1.0
+        k = (np.float32(target) * k) / np.float32(max(m, 1e-12))
+    elif norm == "area":
+        area = float(k.sum()) * (dt_ms / 1000.0)
+        k = (np.float32(target) * k) / np.float32(max(area, 1e-12))
+
+    return k
+
+
+def str_true_false_to_bool(s):
+    """
+    Accepts 'true' or 'false' (any case, with spaces). 
+    Returns True/False. Raises ValueError otherwise.
+    """
+    if isinstance(s, bool):
+        return s
+    if not isinstance(s, str):
+        raise ValueError("Expected a string 'true' or 'false'")
+    t = s.strip().lower()
+    if t == "true":
+        return True
+    if t == "false":
+        return False
+    raise ValueError(f"Unrecognized boolean string: {s!r}")
+
+
+def sample_weights(distribution, n_EC, n_dendrites, rng, mean=0.1, std=0.5):
+
+    if distribution == "Uniform":
+        samples = rng.uniform(low=mean - std, high=mean + std, size=(n_EC, n_dendrites))
+    elif distribution == "Normal":
+        samples = rng.normal(loc=mean, scale=std, size=(n_EC, n_dendrites))
+        samples = np.clip(samples, 0, None)
+    elif distribution == "Lognormal":
+        # samples = rng.lognormal(mean=np.log(mean), sigma=std, size=n_samples)
+        samples = rng.lognormal(mean=mean, sigma=std, size=(n_EC, n_dendrites))
+    elif distribution == "Equal":
+        samples = np.full((n_EC, n_dendrites), mean, dtype=float)
+    else:
+        raise ValueError("Invalid distribution")
+
+    return samples
+
+
+def plot_seed_average(christine_field_building_array, christine_overrepresentation_array_scaled, mean_histogram_array, sem_histogram_array, mean_pc_array, sem_pc_array, loss):
+
+    fig, axs = plt.subplots(1,2, figsize=(10,5))
+
+    def _interp_to(x_src, y_src, x_dst):
+        m = np.isfinite(x_src) & np.isfinite(y_src)
+        xs = np.asarray(x_src)[m]
+        ys = np.asarray(y_src)[m]
+        order = np.argsort(xs)
+        xs, ys = xs[order], ys[order]
+        return np.interp(x_dst, xs, ys, left=ys[0], right=ys[-1])
+
+    Tn = len(mean_pc_array)
+    x_model0 = np.linspace(0, 100, Tn)  # common x in [0,100]
+
+    x_exp0_raw = christine_field_building_array[:, 0]
+    y_exp0_raw = christine_field_building_array[:, 1]
+    x_exp0 = x_exp0_raw * 100.0 if np.nanmax(x_exp0_raw) <= 1.5 else x_exp0_raw
+    y_exp0 = y_exp0_raw / 100.0  # if exp is in percent, match model's 0–1
+
+    y_exp0_on_model = _interp_to(x_exp0, y_exp0, x_model0)
+
+
+    axs[0].set_xticks([0, 25, 50, 75, 100], labels=["0","25","50","75","100"])
+    axs[0].fill_between(x_model0, mean_pc_array+sem_pc_array, mean_pc_array-sem_pc_array, alpha=0.2, color='b')
+    axs[0].plot(x_model0, mean_pc_array, label='model', color='b')
+    axs[0].plot(x_model0, y_exp0_on_model, label='experiment', color='k', linewidth=3)
+    axs[0].set_xlabel("Session Length (%)")
+    axs[0].set_ylabel("Fraction of CA1 Dendrites (%)")
+    axs[0].set_title(f"MSE={np.mean(np.square(y_exp0_on_model-mean_pc_array))}")
+    axs[0].set_xlim(0, 100)
+    axs[0].legend()
+
+    axs[1].fill_between(range(len(mean_histogram_array)), mean_histogram_array+sem_histogram_array, mean_histogram_array-sem_histogram_array, alpha=0.2, color='b')
+    axs[1].set_ylabel("Fraction of CA1 PCs (%)")
+    axs[1].plot(mean_histogram_array, label='model', color='b')
+    axs[1].plot(christine_overrepresentation_array_scaled, label='experiment', color='k', linewidth=3)
+    lin_aray = np.linspace(0, 180, 10)
+    axs[1].set_xticks(range(10))
+    axs[1].set_xticklabels(lin_aray.astype(int))
+    axs[1].set_xlabel("PF Peak Location (cm)")
+    axs[1].set_title(f"MSE={loss}")
+    axs[1].legend()
+
+    plt.show()
 
 
 def random_timeseries(initial_value: float, volatility: float, count: int) -> list:
@@ -146,12 +230,6 @@ def epsps_event_add(spike_idx, T, kernel):
             out[s:end] += kernel[:(end - s)]
     return out
 
-def random_timeseries(initial_value: float, volatility: float, count: int) -> list:
-    time_series = []
-    for _ in range(count+1):
-        time_series.append(initial_value + random.gauss(0, 1) * volatility)
-    return time_series
-
 
 def to_bool(x):
     if isinstance(x, bool):
@@ -164,48 +242,29 @@ def to_bool(x):
             return False
     raise ValueError(f"Cannot parse boolean from: {x!r}")
 
-
-import os, psutil
-
-_PEAK_RSS = 0  # bytes
+def _get_peak_rss_bytes():
+    # macOS: bytes; Linux: kilobytes → convert to bytes
+    ru = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return ru if sys.platform == "darwin" else ru * 1024
 
 def _get_current_rss_bytes():
-    try:
-        return psutil.Process(os.getpid()).memory_info().rss
-    except Exception:
-        return 0
+    if psutil is None:
+        return None
+    return psutil.Process(os.getpid()).memory_info().rss
 
-def _get_peak_rss_bytes():
-    global _PEAK_RSS
-    rss = _get_current_rss_bytes()
-    if rss > _PEAK_RSS:
-        _PEAK_RSS = rss
-    return _PEAK_RSS
+def _mb(nbytes):
+    return (nbytes or 0) / (1024.0 * 1024.0)
 
-def _fmt_bytes(n):
-    try:
-        for unit in ("B","KB","MB","GB","TB"):
-            if n < 1024.0:
-                return f"{n:,.1f} {unit}"
-            n /= 1024.0
-    except Exception:
-        pass
-    return f"{n} B"
+def log_mem(tag=""):
+    cur = _get_current_rss_bytes()
+    peak = _get_peak_rss_bytes()
+    print(f"[mem]{' '+tag if tag else ''}  now={_mb(cur):.1f} MB   peak={_mb(peak):.1f} MB")
 
 
 def turn_rates_into_spikes(dend_list_EC, an_velocity, weights_pop_dict, kernel, dt=None, n_dendrites=100, rng=None, debug=False, store_intermediates=None, mean=None, std=None):
 
-    # if optimization_time:
     assert dt is not None
     dt_ms = float(dt * 1000.0)
-
-
-    # pop_dend_vm_dict = {}
-
-    # for pop in processed_binned_activity_dict:
-
-        # dend_list_EC = processed_binned_activity_dict[pop]
-        # an_velocity = animal_velocity_dict[pop]
 
     EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float32, copy=False)
     n_EC, n_pos, n_trials = EC_input_matrix.shape
@@ -300,8 +359,7 @@ def turn_rates_into_spikes(dend_list_EC, an_velocity, weights_pop_dict, kernel, 
             f"RSS now={_fmt_bytes(trial_curr_after)}  "
             f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
             f"proc peak={_fmt_bytes(trial_peak_after)}  "
-            f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
-        )
+            f"(+{_fmt_bytes(proc_peak_since_start)} since start)")
 
     del rows, two_track_length, warped0, warped, firing, firing0
 
@@ -322,254 +380,88 @@ def turn_rates_into_spikes(dend_list_EC, an_velocity, weights_pop_dict, kernel, 
     return dend_contribution, last_EPSP, warped_list
 
 
-##############################################################################################################
+def resample_trace_to_position_bins(trace_time, dt, vel_pos_mps, track_len_m=1.8, n_bins_target=1000):
 
+    vel = np.asarray(vel_pos_mps, float)
+    n_pos = vel.size
+    dx = float(track_len_m) / n_pos                   
+    vel = np.clip(vel, 1e-6, None)                    
+    dt_pos = dx / vel                                 
+    t_edges = np.concatenate([[0.0], np.cumsum(dt_pos)])       
+    t_centers = 0.5 * (t_edges[:-1] + t_edges[1:])             
 
+    T = trace_time.size
+    t_trace = np.arange(T, dtype=float) * dt                    
 
+    pos_src = np.arange(n_pos, dtype=float) + 0.5               
+    pos_tgt = (np.arange(n_bins_target, dtype=float) + 0.5) * (n_pos / n_bins_target)
 
+    t_at_pos_tgt = np.interp(pos_tgt, pos_src, t_centers, left=t_centers[0], right=t_centers[-1])
 
-# def turn_rates_into_spikes_add_inh(dend_list_EC, dend_list_NDNF, dend_list_SST, an_velocity, dist, kernel, SST_sf_opt, NDNF_sf_opt, dt=None, n_dendrites=100, rng=None, debug=False, optimization_time=None, mean=None, std=None):
+    trace_pos = np.interp(t_at_pos_tgt, t_trace, trace_time,left=trace_time[0], right=trace_time[-1])
 
-#     # if optimization_time:
-#     assert dt is not None
-#     dt_ms = float(dt * 1000.0)
+    return trace_pos
 
-#     EC_input_matrix = np.stack(dend_list_EC, axis=0).astype(np.float32, copy=False)
-#     n_EC, n_pos, n_trials = EC_input_matrix.shape
-
-
-#     SST_input_matrix = np.stack(dend_list_SST, axis=0).astype(np.float32, copy=False)
-#     n_SST, n_pos, n_trials = SST_input_matrix.shape
-
-
-#     NDNF_input_matrix = np.stack(dend_list_NDNF, axis=0).astype(np.float32, copy=False)
-#     n_NDNF, n_pos, n_trials = NDNF_input_matrix.shape
-
-#     input_pop_list = [EC_input_matrix, SST_input_matrix, NDNF_input_matrix]
-
-#     dx = np.float32(180.0 / n_pos)
-
-#     weights_EC = sample_weights(dist, n_EC, n_dendrites, rng=rng, mean=mean, std=std).astype(np.float32, copy=False)
-
-#     weights_SST = sample_weights("Equal", n_SST, n_dendrites, rng=rng, mean=SST_sf_opt).astype(np.float32, copy=False)
-
-#     weights_NDNF = sample_weights("Equal", n_NDNF, n_dendrites, rng=rng, mean=NDNF_sf_opt).astype(np.float32, copy=False)
-
-#     weights_list = [weights_EC, weights_SST, weights_NDNF]
-
-
-#     # W64 = sample_weights(dist, n_EC, n_dendrites, rng=rng, mean=mean, std=std)  # float64 by default
-#     # print("pre-cast finite?", np.isfinite(W64).all(), "max:", W64.max())
-
-#     # W16 = W64.astype(np.float16, copy=False)
-#     # print("post-cast finite?", np.isfinite(W16).all(), "num inf:", np.isinf(W16).sum())
-
-#     # kernel used by epsp add — keep as f16
-#     kernel = np.asarray(kernel, dtype=np.float32)
-
-#     L_prev = 1200  # history prepend/append
-#     last_EPSP = None
-   
-
-#     if debug:
-#         proc_peak_start = _get_peak_rss_bytes()
-    
-#     dend_vm_dict = {}
-
-#     label_list = ["EC", "SST", "NDNF"]
-
-
-#     for idx, input_population in enumerate(input_pop_list):
-
-#         label = label_list[idx]
-
-#         if debug:
-#             trial_wall_start = time.perf_counter()
-#             trial_peak_before = _get_peak_rss_bytes()
-#             trial_curr_before = _get_current_rss_bytes()
-
-#         dend_vm_list = []  # per-trial, shape (n_dendrites, T_t) in f16
-
-#         warped_list = []
-
-
-#         for t in range(n_trials):
-
-#             v_cm_s = _sanitize_velocity_cm_s(an_velocity[:, t]).astype(np.float32, copy=False)  # (n_pos,)
-#             dt_s   = dx / v_cm_s                                                                 # (n_pos,)
-#             time_points = np.cumsum(dt_s, dtype=np.float32)                                      # len n_pos
-#             total_time  = float(time_points[-1])
-#             t_axis = np.arange(0.0, total_time, float(dt), dtype=np.float32)           # (T,)
-#             T = t_axis.size
-        
-#             # rows = np.empty((n_EC, T), dtype=np.float32)
-#             rows = np.zeros((input_population.shape[0], T), dtype=np.float32)
-
-#             firing0 = input_population[0, :, t].astype(np.float32, copy=False)
-#             valid0  = np.isfinite(firing0)
-#             warped0 = (np.interp(t_axis, time_points[valid0], firing0[valid0])
-#                     if valid0.sum() >= 2 else np.full(1, np.nan, dtype=np.float32))
-#             warped0 = warped0.astype(np.float32, copy=False)
-#             holder = warped0[-L_prev:] if warped0.size >= L_prev else warped0
-
-#             # total two-track buffer in f16
-#             two_len = len(holder) + T + len(holder)
-#             two_track_length = np.empty(two_len, dtype=np.float32)
-#             t_idx = np.arange(two_len, dtype=np.int32)
-
-#             if not optimization_time:
-#                 warped_array = np.empty((input_population.shape[0], T), dtype=np.float32)
-
-#             for cell in range(input_population.shape[0]):
-#                 firing = input_population[cell, :, t].astype(np.float32, copy=False)
-#                 valid  = np.isfinite(firing)
-#                 if valid.sum() >= 2:
-#                     warped = np.interp(t_axis, time_points[valid], firing[valid]).astype(np.float32, copy=False)
-#                 else:
-#                     warped = np.full(1, np.nan, dtype=np.float32)
-
-#                 hL = len(holder)
-#                 two_track_length[:hL] = holder
-#                 two_track_length[hL:hL + warped.size] = warped
-#                 two_track_length[hL + warped.size:] = holder
-
-#                 holder = warped[-L_prev:] if warped.size >= L_prev else warped
-
-#                 spike_times = get_inhom_poisson_spike_times_by_thinning(two_track_length, t_idx, dt=dt_ms, refractory=3., generator=rng).astype(np.int32, copy=False)
-
-#                 epsps = epsps_event_add(spike_times, two_len, kernel).astype(np.float32, copy=False)
-#                 epsps = epsps[hL:hL + T]  # crop back to the middle warped region (length T)
-
-#                 # rows[cell, :] = epsps.astype(np.float32, copy=False)
-#                 if label in ("SST", "NDNF"):
-#                     epsps *= -1.0
-
-#                 rows[cell, :] += epsps.astype(np.float32, copy=False)
-#                 if not optimization_time:
-#                     warped_array[cell, :] = warped
-
-#                 last_EPSP = epsps  
-
-#             # ----- dendritic VM = W^T @ rows ; do compute in f32 then downcast -----
-#             # weights_EC: (n_EC, n_dendrites), rows: (n_EC, T)
-#             # dend_vm_over_time = (weights_EC.astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T) #### dendrite contribution
-
-#             dend_vm_contribution = (weights_list[idx].astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T) #### dendrite contribution
-
-#             dend_vm_list.append(dend_vm_contribution)
-            
-#             if (t & 7) == 7:
-#                 import gc; gc.collect()
-
-#             if not optimization_time:
-#                 warped_list.append(warped_array.astype(np.float32, copy=False))
-
-#             if debug:
-#                 trial_wall_end = time.perf_counter()
-#                 trial_peak_after = _get_peak_rss_bytes()
-#                 trial_curr_after = _get_current_rss_bytes()
-#                 trial_peak_delta = None if (trial_peak_before is None or trial_peak_after is None) \
-#                     else (trial_peak_after - trial_peak_before)
-#                 proc_peak_since_start = None if (proc_peak_start is None or trial_peak_after is None) \
-#                     else (trial_peak_after - proc_peak_start)
-#                 print(
-#                     f"trial {t:02d}:  time={trial_wall_end - trial_wall_start:6.3f}s  "
-#                     f"RSS now={_fmt_bytes(trial_curr_after)}  "
-#                     f"trial peak Δ={_fmt_bytes(trial_peak_delta)}  "
-#                     f"proc peak={_fmt_bytes(trial_peak_after)}  "
-#                     f"(+{_fmt_bytes(proc_peak_since_start)} since start)"
-#                 )
-
-#             # free large temporaries as we go
-#             del rows, two_track_length, warped0, warped, firing, firing0
-
-#     # ----- optional padding (still f16) -----
-#         num_trials = len(dend_vm_list)
-#         n_dendrites_ = dend_vm_list[0].shape[0]
-#         max_T = max(arr.shape[1] for arr in dend_vm_list)
-
-#         dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
-#         for i, arr in enumerate(dend_vm_list):
-#             Ti = arr.shape[1]
-#             dend_vm_padded[i, :, :Ti] = arr
-
-#         dend_contribution = dend_vm_padded  # (trials, dendrites, time) f16
-
-#         dend_vm_dict[label] = dend_contribution
-#         warped_dict[label] = warped_list
-
-#     overall_dend_contribution = dend_vm_dict["EC"] + dend_vm_dict["SST"] + dend_vm_dict["NDNF"]
-
-#     if dend_contribution.shape[1] != 100:
-#         print("dend_contribution_EC dendrites in the wrong axis")
-
-#     # ----- Vm transform (compute f32; store f16) -----
-#     Vm_dict = {}
-#     for d in range(overall_dend_contribution.shape[1]):
-#         vm_array = overall_dend_contribution[:, d, :].astype(np.float32, copy=False)
-#         Vm, _, _ = activity_to_dend_vm_2d(
-#             vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
-#         Vm_dict[d] = Vm.astype(np.float32, copy=False)
-
-#     dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
-
-#     if not optimization_time:
-#         return dend_activity, weights_EC, weights_SST, weights_NDNF, last_EPSP, warped_dict
-#     else:
-#         return dend_activity, weights_EC, last_EPSP
-
-def load_yaml_cfg(path: str) -> Tuple[SimConfig, StoreFlags]:
-    with open(path, "r") as f:
-        raw = yaml.safe_load(f) or {}
-    sim_keys = {"dt_constant","dx","L_prev","refractory_ms","seed","store","debug"}
-    flags = raw.get("store_flags", {}) or {}
-    cfg_kwargs = {k: raw[k] for k in sim_keys if k in raw}
-    cfg = SimConfig(**cfg_kwargs)
-    flg = StoreFlags(**{k: v for k, v in flags.items() if k in StoreFlags().__dict__})
-    return cfg, flg
-
-def _get_peak_rss_bytes():
+def activity_to_dend_vm_2d(
+    A_trials_time,
+    Vrest=-70.0,
+    vm_scale=0.1,
+    center_across="time",   # "time" | "time_trials" | "none"
+    dtype=np.float32):
     """
-    Peak RSS for the process since start.
-    macOS: ru_maxrss is bytes; Linux: kilobytes → convert to bytes.
+    A_trials_time: (n_trials, T) activity (may contain NaNs)
+    Returns:
+      Vm: (n_trials, T) in mV
+      A_centered: centered activity (same shape)
+      mu: the mean(s) removed (scalar or array)
     """
-    ru = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return ru if sys.platform == "darwin" else ru * 1024
+    A = np.asarray(A_trials_time, dtype=dtype, order="C")
+    if A.ndim != 2:
+        raise ValueError(f"A must be 2D (trials, time); got {A.shape}")
 
-def _get_current_rss_bytes():
-    """
-    Current RSS snapshot (needs psutil; returns None if unavailable).
-    """
-    try:
-        import psutil
-        return psutil.Process(os.getpid()).memory_info().rss
-    except Exception:
-        return None
+    if center_across == "time":
+        # per-trial time mean -> each trial mean becomes Vrest after scaling/offset
+        mu = np.nanmean(A, axis=1, keepdims=True).astype(dtype, copy=False)
+    elif center_across == "time_trials":
+        # single global mean over all trials and time
+        mu = np.nanmean(A, keepdims=True).astype(dtype, copy=False)
+    elif center_across == "none":
+        mu = dtype(0.0)
+    else:
+        raise ValueError("center_across must be 'time', 'time_trials', or 'none'")
 
-import pickle
-from types import SimpleNamespace
+    A_centered = (A - mu).astype(dtype, copy=False)
+    Vm = dtype(Vrest) + dtype(vm_scale) * A_centered
+    return Vm, A_centered, (mu if np.isscalar(mu) else mu.astype(dtype, copy=False))
 
-class DummySimConfig(SimpleNamespace): pass
-class DummyStoreFlags(SimpleNamespace): pass
-
-class DummyUnpickler(pickle.Unpickler):
-    def find_class(self, module, name):
-        if module == "__main__" and name == "SimConfig":
-            return DummySimConfig
-        if module == "__main__" and name == "StoreFlags":
-            return DummyStoreFlags
-        return super().find_class(module, name)
     
 
 def scale_dendrite(dend_contribution_summed):
-                Vm_dict = {}
-                for d in range(dend_contribution_summed.shape[1]):
-                    vm_array = dend_contribution_summed[:, d, :].astype(np.float32, copy=False)
-                    Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
-                    Vm_dict[d] = Vm.astype(np.float32, copy=False)
+    Vm_dict = {}
+    for d in range(dend_contribution_summed.shape[1]):
+        vm_array = dend_contribution_summed[:, d, :].astype(np.float32, copy=False)
+        Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+        Vm_dict[d] = Vm.astype(np.float32, copy=False)
 
-                dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
-                return dend_activity
+    dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
+    return dend_activity
+
+
+def get_padded_dend_from_psps(psps_list):
+    num_trials = len(psps_list)
+    n_dendrites_ = psps_list[0].shape[0]
+    max_T = max(arr.shape[1] for arr in psps_list)
+
+    dend_vm_padded = np.full((num_trials, n_dendrites_, max_T), np.nan, dtype=np.float32)
+    for i, arr in enumerate(psps_list):
+        Ti = arr.shape[1]
+        dend_vm_padded[i, :, :Ti] = arr
+
+    dend_contribution = dend_vm_padded  # (trials, dendrites, time) f16
+
+    if dend_contribution.shape[1] != 100:
+        print("dend_contribution_EC dendrites in the wrong axis")
+    return(dend_contribution)
 
 
 @dataclass
@@ -598,15 +490,14 @@ class SpikeSimModel:
                 kernel: np.ndarray,          # EPSP kernel (samples)
                 weight_config_dict,                 # dict
                 dt=0.001,  # sec
-                dx=3.6,  # cm
+                track_len=180.,
                 store_intermediates=None,
+                plot=False,
                 multiple_dendrites=True,
                 residuals_activity_dict = None,
                 make_it_spike = None,
                 GLM_params_dict=None,
                 behav_factors_dict=None,
-                animal_by_animal=None,
-                input_animal = None,
                 max_num_trials=58,
                 num_pos_bins=50,
                 av_animals_velocity=0.43,
@@ -616,10 +507,12 @@ class SpikeSimModel:
                 flat_input=None,
                 dend_threshold=None,
                 tau_ms=None,
-                EC_weights_mean=None,
-                EC_weights_std=None,
                 sim_config = None,
-                debug = False):
+                debug = False,
+                n_cells_dict = None,
+                christine_overrep_array=None,
+                christine_field_building_array=None,
+                GLM_param_dict=None):
         
         self.kernel = kernel
         self.weight_config_dict = weight_config_dict
@@ -628,7 +521,6 @@ class SpikeSimModel:
         self.behav_factors_dict = behav_factors_dict
         self.multiple_dendrites = bool(multiple_dendrites)
         self.make_it_spike = make_it_spike
-        self.animal_by_animal = animal_by_animal
         self._precomputed = None
         self._results: Dict[int, Dict[str, Any]] = {}
         self.tau_ms: Optional[float] = None
@@ -643,214 +535,29 @@ class SpikeSimModel:
         self.padded_warped_activity_list_dict = {}
         self.tau_ms = tau_ms 
         self.dend_threshold = dend_threshold 
-        self.EC_weights_mean = EC_weights_mean 
-        self.EC_weights_std = EC_weights_std 
-        self.input_animal = input_animal
         self.dt = dt
+        self.track_len = track_len
         self.max_num_trials = max_num_trials
         self.num_pos_bins = num_pos_bins
+        self.dx = track_len/num_pos_bins
         self.av_animals_velocity = av_animals_velocity
         self.hz_target_for_scaling = hz_target_for_scaling
-        self.const_vel=constant_vel
+        self.constant_vel=constant_vel
         self.include_beta=include_beta
         self.flat_input=flat_input
         self.num_dendrites = sim_config.num_dendrites
         self.debug = debug
-
-
-
+        self.n_cells_dict = n_cells_dict
+        self.christines_overrepresentation_array = christine_overrep_array
         self.store_intermediates = store_intermediates
+        self.plot = plot
+        self.christine_field_building_array = christine_field_building_array
+        self.GLM_param_dict = GLM_param_dict
 
-        ####
-
-
-
-    # def store_intermediates(self, **kwargs) -> "SpikeSimModel":
-    #     """Enable/disable what to keep. Example:
-    #        model.store_intermediates(spikes=False, epsps=True, warp_axes=True)
-    #     """
-    #     self.flags = replace(self.flags, **kwargs)
-    #     return self
-    
-    def __getstate__(self):
-        state = self.__dict__.copy()
-
-        results = state.get("_results", {})
-        slim_results = {}
-        for seed, R in results.items():
-            slim_R = {
-                "Vm": R.get("Vm"),
-                "weights_EC": R.get("weights_EC"),
-                "last_epsp_example": R.get("last_epsp_example"),
-                "metrics": R.get("metrics"),
-            }
-            slim_results[seed] = slim_R
-        state["_results"] = slim_results
-
-        # ensure plot keys exist
-        for k in ("_pos_cnt_dict","start_pos_cnt50_dict","_plateau_arr_list_dict",
-                "_mask_dict","_starts_list_dict","num_plateaus_per_dend_list_dict",
-                "dend_activity_dict","padded_warped_activity_list_dict","seeds","tau_ms"):
-            state.setdefault(k, {} if k.endswith("_dict") else None)
-
-        # keep small helpful context
-        state.setdefault("vel", getattr(self, "vel", None))
-        state.setdefault("activity_EC", None)
-        state.setdefault("activity_SST", None)
-        state.setdefault("activity_NDNF", None)
-        state.setdefault("SST_sf_opt", None)
-        state.setdefault("NDNF_sf_opt", None)
-        state.setdefault("dend_threshold", getattr(self, "dend_threshold", None))
-        state.setdefault("animal", None)
-
-        # drop heavy/non-picklables
-        state["_precomputed"] = None
-        state.pop("rows_buf", None)
-        state.pop("rate_buf", None)
-
-        # keep a label for the weight distribution
-        state["W_dist"] = None
-        state["W_dist_name"] = getattr(self, "W_dist_name", None)
-        return state
-
-    def evaluate(self, christine_overrepresentation_array=None, seeds=None,*,dend_threshold: float,include_inhibition: bool = True,vel_applied: str = "real",example_cell: int = 15,target_total: float = 120.0,target_frac: np.ndarray = None) -> Tuple[float, Dict[str, float]]:
-
-        start_pos_cnt50_dict = self.start_pos_cnt50_dict
-
-        plateau_list = self._plateau_arr_list_dict
-
-        first_seed = seeds[0]
-
-        n_dendrites = len(plateau_list[first_seed])
-
-        dendrites_with_plateau_count = 0
-        total_dends = 0
-
-        for seed in range(len(plateau_list)):
-            for dendrite in range(len(plateau_list[seed])):
-                dendrite_plateau_array = plateau_list[seed][dendrite]
-                
-                if np.any(dendrite_plateau_array==1):
-                    dendrites_with_plateau_count+=1
-
-                total_dends +=1
-
-        frac_dends_with_plateau = dendrites_with_plateau_count / total_dends
-
-
-        summed_plateaus_over_seeds = []
-        for seed in start_pos_cnt50_dict:
-            start_pos_cnt50_list = start_pos_cnt50_dict[seed]
-            n_bins = 10
-            bin_size = int(50 / n_bins)
-            summed_plateaus = np.zeros(n_bins)
-            for i in range(n_bins):
-                start = i * bin_size
-                end = (i + 1) * bin_size
-                summed_data = np.sum(start_pos_cnt50_list[start:end])
-                summed_plateaus[i] = summed_data
-            summed_plateaus_over_seeds.append(summed_plateaus)
-
-
-        arr = np.asarray(summed_plateaus_over_seeds)  # expect (n_seeds, n_bins)
-        if arr.ndim != 2:
-            raise ValueError(f"Expected 2D array, got {arr.shape}")
-
-        if arr.shape[0] in (10, 50) and arr.shape[1] not in (10, 50):
-            arr = arr.T
-
-        mean_over_seeds = np.mean(arr, axis=0)
-
-
-        mean_over_seeds = np.mean(arr, axis=0)
-
-        totals = arr.sum(axis=1)  # shape (n_seeds,)
-        valid = totals > 0        # seeds that actually have any plateau events
-
-        if not np.any(valid):
-            p_model_allcells = np.zeros_like(christine_overrepresentation_array, dtype=float)
-        else:
-            frac = np.empty_like(arr, dtype=float)
-            frac[:] = np.nan
-            frac[valid] = arr[valid] / totals[valid, None]   # rows sum to 1 for valid seeds
-
-            p_model = np.nanmean(frac, axis=0)               # (10,)
-            p_model = np.nan_to_num(p_model, nan=0.0)        # guard rare all-NaN columns
-            p_model_allcells = p_model * frac_dends_with_plateau
-
-        p_chr = christine_overrepresentation_array / 100.0
-        p_chr_allcells = p_chr * 0.25
-
-
-        loss = np.mean((p_model_allcells - p_chr_allcells)**2)
-        return loss
-
-
-
-    def plot_from_pickle(path, *, plot_fn, animal="animal-1", **extra):
-        P = SpikeSimModel.load_pickle(path)
-        seeds = P["seeds"]
-        results = P["results"]
-
-        dend_vm_per_seed_dict = {int(s): results[str(s)]["Vm"] for s in results}
-        last_seed = seeds[0]
-        last = results[str(last_seed)]
-        last_EPSP = last.get("last_epsp_example", np.zeros((1,1,1000), np.float32))
-        weights_EC = last.get("weights_EC", None)
-
-        return plot_fn(tau_ms=P.get("tau_ms", 0.0),
-            seeds=seeds,
-            last_EPSP=last_EPSP,
-            weights_EC=weights_EC,
-            weights_SST=extra.get("weights_SST", 0),
-            weights_NDNF=extra.get("weights_NDNF", 0),
-            dend_vm_per_seed_dict=dend_vm_per_seed_dict,
-            activity_EC=extra["activity_EC"],        # you provide (D, trials, T) if needed
-            activity_SST=extra.get("activity_SST", 0),
-            activity_NDNF=extra.get("activity_NDNF", 0),
-            SST_sf_opt=extra.get("SST_sf_opt", 0.0),
-            NDNF_sf_opt=extra.get("NDNF_sf_opt", 0.0),
-            padded_warped_activity_list=P["padded_warped_activity_list_dict"].get(str(last_seed), []),
-            an_velocity=P["velocity"][:, 0],         # 1D for your plot
-            dend_activity_dict=P["dend_activity_dict"].get(str(last_seed), {}),
-            dend_threshold=extra["dend_threshold"],
-            _pos_cnt_dict=P["_pos_cnt_dict"],
-            start_pos_cnt50_dict=P["start_pos_cnt50_dict"],
-            _plateau_arr_list_dict=P["_plateau_arr_list_dict"],
-            _mask_dict=P["_mask_dict"],
-            _starts_list_dict=P["_starts_list_dict"],
-            dist=extra.get("dist", "weights"),
-            num_plateaus_per_dend_list=P["num_plateaus_per_dend_list_dict"].get(str(last_seed), []),
-            animal=animal,
-            example_cell=extra.get("example_cell", 1),
-            include_inhibition=extra.get("include_inhibition", "neither"),
-            NDNF_contribution_sum=extra.get("NDNF_contribution_sum", None),
-            SST_contribution_sum=extra.get("SST_contribution_sum", None),
-            animal_by_animal=True,)
-
-
-
-    def export_intermediates(self, important_dict: Dict[str, Any], path: str):
-        with open(path, "wb") as f:
-            pickle.dump(important_dict, f)
-        print(f"pickle saved to {path}")
-
-    @staticmethod
-    def load_intermediates_for_plotting(path: str) -> Dict[str, Any]:
-        with open(path, "rb") as f:
-            return pickle.load(f)
-        
-    
-    def _precompute_once(self):
-        if self._precomputed is not None:
-            return
-        self._precomputed = True
 
     def modify_activity(self, residuals_activity_dict_pop, behav_factors_dict_pop, GLM_params_dict_pop):
-        #residual_activity_dict_EC include_beta=True, const_vel=True, flat_input=False 
-        # animal_by_animal = to_bool(animal_by_animal)
 
-        const_vel = self.const_vel
+        const_vel = self.constant_vel
         flat_input = self.flat_input
         include_beta = self.include_beta
 
@@ -941,7 +648,6 @@ class SpikeSimModel:
                             data = ((data - np.min(data)) / (np.max(data) - np.min(data)) *self.hz_target_for_scaling)
 
                         else:
-                            # data = data + mu
                             data = ((data - np.min(data)) / (np.max(data) - np.min(data)) *self.hz_target_for_scaling)
 
 
@@ -951,185 +657,912 @@ class SpikeSimModel:
         an_velocity = np.array(animal_velocity_list)
         an_velocity = np.nanmean(an_velocity, axis=0)
 
-        return an_velocity, dendrite_list  #, dendrite_ta_list
+        dendrite_array = np.array(dendrite_list).astype(np.float32)
+
+        return an_velocity, dendrite_array  #, dendrite_ta_list
 
 
-    #   if self.make_it_spike:
 
+    def process_inputs_and_velocity(self):
 
-
-    def make_the_dendrite(self, seed=0, debug=False):
-        
-        SEED = seed
-        np.random.seed(SEED)
-        random.seed(SEED)
-        rng = np.random.default_rng(SEED)
-        
-            
         animal_velocity_list = []
+
         processed_binned_activity_dict = {}
 
-        weights_pop_dict = {}
-        
         for pop in self.weight_config_dict:
             this_animal_velocity, this_processed_binned_activity = self.modify_activity(self.residuals_activity_dict[pop], self.behav_factors_dict[pop], self.GLM_params_dict[pop])
-
-            n_cells = len(this_processed_binned_activity)
-            
-            weights_pop = sample_weights(self.weight_config_dict[pop]["dist_type"], n_cells, self.num_dendrites, rng=rng, mean=self.weight_config_dict[pop]["mean"], std=self.weight_config_dict[pop]["std"]).astype(np.float32, copy=False)
-            weights_pop_dict[pop] = weights_pop
-            
-            processed_binned_activity_dict[pop] = this_processed_binned_activity
             animal_velocity_list.append(this_animal_velocity)
+            processed_binned_activity_dict[pop] = this_processed_binned_activity
 
-        an_velocity_stack = np.array(animal_velocity_list)
-
-        if an_velocity_stack.ndim == 3:
-            an_velocity = np.mean(an_velocity_stack, axis=0)
-        else:
-            pass
-
-
-        summed_dendrite_input = []
-
-        last_EPSP_dict = {}
-        warped_list_dict = {}
-        for pop in self.weight_config_dict:
-            dend_contribution, last_EPSP, warped_list = (
-            turn_rates_into_spikes(processed_binned_activity_dict[pop], an_velocity, weights_pop_dict[pop],
-                                        self.kernel, dt=self.dt,
-                                        n_dendrites=self.num_dendrites, rng=rng, debug=self.debug,
-                                        store_intermediates=self.store_intermediates))
-            
-            last_EPSP_dict[pop] = last_EPSP
-            warped_list_dict[pop] = warped_list
-
-
-            dend_contribution_scaled = dend_contribution * self.weight_config_dict[pop]["sign"]
-
-            summed_dendrite_input.append(dend_contribution_scaled)
-
-        summed_dendrite_input_array = np.array(summed_dendrite_input)
-
+        animal_velocity_array = np.array(animal_velocity_list)
+        animal_velocity = np.mean(animal_velocity_array, axis=0)
+    
+        return animal_velocity, processed_binned_activity_dict
+    
+    def init_weights(self):
         
-        summed_dendrite_input_array = np.mean(summed_dendrite_input_array, axis=0)
+        weights_pop_dict = {}
 
-        final_scaled_dendrite = scale_dendrite(summed_dendrite_input_array)
+        for pop in self.weight_config_dict:
+            weights_pop = sample_weights(self.weight_config_dict[pop]["dist_type"], self.n_cells_dict[pop], self.num_dendrites, rng=self.rng, mean=self.weight_config_dict[pop]["mean"], std=self.weight_config_dict[pop]["std"]).astype(np.float32, copy=False)
+            weights_pop *= self.weight_config_dict[pop]["sign"]
+            weights_pop_dict[pop] = weights_pop
+
+        return weights_pop_dict
+    
+    # def get_dend_contribution_old(self, trial, prev_trial_end_values_dict, total_time_ms_prev_trial):
+
+    #     self.dt_ms = float(self.dt * 1000.0)
+
+    #     self.L_prev = 1200
+    #     self.L_prev_slice = int(round(self.L_prev / self.dt_ms))
+    #     self.last_psp_dict = {}  
+    #     if self.debug:
+    #         proc_peak_start = _get_peak_rss_bytes()
+        
+    #     rate_over_time_dict = {}
+
+    #     dend_contribution_dict = {}
+
+    #     new_end_times = {}
+
+    #     v_cm_s = _sanitize_velocity_cm_s(self.an_velocity[:, trial]).astype(np.float32, copy=False)  
+    #     dt_s   = self.dx / v_cm_s                                                                
+    #     self.time_points = np.cumsum(dt_s, dtype=np.float32)                                     
+    #     total_time  = float(self.time_points[-1])
+    #     self.t_axis = np.arange(0.0, total_time, float(self.dt), dtype=np.float32)         
+    #     self.T = self.t_axis.size
+    #     total_time_ms = int(total_time*1000)
+
+
+    #     for pop in self.weight_config_dict:
+
+    #         input_rate_matrix = np.stack(self.processed_binned_activity_dict[pop], axis=0).astype(np.float32, copy=False)
+
+    #         n_cells = self.n_cells_dict[pop]
+
+    #         rate_over_time_array = np.empty((n_cells, self.T))
+
+    #         rows = np.empty((n_cells, self.T))
+
+    #         end_times_this_trial = [None] * n_cells
+
+    #         prev_tails_this_pop = end_times_this_trial if (prev_trial_end_values_dict is None or prev_trial_end_values_dict.get(pop) is None) else prev_trial_end_values_dict[pop]
+
+    #         last_psp = None
+
+    #         for cell in range(n_cells):
+
+    #             previous_trial_prepend_chunk = prev_tails_this_pop[cell]
+
+    #             rate_over_time, spike_train = self.convert_rates_to_spikes(trial, cell, input_rate_matrix, previous_trial_prepend_chunk)
+    #             T = self.T + self.L_prev_slice
+    #             psps = self.epsps_event_add(spike_train, T).astype(np.float32)
+
+    #             tail_this_trial = rate_over_time[-self.L_prev_slice:]
+
+    #             end_times_this_trial[cell] = tail_this_trial
+
+    #             psps = psps[self.L_prev_slice:]
+
+    #             if self.store_intermediates:
+    #                 rate_over_time_array[cell, :] = rate_over_time
+    #                 last_psp = psps    
+                        
+    #             rows[cell, :] = psps.astype(np.float32, copy=False)
+
+
+    #         new_end_times[pop] = end_times_this_trial
+
+    #         if self.store_intermediates:
+    #             rate_over_time_dict[pop] = rate_over_time_array
+
+    #             self.last_psp_dict[pop] = last_psp
+
+    #         dend_vm_over_time = (self.weights_pop_dict[pop].astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T)
+
+    #         dend_contribution_dict[pop] = dend_vm_over_time
+            
+    #     return dend_contribution_dict, new_end_times, total_time_ms, rate_over_time_dict
+    
+
+    def get_dend_contribution(self, trial, prev_trial_end_values_dict, total_time_ms_prev_trial):
+
+        self.dt_ms = float(self.dt * 1000.0)
+
+        self.L_prev = 1200
+        self.L_prev_slice = int(round(self.L_prev / self.dt_ms))
+        self.last_psp_dict = {}  
+        if self.debug:
+            proc_peak_start = _get_peak_rss_bytes()
+        
+        rate_over_time_dict = {}
+
+        dend_contribution_dict = {}
+
+        new_end_times = {}
+
+        v_cm_s = _sanitize_velocity_cm_s(self.an_velocity[:, trial]).astype(np.float32, copy=False)  
+        dt_s   = self.dx / v_cm_s                                                                
+        self.time_points = np.cumsum(dt_s, dtype=np.float32)                                     
+        total_time  = float(self.time_points[-1])
+        self.t_axis = np.arange(0.0, total_time, float(self.dt), dtype=np.float32)         
+        self.T = self.t_axis.size
+        total_time_ms = int(total_time*1000)
+
+        print(f"self.debug {self.debug}")
+
+        if self.debug:
+            log_mem("B")
+
+        for pop in self.weight_config_dict:
+
+            n_cells = self.n_cells_dict[pop]
+
+            if self.store_intermediates:
+
+                rate_over_time_array = np.empty((n_cells, self.T))
+
+            rows = np.empty((n_cells, self.T))
+
+            end_times_this_trial = [None] * n_cells
+
+            prev_tails_this_pop = end_times_this_trial if (prev_trial_end_values_dict is None or prev_trial_end_values_dict.get(pop) is None) else prev_trial_end_values_dict[pop]
+
+            last_psp = None
+
+            # Wpop = self.weights_pop_dict[pop].astype(np.float32, copy=False)  # (n_cells, n_dendrites) or (n_dendrites, n_cells)? assume later usage
+            # if Wpop.shape[0] == n_cells:      # ensure shape is (n_dendrites, n_cells)
+            #     Wpop = Wpop.T
+            # dend_accum = np.zeros((Wpop.shape[0], self.T), dtype=np.float32)
+
+
+            for cell in range(n_cells):
+
+                previous_trial_prepend_chunk = prev_tails_this_pop[cell]
+
+                rate_over_time, spike_times, end_of_spike_train= self.convert_rates_to_spikes(trial, cell, self.processed_binned_activity_dict[pop], previous_trial_prepend_chunk)
+                
+
+                end_times_this_trial[cell] = end_of_spike_train
+                
+                
+                T = self.T + self.L_prev_slice
+                psps = self.epsps_event_add(spike_times, T).astype(np.float32)
+
+                psps = psps[self.L_prev_slice:]
+
+
+                if self.store_intermediates:
+                    rate_over_time_array[cell, :] = rate_over_time
+                    last_psp = psps    
+                        
+                rows[cell, :] = psps.astype(np.float32, copy=False)
+                
+            #     w = Wpop[:, cell]            # (n_dendrites,)
+            #     dend_accum += (w[:, None] * psps)
+
+            # dend_contribution_dict[pop] = dend_accum
+
+
+            self.prev_T = self.T
+
+
+            new_end_times[pop] = end_times_this_trial
+
+            if self.store_intermediates:
+                rate_over_time_dict[pop] = rate_over_time_array
+
+                self.last_psp_dict[pop] = last_psp
+
+            dend_vm_over_time = (self.weights_pop_dict[pop].astype(np.float32, copy=False).T @ rows.astype(np.float32, copy=False)).astype(np.float32, copy=False)  # (n_dendrites, T)
+            dend_contribution_dict[pop] = dend_vm_over_time
+
+        gc.collect()
+        
+        if self.debug:
+            log_mem("C")
+            
+        return dend_contribution_dict, new_end_times, total_time_ms, rate_over_time_dict
+    
+
+
+    def scale_dendrite(dend_contribution_summed):
+        Vm_dict = {}
+        for d in range(dend_contribution_summed.shape[1]):
+            vm_array = dend_contribution_summed[:, d, :].astype(np.float32, copy=False)
+            Vm, _, _ = activity_to_dend_vm_2d(vm_array, Vrest=-70.0, vm_scale=0.1, center_across="time")
+            Vm_dict[d] = Vm.astype(np.float32, copy=False)
+
+        dend_activity = np.stack([Vm_dict[k] for k in sorted(Vm_dict.keys())], axis=0).astype(np.float32, copy=False)
+        return dend_activity
+
+
+    def get_rate_vs_time(self, firing):
+        valid  = np.isfinite(firing)
+        if valid.sum() >= 2:
+            rate_over_time = np.interp(self.t_axis, self.time_points[valid], firing[valid]).astype(np.float32, copy=False)
+        else:
+            rate_over_time = np.full(1, np.nan, dtype=np.float32)
+        
+        return rate_over_time
+    
+    def epsps_event_add(self, spike_idx, T):
+        """
+        Exact causal conv with `kernel` using event-driven accumulation.
+        spike_idx: 1D int array of spike times (samples)
+        T: length of output trace
+        kernel: 1D float array (causal; length K)
+        returns: 1D float array of length T
+        """
+        out = np.zeros(T, dtype=np.float32)
+        K = self.kernel.shape[0]
+        for s in spike_idx:
+            if 0 <= s < T:
+                end = min(T, s + K)
+                out[s:end] += self.kernel[:(end - s)]
+        return out
+
+
+    def convert_spikes_to_psps(self, spike_idx):
+
+        T = int(self.T)
+        L_prev = int(self.L_prev)
+
+        kernel = np.asarray(self.kernel, dtype=np.float32)
+        K = kernel.shape[0]
+
+        buffer_len = T + L_prev
+        out = np.zeros(buffer_len, dtype=np.float32)
+
+        spike_idx_shifted = np.asarray(spike_idx, dtype=np.int64) + L_prev
+
+        for s in spike_idx_shifted:
+            if s < 0 or s >= buffer_len:
+                continue
+            L = min(K, buffer_len - s)   # truncate kernel at buffer end
+            if L <= 0:
+                continue
+            out[s:s+L] += kernel[:L]
+
+        return out[L_prev:L_prev + T]
+
+    def convert_rates_to_spikes_old(self, trial, cell, input_rate_matrix, end_of_previous_to_prepend):
+
+        firing_rate_binned_trial = input_rate_matrix[cell, :, trial].astype(np.float32, copy=False)
+
+        rate_over_time = self.get_rate_vs_time(firing_rate_binned_trial)
+
+        end_current_trial = rate_over_time[-self.L_prev_slice:]
+
+        if trial ==0:
+            rate_over_time_prepend = np.concatenate([end_current_trial, rate_over_time])
+        else:
+            rate_over_time_prepend = np.concatenate([end_of_previous_to_prepend, rate_over_time])
+
+        spike_train = get_inhom_poisson_spike_times_by_thinning(rate_over_time_prepend, np.arange((self.T+self.L_prev_slice), dtype=np.int32), dt=self.dt_ms, refractory=3., generator=self.rng).astype(np.int32, copy=False)
+
+        return rate_over_time, spike_train
+    
+
+    def convert_rates_to_spikes(self, trial, cell, input_rate_matrix, end_of_previous_to_prepend):
+
+        firing_rate_binned_trial = input_rate_matrix[cell, :, trial].astype(np.float32, copy=False)
+
+        rate_over_time = self.get_rate_vs_time(firing_rate_binned_trial)
+
+        spike_times = get_inhom_poisson_spike_times_by_thinning(rate_over_time, np.arange((self.T), dtype=np.int32), dt=self.dt_ms, refractory=3., generator=self.rng).astype(np.int32, copy=False)
+
+        # spike_train = np.zeros(self.T).astype(np.float16)
+        # spike_train[spike_times] = 1
+        # segregation_point = self.T - self.L_prev_slice
+        # end_of_spike_train = spike_train[segregation_point:].astype(np.float16)
+
+        segregation_point = self.T - self.L_prev_slice
+
+        end_spike_times = spike_times[spike_times >= segregation_point] - segregation_point
+
+        if trial == 0:
+            prev_part = end_spike_times
+        else:
+            if end_of_previous_to_prepend is None:
+                prev_part = np.asarray(end_spike_times, dtype=np.int32)
+            else:
+                prev_part = np.asarray(end_of_previous_to_prepend, dtype=np.int32)
+
+        spike_times_concatenated = np.concatenate([prev_part, spike_times + self.L_prev_slice]).astype(np.int32, copy=False)
+
+        if self.store_intermediates:
+            return rate_over_time, spike_times_concatenated, end_spike_times
+        else:
+            return 0, spike_times_concatenated, end_spike_times
+
+    
+
+
+
+
+    # def convert_rates_to_spikes(self, trial, cell, input_rate_matrix, prev_tail_unshifted):
+    #     """
+    #     prev_tail_unshifted: indices from previous trial in [T_prev-L .. T_prev-1], or None
+    #     Returns:
+    #     rate_over_time_or_None, spikes_concat (int32 indices in [0..T+L-1]),
+    #     tail_unshifted (int32 indices for next trial in [T-L..T-1])
+    #     """
+    #     firing_rate_binned = input_rate_matrix[cell, :, trial].astype(np.float32, copy=False)
+    #     rate_over_time = self.get_rate_vs_time(firing_rate_binned)
+
+    #     T = rate_over_time.shape[0]
+    #     L = self.L_prev_slice
+
+    #     # 1) Draw spike indices for THIS trial in [0..T-1]
+    #     spike_idx = get_inhom_poisson_spike_times_by_thinning(
+    #         rate_over_time,
+    #         np.arange(T, dtype=np.int32),
+    #         dt=self.dt_ms, refractory=3., generator=self.rng
+    #     ).astype(np.int32, copy=False)
+
+    #     # 2) Tail for NEXT trial (UNSHIFTED, in this trial's frame): [T-L .. T-1]
+    #     if L > 0:
+    #         tail_mask = (spike_idx >= (T - L))
+    #         tail_unshifted = spike_idx[tail_mask]
+    #     else:
+    #         tail_unshifted = np.empty((0,), dtype=np.int32)
+
+    #     # 3) Map PREVIOUS trial's tail to [0..L-1] for prepend
+    #     if trial == 0 or prev_tail_unshifted is None or prev_tail_unshifted.size == 0:
+    #         prev_pos = np.empty((0,), dtype=np.int32)
+    #     else:
+    #         T_prev = self.prev_T            # set in caller after each trial
+    #         prev_pos = prev_tail_unshifted - T_prev + L
+    #         prev_pos = prev_pos[(prev_pos >= 0) & (prev_pos < L)]
+
+    #     # 4) Current spikes go to [L .. L+T-1]
+    #     curr_pos = spike_idx + L
+
+    #     # 5) Final indices for convolution over length T+L (all int32)
+    #     spikes_concat = np.concatenate([prev_pos, curr_pos]).astype(np.int32, copy=False)
+
+    #     return (rate_over_time if self.store_intermediates else None), spikes_concat, tail_unshifted
+
+    
+
+    def analyze(self):
+
+        n_pos = 50
+        n_trials = 58
+        dx=180/50
+        dt = 0.001
+
+        self.plateau_array_per_dend_list = []
+
+        plateau_start_positions_counter = np.zeros((self.num_dendrites, n_pos))
+
+        plateau_start_positions_counter_overall = np.zeros(n_pos)
+
+        plateau_start_times_list_mega_list = []
+
+        n_dendrites, n_trials, T_max = self.dend_activity.shape
+
+        ragged_dend_list = []
+        valid_lengths_per_dend = []  
+
+        for d_idx in range(self.dend_activity.shape[0]):
+            ragged_trial_list = []
+            trial_lengths = [] 
+
+            sum_data = 0
+            for trial in range(self.dend_activity.shape[1]):
+                trial_activity = self.dend_activity[d_idx,trial,:]
+                valid = ~np.isnan(trial_activity)
+                valid_trial_activity = trial_activity[valid]
+                sum_data+=len(valid_trial_activity)
+                trial_lengths.append(len(valid_trial_activity))
+                ragged_trial_list.append(valid_trial_activity)
 
             
-        return an_velocity, final_scaled_dendrite, weights_pop_dict, last_EPSP_dict, warped_list_dict  # , min_trial_length #psp_list_dict
+
+            ragged_trial_list_flat = np.hstack(ragged_trial_list)
+
+            ragged_dend_list.append(ragged_trial_list_flat)
+            valid_lengths_per_dend.append(trial_lengths)
+
+        for d_idx in range(n_dendrites):
+
+            flat_signal = ragged_dend_list[d_idx]                  
+            flat_plateau_array = np.zeros_like(flat_signal, dtype=np.uint8)
+
+            i = 0
+            while i < flat_signal.size:
+                if flat_signal[i] > float(self.dend_threshold):
+                    flat_plateau_array[i:i+300] = 1
+                    i += 800
+                else:
+                    i += 100
+
+            lengths = valid_lengths_per_dend[d_idx]
+            cursor = 0
+            per_trial_padded = []
+            for L in lengths:
+                if L > 0:
+                    seg = flat_plateau_array[cursor:cursor+L]
+                    cursor += L
+                    padded = np.zeros(T_max, dtype=np.uint8)
+                    padded[:L] = seg
+                else:
+                    padded = np.zeros(T_max, dtype=np.uint8)
+                per_trial_padded.append(padded)
+
+            plateau_array = np.stack(per_trial_padded, axis=0)   
+            
+            self.plateau_array_per_dend_list.append(plateau_array)
+                        
+            proper_velocity = self.an_velocity*100
+
+            animal_velocity = proper_velocity
+
+            plateau_start_times_list = []
+            
+            for trial in range(plateau_array.shape[0]):
+                velocity_trial = animal_velocity[:, trial]
+                dt_trial = dx / velocity_trial  # in seconds
+                time_each_pos_bin_starts = np.concatenate([[0], np.cumsum(dt_trial)])
+
+                plateau_start_indices = np.where(np.diff(np.pad(plateau_array[trial], (1, 0))) == 1)[0]
+                plateau_start_times = plateau_start_indices * dt  # in seconds
+                plateau_start_times_list.append(plateau_start_times)
+
+                for pt_start_time in plateau_start_times:
+                    if pt_start_time != 0.0:
+                        for pos_idx in range(50):
+                            if time_each_pos_bin_starts[pos_idx] <= pt_start_time < time_each_pos_bin_starts[pos_idx + 1]:
+                                plateau_start_positions_counter[d_idx, pos_idx] = 1
+                                plateau_start_positions_counter_overall[pos_idx] += 1
+                                break
+
+            plateau_start_times_list_mega_list.append(plateau_start_times_list)
+
+        return plateau_start_positions_counter, plateau_start_times_list_mega_list, plateau_start_positions_counter_overall
     
     def simulate(self, seed=0, debug=False):
+
+        # SEED = seed
+        # np.random.seed(SEED)
+        # random.seed(SEED)
+        self.rng = np.random.default_rng(seed)
+
+        self.an_velocity, self.processed_binned_activity_dict = self.process_inputs_and_velocity()
+        self.weights_pop_dict = self.init_weights()
+
+        pops = list(self.weight_config_dict.keys())
+
+        dend_vm_lists_dict = {pop: [] for pop in pops}
+
+        prepend_storage_dict = {pop: None for pop in pops}
+
+        total_time_ms_prev_trial = None
+
+
+        self.prev_T = None
+
+
+        rate_over_time_dict_list_per_trial = []
+
+
+        padded_dend_contribution_dict = {}
+        total_padded = None
         
-        if debug:
-            import psutil, os
-            print("RSS GB:", psutil.Process(os.getpid()).memory_info().rss/1e9, flush=True) 
+        start_time = perf_counter() 
 
-        if debug:
+        for trial in range(self.max_num_trials):
+            if self.debug:
+                log_mem(f"A")
+            dend_contrib_dict, prepend_storage_dict_new, total_time_ms_prev_trial, rate_over_time_dict = self.get_dend_contribution(trial, prepend_storage_dict, total_time_ms_prev_trial)
+            if self.debug:
+                log_mem(f"x")
+            if self.store_intermediates:
+                rate_over_time_dict_list_per_trial.append(rate_over_time_dict)
+            for pop in pops:
+                dend_vm_lists_dict[pop].append(dend_contrib_dict[pop])
+            prepend_storage_dict = prepend_storage_dict_new
 
-            rank = MPI.COMM_WORLD.Get_rank()
-            pid = os.getpid()
-
-            t0 = time.time()
-            print(f"[{t0:.3f}] rank={rank} pid={pid} START seed={seed}", flush=True)
-            sys.stdout.flush()
-            report_mem("pre get_dend_contribution")
-
-
-
-        an_velocity, dend_activity, weights_pop_dict, last_EPSP_dict, warped_list_dict = self.make_the_dendrite(seed=seed, debug=False)  #psp_list_dict
-
-        print(f"self.dend_threshold {self.dend_threshold} n_dendrites {self.num_dendrites}")
-
-        if debug:
-            report_mem("pre get_activity_multidendrite")
-
-        (plateau_positions_counter, plateau_start_positions_counter, plateau_array_per_dendrite_list,
-        dendrite_plateau_mask, time_each_pos_bin_starts, plateau_start_times_list_mega_list,num_plateaus_per_dend_list) = get_activity_multidendrite(an_velocity, dend_activity,dend_threshold=self.dend_threshold, example_cell=17,n_dendrites=self.num_dendrites) #padded_warped_activity_list
+        end_time = perf_counter()      # ← call it
+        print(f"total_time {end_time - start_time:.4f}s")
 
 
-        return (dend_activity, plateau_positions_counter,
-                    plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
-                    num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP_dict,
-                    weights_pop_dict, an_velocity, warped_list_dict) #padded_warped_activity_list
+        for pop in pops:
+            pop_padded = get_padded_dend_from_psps(dend_vm_lists_dict[pop])  
+            pop_padded *= self.weight_config_dict[pop]["sf"]
+            padded_dend_contribution_dict[pop] = pop_padded
+            total_padded = pop_padded if total_padded is None else (total_padded + pop_padded)
 
 
 
+        self.padded_dend_contribution_dict = padded_dend_contribution_dict
+        self.total_padded_dend_contribution = total_padded
+
+        self.dend_activity = scale_dendrite(total_padded)  
 
 
+        self.plateau_start_positions_counter, self.dend_plateaus_list, self.plateau_start_positions_counter_overall = self.analyze()
 
-    # def simulate(self, seed=0, debug=False):
-    #     if debug:
-    #         import psutil, os
-    #         print("RSS GB:", psutil.Process(os.getpid()).memory_info().rss/1e9, flush=True)
+        self.rate_over_time_dict_list_per_trial = rate_over_time_dict_list_per_trial
 
-    #     activity_NDNF = 0
-    #     activity_SST  = 0
 
-    #     rank = MPI.COMM_WORLD.Get_rank()
-    #     pid  = os.getpid()
-    #     tag  = f"[SIM seed={seed} rank={rank} pid={pid}]"
+        num_dendrites_with_plateau = np.sum(self.plateau_start_positions_counter, axis=1)
 
-    #     if debug:
-    #         t0 = time.time()
-    #         print(f"{tag} START {t0:.3f}", flush=True)
-    #         sys.stdout.flush()
-    #         report_mem(f"{tag} pre make_the_dendrite")
+        num_dendrites_with_plateau_mask = num_dendrites_with_plateau > 0
 
-    #     # ---- before get_activity_multidendrite
-    #     print(f"{tag} ENTER make_the_dendrite", flush=True)
-    #     an_velocity, dend_activity, weights_pop_dict, last_EPSP_dict, warped_list_dict = \
-    #         self.make_the_dendrite(seed=seed, debug=False)
-    #     print(f"{tag} OK make_the_dendrite", flush=True)
-    #     print(f"{tag} dend_activity type={type(dend_activity)} shape={getattr(dend_activity, 'shape', None)}", flush=True)
+        num_dendrites_with_plateau_count = np.sum(num_dendrites_with_plateau_mask)
 
-    #     if debug:
-    #         report_mem(f"{tag} pre get_activity_multidendrite")
 
-    #     print(f"{tag} ENTER get_activity_multidendrite", flush=True)
-    #     try:
-    #         result = get_activity_multidendrite(
-    #             an_velocity, dend_activity,
-    #             dend_threshold=self.dend_threshold,
-    #             example_cell=17,
-    #             n_dendrites=self.num_dendrites
-    #         )
-    #     except Exception as e:
-    #         import traceback
-    #         print(f"{tag} EXCEPTION in get_activity_multidendrite: {repr(e)}", flush=True)
-    #         traceback.print_exc()
-    #         raise
+        summed_plateaus_per_position_bin = np.sum(self.plateau_start_positions_counter, axis=0)
 
-    #     print(f"{tag} RETURNED from get_activity_multidendrite type={type(result)}", flush=True)
-    #     if result is None:
-    #         print(f"{tag} ERROR: get_activity_multidendrite returned None", flush=True)
-    #         raise RuntimeError("get_activity_multidendrite() returned None")
+        self.percent_dendrites_per_plateau_location = summed_plateaus_per_position_bin / self.num_dendrites
 
-    #     if not isinstance(result, tuple):
-    #         print(f"{tag} ERROR: expected tuple, got {type(result)}", flush=True)
-    #         raise TypeError("get_activity_multidendrite() did not return a tuple")
+        binned_plateaus_as_fraction_dendrites = summed_plateaus_per_position_bin / np.sum(summed_plateaus_per_position_bin)
 
-    #     if len(result) != 8:
-    #         print(f"{tag} ERROR: expected len 8, got {len(result)}", flush=True)
-    #         raise ValueError("get_activity_multidendrite() returned wrong arity")
+        binned_plateaus_as_fraction_dendrites_scaled_by_frac_active_plateaus = binned_plateaus_as_fraction_dendrites * (num_dendrites_with_plateau_count/self.num_dendrites)
+        
 
-    #     (padded_warped_activity_list,
-    #     plateau_positions_counter,
-    #     plateau_start_positions_counter,
-    #     plateau_array_per_dendrite_list,
-    #     dendrite_plateau_mask,
-    #     time_each_pos_bin_starts,
-    #     plateau_start_times_list_mega_list,
-    #     num_plateaus_per_dend_list) = result
+        n_bins = 10
+        bin_size = int(50 / n_bins)
+        self.model_histogram_scaled = np.zeros(n_bins)
+        model_histogram = np.zeros(n_bins)
+        for i in range(n_bins):
+            start = i * bin_size
+            end = (i + 1) * bin_size
+            summed_data = np.sum(binned_plateaus_as_fraction_dendrites_scaled_by_frac_active_plateaus[start:end])
+            summed_data_og = np.sum(binned_plateaus_as_fraction_dendrites[start:end])
+            self.model_histogram_scaled[i] = summed_data
+            model_histogram[i] = summed_data_og
 
-    #     if debug:
-    #         report_mem(f"{tag} post get_activity_multidendrite")
+        self.model_histogram = model_histogram*100
 
-    #     print(f"{tag} RETURN simulate()", flush=True)
-    #     return (dend_activity, plateau_positions_counter, padded_warped_activity_list,
-    #             plateau_start_positions_counter, plateau_array_per_dendrite_list, dendrite_plateau_mask,
-    #             num_plateaus_per_dend_list, plateau_start_times_list_mega_list, last_EPSP_dict,
-    #             weights_pop_dict, an_velocity, activity_SST, activity_NDNF, warped_list_dict)
+        self.christine_overrepresentation_array_scaled = (self.christines_overrepresentation_array / 100) * 0.25
+
+        # if self.store_intermediates:
+        frac_dends_cum = self.get_frac_dends_cum()
+
+        return self.model_histogram_scaled, frac_dends_cum, self.christine_overrepresentation_array_scaled
+
+
+    def get_frac_dends_cum(self):
+            num_plateaus_per_trial_list_across_dends = []
+            dend_plateaus = self.dend_plateaus_list     # list of length n_dends; each is list over trials
+            for dend in range(len(dend_plateaus)):
+                per_trial_counts = [len(dend_plateaus[dend][trial])
+                                    for trial in range(len(dend_plateaus[dend]))]
+                num_plateaus_per_trial_list_across_dends.append(per_trial_counts)
+
+            num_plateaus_per_trial_array = np.array(num_plateaus_per_trial_list_across_dends)  # (n_dends, n_trials)
+
+            had_any_this_trial = (num_plateaus_per_trial_array > 0).astype(int)
+
+            ever_had_by_trial = (np.cumsum(had_any_this_trial, axis=1) > 0).astype(float)  # (n_dends, n_trials)
+
+            frac_dends_cum = ever_had_by_trial.mean(axis=0)  # (n_trials,)
+
+            return frac_dends_cum
+
+    def plot_summary(self):
+
+
+        fig, axs = plt.subplots(4,4, figsize=(15,10))
+
+        if self.constant_vel:
+            vel_str = "Flat Velocity"
+        else:
+            vel_str = "Real Velocity"
+        
+        if self.flat_input:
+            input_str = "Synthetic Data"
+        else:
+            input_str = "Real Data"
+        
+        if self.include_beta:
+            beta_str = "Real Beta"
+        else:
+            beta_str = "No Beta"
+
+
+        def _pt(v):  
+            return FontProperties(size=v).get_size_in_points()
+        title_fs = max(1, _pt(mpl.rcParams['axes.titlesize']) - 4)
+        label_fs = max(1, _pt(mpl.rcParams['axes.labelsize']) - 5)
+
+
+        if self.animal_by_animal:
+            fig.suptitle(f"{input_str} {vel_str} {beta_str} Data From {animal} Only Tau (ms): {self.tau_ms:.3f}")
+        else:
+            fig.suptitle(f"{input_str} {vel_str} {beta_str} Data From All EC Cells, Tau (ms): {self.tau_ms:.3f}")
+
+        pops = list(self.weight_config_dict.keys())
+
+        trial_pop_dict = {}
+        n_bins_target = 1000
+
+        for trial in range(len(self.rate_over_time_dict_list_per_trial)):
+            vel_pos_mps = self.an_velocity[:, trial]
+            dict_for_trial = self.rate_over_time_dict_list_per_trial[trial]
+            for pop in pops:
+                arr = dict_for_trial[pop]                  # (n_cells, T_trial)
+                n_cells = arr.shape[0]
+                trial_mat = np.empty((n_cells, n_bins_target), dtype=np.float32)
+
+                for cell in range(n_cells):
+                    dend_vm_trace = arr[cell, :]
+                    y = resample_trace_to_position_bins(
+                        dend_vm_trace,
+                        dt=self.dt,
+                        vel_pos_mps=vel_pos_mps,
+                        track_len_m=self.track_len/100.0,  # if self.track_len is in cm
+                        n_bins_target=n_bins_target
+                    )
+                    trial_mat[cell, :] = y
+
+                trial_pop_dict.setdefault(pop, []).append(trial_mat)
+
+
+        for pop in trial_pop_dict:
+            fine_binned_array = np.array(trial_pop_dict[pop])
+            trial_av = np.mean(fine_binned_array, axis=0)
+            cell_av = np.mean(trial_av, axis=0)
+            cell_sem = sem(trial_av, axis=0)
+            axs[0,0].plot(cell_av, label=pop)
+            axs[0,0].fill_between(range(len(cell_av)), cell_av+cell_sem, cell_av-cell_sem, alpha=0.2)
+
+        axs[0,0].set_title("Input Activity", fontsize=title_fs)
+        axs[0,0].set_xlabel("Position Bins", fontsize=label_fs)
+        axs[0,0].set_ylabel("DF/F Z-scored Scaled to Hz", fontsize=label_fs)
+        axs[0,0].legend()
+
+        for pop in self.last_psp_dict:
+            PSP_example = self.last_psp_dict[pop] * self.weight_config_dict[pop]["sign"]
+            axs[0,1].plot(PSP_example[:1000], label=pop)
+        axs[0,1].set_xlabel("Time (ms)", fontsize=label_fs)
+        axs[0,1].set_ylabel("EPSP Amplitude (mV)", fontsize=label_fs)
+        axs[0,1].set_title("EPSP / IPSP Example Trains", fontsize=title_fs)
+        axs[0,1].legend()
+
+        ax = axs[0, 2]
+
+        max_w = 25
+        bins = np.linspace(0, max_w, 51)  # shared edges for all pops
+
+        for pop, W in self.weights_pop_dict.items():
+            w = np.asarray(W, dtype=np.float32).ravel()
+            w = np.clip(w, 0, max_w)
+            w = w[np.isfinite(w)]           # drop NaNs/inf to avoid empty plots
+            if w.size == 0:
+                continue
+            ax.hist(
+                w, bins=bins,
+                histtype="step",            # outlines so they overlay cleanly
+                linewidth=2,
+                label=pop
+            )
+
+        ax.set_title(f"Weights: overlay by population", fontsize=title_fs)
+        ax.set_ylabel("Count", fontsize=label_fs)
+        ax.set_xlabel("Weight", fontsize=label_fs)
+        ax.legend(frameon=False)
+
+        axs[0,3].plot(self.an_velocity, color='r')
+        axs[0,3].set_xlabel("Position Bins", fontsize=label_fs)
+        axs[0,3].set_ylabel("Meters / Second", fontsize=label_fs)
+        axs[0,3].set_title("Velocity", fontsize=title_fs)
+
+        an_velocity_cm = self.an_velocity*100
+
+        axs[1,3].plot(self.dx/an_velocity_cm, color='r')
+        axs[1,3].set_xlabel("Position Bins", fontsize=label_fs)
+        axs[1,3].set_ylabel("Seconds", fontsize=label_fs)
+        axs[1,3].set_title("Occupancy", fontsize=title_fs)
+
+        var_per_cell = []
+
+        for cell in range(self.dend_activity.shape[0]):
+            dendrite = self.dend_activity[cell,:,:]
+            var_trials = np.var(dendrite, axis=0)
+            var_per_cell.append(var_trials)
+
+        var_per_array = np.array(var_per_cell)
+
+        mean_var_per_array = np.nanmean(var_per_array, axis=0)
+
+        bins = np.array_split(np.arange(50), 10)   # handles any remainder too
+
+        binned_mean = np.array([np.nanmean(mean_var_per_array[idx]) for idx in bins])
+
+        cell_bin_means = np.array([np.nanmean(var_per_array[:, idx], axis=1) for idx in bins]).T
+        n_non_nan = np.sum(np.isfinite(cell_bin_means), axis=0)
+        binned_sem = np.nanstd(cell_bin_means, axis=0, ddof=1) / np.sqrt(np.maximum(n_non_nan, 1))
+
+        x = np.arange(len(binned_mean))
+        axs[1,0].bar(x, binned_mean, yerr=binned_sem, capsize=3)
+        axs[1,0].set_xticks(x)
+        axs[1,0].set_xticklabels([f"{idx[0]+1}-{idx[-1]+1}" for idx in bins], fontsize=5)
+        axs[1,0].set_xlabel("Binned Position", fontsize=label_fs)
+        axs[1,0].set_ylabel("Mean variance across trials", fontsize=label_fs)
+
+        X = np.asarray(self.dend_activity)
+
+        n_bins_target = 1000
+
+        overall_array = np.empty((self.num_dendrites, self.max_num_trials, n_bins_target))
+
+        for cell in range(X.shape[0]):
+            for trial in range(X.shape[1]):
+                vel_pos_mps = self.an_velocity[:,trial]
+                time_array = X[cell,trial,:]
+                resampled = resample_trace_to_position_bins(time_array, self.dt, vel_pos_mps, track_len_m=self.track_len/100, n_bins_target=n_bins_target)
+                overall_array[cell,trial,:] = resampled
+
+        print(f"self.dend_activity.shape {self.dend_activity.shape}")
+
+
+        dend_av_fine_x = np.mean(overall_array, axis=0)
+        im4 = axs[2,0].imshow(dend_av_fine_x, aspect='auto', interpolation='none')
+        axs[2,0].set_title("Mean over dendrites over seeds", fontsize=title_fs)
+        axs[2,0].set_ylabel("Trials", fontsize=label_fs)
+        axs[2,0].set_xlabel("Position Bins", fontsize=label_fs)
+        fig.colorbar(im4, ax=axs[2,0], label="mV")
+
+        trial_av = np.mean(dend_av_fine_x, axis=0)  
+        sem_trial = sem(dend_av_fine_x, nan_policy='omit')
+        axs[2,1].plot(trial_av)
+        axs[2,1].fill_between(range(len(trial_av)), trial_av+sem_trial, trial_av-sem_trial, alpha=0.2)
+        axs[2,1].set_title("Mean of trials", fontsize=title_fs)
+        axs[2,1].set_xlabel("Position Bins", fontsize=label_fs)
+        axs[2,1].set_ylabel("mV", fontsize=label_fs)
+
+
+        plat_array_per_dendrite = []
+
+        for dendrite in range(len(self.plateau_array_per_dend_list)):
+
+            plateau_array = self.plateau_array_per_dend_list[dendrite]
+
+            plateau_pos_list = []
+
+            for t in range(plateau_array.shape[0]):
+                sig_time = plateau_array[t]                 # shape (T,), 0/1 per ms
+                v        = self.an_velocity[:, t]                        # shape (50,), m/s per position bin
+                dx_m     = 1.8 / 50.0                       # meters per bin
+                dt_ms    = 1.0
+                T        = sig_time.size
+
+                dt_per_bin_ms = (dx_m / np.maximum(v, 1e-6)) * 1000.0              # (50,)
+                dt_per_bin_ms *= (T*dt_ms) / np.sum(dt_per_bin_ms)
+
+                edges_ms   = np.concatenate([[0.0], np.cumsum(dt_per_bin_ms)])     # (51,)
+                centers_ms = 0.5 * (edges_ms[:-1] + edges_ms[1:])                  # (50,)
+
+                t_ms = np.arange(T, dtype=np.float32) * dt_ms                      # (T,)
+
+                plat_pos = np.interp(centers_ms, t_ms, sig_time)                   # (50,)
+
+                plateau_pos_list.append(plat_pos)
+
+            plateau_pos_array = np.stack(plateau_pos_list)
+
+            plat_array_per_dendrite.append(plateau_pos_array)
+
+
+        n_bins_target=1000
+
+        plateau_array_threed = np.empty((self.num_dendrites, self.max_num_trials, n_bins_target))
+
+        for dendrite in range(len(self.plateau_array_per_dend_list)):
+
+            plateau_array = self.plateau_array_per_dend_list[dendrite]
+
+            for trial in range(plateau_array.shape[0]):
+                vel_pos_mps = self.an_velocity[:,trial]
+                time_array = plateau_array[trial]
+                resampled = resample_trace_to_position_bins(time_array, self.dt, vel_pos_mps, track_len_m=self.track_len/100, n_bins_target=n_bins_target)
+                plateau_array_threed[dendrite, trial, :] = resampled
+
+        sum_over_trials = np.sum(plateau_array_threed, axis=1)
+        sorted_sum_over_trials = np.argsort(np.argmax(sum_over_trials, axis=1))
+
+        ims = axs[1,2].imshow(sum_over_trials[sorted_sum_over_trials,:], aspect='auto', cmap='gray', interpolation='none')
+        axs[1,2].set_title(f"Mean plateaus per position (sum over trials)\nDendrite Threshold={self.dend_threshold:.2f}",
+                        fontsize=title_fs)
+        axs[1,2].set_xlabel("Position Bins", fontsize=label_fs)
+        axs[1,2].set_ylabel("Dendrite index", fontsize=label_fs)
+        cbar = fig.colorbar(ims, ax=axs[1,2], label="plateau count")
+        cbar.set_label("plateau count", fontsize=label_fs)
+
+
+        dend_contr_over_x_fine = np.empty((self.max_num_trials, self.num_dendrites, n_bins_target))
+    
+        for pop in self.padded_dend_contribution_dict:
+            X = self.padded_dend_contribution_dict[pop]
+            for trial in range(X.shape[0]):
+                for dend in range(X.shape[1]):
+                    vel_pos_mps = self.an_velocity[:,trial]
+                    time_array = X[trial,dend,:]
+                    resampled = resample_trace_to_position_bins(time_array, self.dt, vel_pos_mps, track_len_m=self.track_len/100, n_bins_target=n_bins_target)
+                    dend_contr_over_x_fine[trial,dend,:] = resampled
+
+            mean_dend_contr = np.mean(dend_contr_over_x_fine, axis=(0,1))
+            axs[2,2].plot(mean_dend_contr)
+        axs[2,2].set_xlabel("Position Bins", fontsize=label_fs)
+        axs[2,2].set_ylabel("A.U.", fontsize=label_fs)
+
+
+        start_pos_cnt50_list = self.plateau_start_positions_counter_overall
+        n_bins = 10
+        bin_size = int(50 / n_bins)
+        summed_plateaus = np.zeros(n_bins)
+        for i in range(n_bins):
+            start = i * bin_size
+            end = (i + 1) * bin_size
+            summed_data = np.sum(start_pos_cnt50_list[start:end])
+            summed_plateaus[i] = summed_data
+        
+        
+        err_kw = dict(ecolor='k', elinewidth=0.8, capsize=2, capthick=0.8)
+        axs[2,3].bar(range(len(summed_plateaus)), summed_plateaus)
+        axs[2,3].set_xlabel("Position Bin", fontsize=label_fs)
+        axs[2,3].set_ylabel("Plateau Count", fontsize=label_fs)
+        axs[2,3].set_title("Plateau Onset Count per Track Section", fontsize=title_fs)
+        axs[2,3].set_xticks(np.arange(n_bins), ["1-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", "41-45", "46-50"], fontsize=5)
+
+
+        frac_dends_cum = self.get_frac_dends_cum()
+
+        axs[3,0].clear()
+        axs[3,0].set_title("Cumulative fraction of dendrites with plateau", fontsize=title_fs)
+        axs[3,0].set_ylabel("Fraction of dendrites", fontsize=label_fs)
+        axs[3,0].set_xlabel("Session Length (%)", fontsize=label_fs)
+        # axs[3,0].set_ylim(0, 0.5)
+
+        Tn = len(frac_dends_cum)
+        axs[3,0].set_xticks([0, Tn//4, Tn//2, (3*Tn)//4, Tn-1], labels=["0","25","50","75","100"])
+
+        axs[3,0].plot(frac_dends_cum, color='k', label="Model")
+
+        axs[3,0].plot(Tn-1, 0.25, marker='*', markersize=10, color='r', label='Experimental Target')
+        axs[3,0].legend(fontsize=8)
+
+        num_plateaus_per_trial_list_across_dends = []
+
+        for dend in range(len(self.dend_plateaus_list)):
+            num_plateaus_per_trial = []
+            dend_plateaus = self.dend_plateaus_list[dend]
+            for trial in range(len(dend_plateaus)):
+                num_plateaus_per_trial.append(len(dend_plateaus[trial]))
+            num_plateaus_per_trial_list_across_dends.append(num_plateaus_per_trial)
+        num_plateaus_per_trial_array = np.array(num_plateaus_per_trial_list_across_dends)
+        mean_plat_per_trial = np.mean(num_plateaus_per_trial_array, axis=0)
+        
+        axs[3,1].set_title("Mean # Plateaus Per Trial Across Dendrites", fontsize=title_fs)
+        axs[3,1].set_ylabel("Mean Plateaus", fontsize=label_fs)
+        axs[3,1].set_xlabel("Session Length (%)", fontsize=label_fs)
+        axs[3,1].set_xticks([0, len(mean_plat_per_trial)//4, len(mean_plat_per_trial)//2,
+            len(mean_plat_per_trial)//4 + len(mean_plat_per_trial)//2,
+            len(mean_plat_per_trial) - 1],
+            labels=["0", '25', "50", '75', "100"])
+        axs[3,1].plot(mean_plat_per_trial)
+
+        axs[3,2].plot(self.percent_dendrites_per_plateau_location, marker='o')
+        axs[3,2].set_ylabel("Percent of Dendrites", fontsize=label_fs)
+        axs[3,2].set_xlabel("Position Bins", fontsize=label_fs)
+
+        axs[3,3].plot(self.model_histogram, label='Model')
+        axs[3,3].plot(self.christines_overrepresentation_array, label='Experimental', color='k')
+        axs[3,3].legend(fontsize=5)
+        lin_aray = np.linspace(0, 180, 10)
+        axs[3,3].set_xticks(range(10))
+        axs[3,3].set_xticklabels(lin_aray.astype(int))
+        axs[3,3].set_xlabel("PF Peak Location (cm)", fontsize=label_fs)
+        axs[3,3].set_ylabel("Fraction of CA1 PCs (%)", fontsize=label_fs)
+
+        plt.tight_layout()
+        plt.show()                        
 
 
             
@@ -1282,171 +1715,3 @@ class SpikeSimModel:
 
 
             return important_dict
-
-   
-@click.group(context_settings=dict(help_option_names=["-h","--help"]))
-def cli():
-    """SpikeSimModel CLI: simulate→evaluate→export, or load→plot."""
-    pass
-
-
-@cli.command("simulate")
-@click.option("-s", "--seed", "seeds", multiple=True, type=int, required=True)
-@click.option("-o", "--save-path", type=click.Path(dir_okay=False, writable=True, resolve_path=True), required=True)
-@click.option("--dend-threshold", type=float, required=True)
-@click.option("--include-inhibition/--no-include-inhibition", default=True)
-@click.option("--vel-applied", type=click.Choice(["real", "constant", "average"]), default="real")
-def simulate_cmd(seeds, save_path, dend_threshold, include_inhibition, vel_applied):
-    # 1) Load data (your helper)
-    GLM_params_SST, activity_dict_SST, double_predicted_activity_dict_SST, factors_dict_SST, filtered_factors_dict_SST, residual_activity_dict_SST = load_data_regular(
-        file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="SSTindivsomata_GLM", new_NDNF=False)
-    GLM_params_EC, activity_dict_EC, double_predicted_activity_dict_EC, factors_dict_EC, filtered_factors_dict_EC, residual_activity_dict_EC = load_data_regular(
-        file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="EC_GLM", new_NDNF=False)
-    GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(
-        file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="NDNF_E1A1B", new_NDNF=True)
-
-    # 2) Fix NDNF subsets (your logic)
-    fixed_residual_activity_dict_NDNF_newest = {f"animal_{idx+1}": residual_activity_dict_NDNF_newest[animal]
-                                               for idx, animal in enumerate(residual_activity_dict_NDNF_newest)
-                                               if 17 < idx < 31}
-    fixed_filtered_factors_dict_NDNF_newest = {f"animal_{idx+1}": filtered_factors_dict_NDNF_newest[animal]
-                                               for idx, animal in enumerate(filtered_factors_dict_NDNF_newest)
-                                               if 17 < idx < 31}
-
-    dt_constant = 0.0001
-    tau_ms  = 5.0
-    dt_ms   = dt_constant * 1000.0
-    AMP     = 1.0
-    MODE    = "peak"
-    kernel  = exp_kernel(tau_ms, dt_ms, n_taus=5, norm=MODE, target=AMP)
-
-    use_averaged_velocity = "actual_velocity" #"cell_type_av" 
-    dist = "Lognormal"
-    add_inh = 'neither'
-    make_it_spike = True
-    SST_bias_multi = 1.4
-
-    use_model_EC = True
-    SST_bias_factor=2.0
-
-
-    mean_new_average_vel_array = get_real_velocity_array(filtered_factors_dict_EC, filtered_factors_dict_SST, fixed_filtered_factors_dict_NDNF_newest)
-
-
-    cfg, flg = load_yaml_cfg("example_config.yaml")
-    model = SpikeSimModel(kernel=kernel,dist_for_weights=dist,weights_SST=None, weights_NDNF=None,config=cfg, flags=flg)
-
-    # 6) Attach all the attributes `_simulate_one_seed` expects:
-    model.residual_activity_dict_EC = residual_activity_dict_EC
-    model.fixed_residual_activity_dict_NDNF_newest = fixed_residual_activity_dict_NDNF_newest
-    model.residual_activity_dict_SST = residual_activity_dict_SST
-    model.factors_dict_EC = factors_dict_EC
-    model.factors_dict_SST = factors_dict_SST
-    model.factors_dict_NDNF_newest = factors_dict_NDNF_newest
-    model.GLM_params_EC = GLM_params_EC
-    model.GLM_params_NDNF_newest = GLM_params_NDNF_newest
-    model.GLM_params_SST = GLM_params_SST
-    model.mean_new_average_vel_array = None 
-    model.real_vel = (vel_applied == "real")
-    model.constant_vel = (vel_applied == "constant")
-    model.add_inh = add_inh
-    model.make_it_spike = make_it_spike
-    model.SST_bias_factor = SST_bias_multi
-    model.dist = dist
-    model.vel_applied = vel_applied
-    model.use_averaged_velocity = use_averaged_velocity
-    model.use_model_EC = False
-    model.tau_ms = tau_ms
-    model.dend_threshold = dend_threshold
-    model.mean_new_average_vel_array = mean_new_average_vel_array
-    model.animal_by_animal = True
-    model.input_animal = "animal_1"
-
-
-
-    important = model.simulate(seeds=seeds, export=False, plot=False)
-    loss, metrics = model.evaluate(important, seeds=list(seeds), dend_threshold=dend_threshold)
-    print(f"[EVAL] loss={loss:.6g}  metrics={metrics}")
-
-    state = model.__getstate__()
-    state["loss"] = float(loss)
-    state["metrics"] = {k: float(v) if v is not None else None for k, v in metrics.items()}
-
-    with open(save_path, "wb") as f:
-        pickle.dump(state, f)
-    click.echo(f"Saved slim model to {save_path}")
-
-
-def _load_light_model(path: str):
-    with open(path, "rb") as f:
-        state = pickle.load(f)
-    obj = SpikeSimModel(
-        EC_input_matrix=np.zeros((1,1,1), dtype=np.float32),
-        an_velocity=np.zeros((1,1), dtype=np.float32),
-        kernel=np.zeros((10,), dtype=np.float32),
-        dist_for_weights="",
-    )
-    obj.__dict__.update(state)
-    return obj
-
-@cli.command("plot")
-@click.option("-i", "--pickle-path", type=click.Path(exists=True, dir_okay=False, resolve_path=True), required=True)
-@click.option("--out", type=click.Path(dir_okay=False, resolve_path=True))
-def plot_cmd(pickle_path, out):
-
-    with open(pickle_path, "rb") as f:
-        state = DummyUnpickler(f).load()
-
-    # Optional: normalize for downstream code
-    if isinstance(state.get("cfg"), (DummySimConfig, SimpleNamespace)):
-        state["cfg"] = vars(state["cfg"])
-    if isinstance(state.get("flags"), (DummyStoreFlags, SimpleNamespace)):
-        state["flags"] = vars(state["flags"])
-
-
-    
-
-
-
-    # model = _load_light_model(pickle_path)
-    # if model.dend_threshold is None:
-    #     raise click.UsageError("dend_threshold not found in pickle. Provide it at simulate time.")
-    print(state.keys())
-    print(f'state["flags"] {state["flags"]}')
-    print(f'state["cfg"] {state["cfg"]}')
-
-    plot_multidendrite_EC_err_across_seeds(tau_ms = state['tau_ms'],
-    seeds = state["seeds"], last_EPSP = state["last_EPSP_dict"][0], weights_EC = state["weights_EC_dict"][0], weights_SST = state["weights_SST_dict"][0], weights_NDNF = state["weights_NDNF_dict"][0], dend_vm_per_seed_dict = state["dend_vm_per_seed_dict"],
-    activity_EC = state["dend_contribution_EC_dict"][0], activity_SST = state["activity_SST"], activity_NDNF = state["activity_NDNF"], SST_sf_opt = state["SST_sf_opt"], NDNF_sf_opt = state["NDNF_sf_opt"],
-    padded_warped_activity_list = state["padded_warped_activity_list_dict"], an_velocity = state["an_velocity_dict"][0], dend_threshold = state["dend_threshold"],
-    _pos_cnt_dict = state["_pos_cnt_dict"], start_pos_cnt50_dict = state["start_pos_cnt50_dict"], _plateau_arr_list_dict = state["_plateau_arr_list_dict"], _mask_dict = state["_mask_dict"], _starts_list_dict = state["_starts_list_dict"],
-    dist = state["dist"], num_plateaus_per_dend_list = state["num_plateaus_per_dend_list_dict"], animal=state["input_animal"], example_cell=17, include_inhibition=False, #include inhibiiton,
-    NDNF_contribution_sum = None, #state["NDNF_contribution_sum"], 
-    SST_contribution_sum = None, #state["SST_contribution_sum"], 
-    animal_by_animal = state["animal_by_animal"]) #state["animal_by_animal"])
-
-    warped_list_dict
-
-
-    # tau_ms
-    # seeds
-    # *** last_epsp
-    # *** weights ec 
-    # 'W_SST',
-    # 'W_NDNF',
-    # dend_vm_per_seed_dict
-    # dend_activity_dict
-    # 'activity_EC', 'activity_SST', 'activity_NDNF', 
-    # 'SST_sf_opt', 'NDNF_sf_opt'
-
-
-
-    # dict_keys(['kernel', 'W_dist', 'W_dist_name',  'cfg', 'flags', '_precomputed', '_results', 'tau_ms', 'dend_threshold', 'dist', '_pos_cnt_dict', 'start_pos_cnt50_dict', '_plateau_arr_list_dict', '_mask_dict', '_starts_list_dict', 'num_plateaus_per_dend_list_dict', '', 'padded_warped_activity_list_dict', 'residual_activity_dict_EC', 'fixed_residual_activity_dict_NDNF_newest', 'residual_activity_dict_SST', 'factors_dict_EC', 'factors_dict_SST', 'factors_dict_NDNF_newest', 'GLM_params_EC', 'GLM_params_NDNF_newest', 'GLM_params_SST', 'mean_new_average_vel_array', 'real_vel', 'constant_vel', 'add_inh', 'make_it_spike', 'SST_bias_factor', 'vel_applied', 'use_averaged_velocity', 'use_model_EC', 'vel', , 'animal'])
-
-    if out:
-        plt.savefig(out, dpi=200, bbox_inches="tight")
-        click.echo(f"Saved figure to: {out}")
-
-
-if __name__ == "__main__":
-    cli()

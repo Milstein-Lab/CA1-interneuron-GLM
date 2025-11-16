@@ -5,41 +5,63 @@ bounds:
   dend_threshold:
    - -70.0
    - -50.0
-  weights_mean:
+  EC_weights_mean:
    - 0.05
    - 5.0
-  weights_std:
+  EC_weights_std:
    - 0.05
    - 3.0
 
 kwargs:
-  data_root: /Users/michaelfinch/CA1-interneuron-GLM
-  animal: animal_3
+  data_root: '.'
   dend_threshold: -65.
-  dist: 'Lognormal'
+  weight_config_dict:
+    EC:
+        dist_type: 'Lognormal'
+        mean: 1.
+        std: 1.
+        sign: 1
+    # SST:
+    #     dist_type: 'Equal'
+    #     mean: 3.
+    #     std: 1.
+    #     sign: -1
+#     NDNF:
+#         dist_type: 'Equal'
+#         mean: 3.
+#         std: 1.
+#         sign: -1
+  n_cells_dict:
+    EC:
+      792
+    SST:
+      75
+    NDNF:
+      115
   make_it_spike: True
   tau_ms : 5.0
-  dt_constant: 0.001
-  dx: 3.6         
-  debug: false
-  seed_start: 0
-  export: false
-  save_path: /Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/
-  plot: true
-  animal_by_animal: false 
+  dt: 0.001
+  track_len: 180
+  debug: False
+  network_start_seed: 0
+  num_network_seeds: 5
+  export: False
+  save_path: 'data'
+  animal_by_animal: False
   input_animal: 'animal_1'
   constant_vel: False
   include_beta: True
   flat_input: True
-  optimization_time: true
+  store_intermediates: true ########################
   pkl_name: 'saved_data.pkl'
-  load: false
-  include_inh: false
   store: mean 
   spikes: false
   epsps: true
   warp_axes: true
-
+  network_start_seed: 0
+  num_network_seeds: 5
+  num_dendrites: 100
+  # plot: False
 
 stages:
   - source: ec_nested_stage_parallel
@@ -53,6 +75,27 @@ optimization_title: EC_multidendrite_pop_anneal
 x0:
   tau_ms: 50.0
   dend_threshold: -60.0
-  weights_mean: 0.5
-  weights_std: 0.5
+  EC_weights_mean: 0.5
+  EC_weights_std: 0.5
+
+  # inner_jobs: 7
+  # network_start_seed: 0
+  # ec_animal_average: True
+  # vel_applied: real
+  # use_averaged_velocity: 'actual_velocity' #"cell_type_av" 
+  #  load: false
+  #  use_model_EC: False
+  #  weight_dist: Normal
+  #  SST_bias_factor: 2.0
+    # SST_bias_multi: 1.4
+    #  real_vel: True
+    #  store: mean   
+    #  add_inh: 'neither'
+
+
+  # warp_axes: true
+
+
+
+
 

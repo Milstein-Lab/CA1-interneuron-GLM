@@ -5,12 +5,18 @@ bounds:
   dend_threshold:
    - -70.0
    - -50.0
-  EC_weights_mean:
-   - 0.05
-   - 5.0
+  # EC_weights_mean:
+  #  - 0.05
+  #  - 5.0
   EC_weights_std:
    - 0.05
    - 3.0
+  SST_weights_std:
+   - 0.05
+   - 3.0
+  SST_sf:
+   - 5.0
+   - 15.0
 
 kwargs:
   data_root: '.'
@@ -20,17 +26,19 @@ kwargs:
         dist_type: 'Lognormal'
         mean: 1.
         std: 1.
+        sf: 1.
         sign: 1
-    # SST:
+    SST:
+        dist_type: 'Equal'
+        mean: 1.
+        std: 1.
+        sf: 10.
+        sign: -1
+    # NDNF:
     #     dist_type: 'Equal'
-    #     mean: 3.
+    #     mean: 1.
     #     std: 1.
     #     sign: -1
-#     NDNF:
-#         dist_type: 'Equal'
-#         mean: 3.
-#         std: 1.
-#         sign: -1
   n_cells_dict:
     EC:
       792
@@ -47,11 +55,9 @@ kwargs:
   num_network_seeds: 5
   export: False
   save_path: 'data'
-  animal_by_animal: False
-  input_animal: 'animal_1'
   constant_vel: False
   include_beta: True
-  flat_input: True
+  flat_input: False
   store_intermediates: true ########################
   pkl_name: 'saved_data.pkl'
   store: mean 
@@ -71,12 +77,13 @@ stages:
     get_objectives: get_objectives
 param_gen: PopulationAnnealing
 param_gen_source: nested.optimize_utils
-optimization_title: EC_multidendrite_pop_anneal
+optimization_title: EC_SST_nested_number_6_velFbetaTinputF
 x0:
   tau_ms: 50.0
   dend_threshold: -60.0
-  EC_weights_mean: 0.5
   EC_weights_std: 0.5
+  SST_weights_std: 0.5
+  SST_sf: 10.
 
   # inner_jobs: 7
   # network_start_seed: 0

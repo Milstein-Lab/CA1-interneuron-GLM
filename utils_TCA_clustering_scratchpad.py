@@ -656,6 +656,69 @@ def get_model_data_per_cell(mse_dir):
     return rank_mse_dict
 
 
+
+# import os, re, pickle
+# from collections import OrderedDict
+
+# def get_model_data_per_cell(mse_dir):
+#     """
+#     Accepts filenames like:
+#       - MSE_EC_cell_latent_20_animal12_cell_id3.pkl
+#       - MSE_EC_cell_latent_20_animalanimal_21_cell_idcell_1.pkl
+#     and extracts (rank, animal_id, cell_id).
+#     """
+#     pattern = re.compile(
+#         r"""
+#         ^MSE_.*?_cell_latent_(\d+)          # rank
+#         _animal(?:animal_)?(\d+)            # 'animal' or 'animalanimal_'
+#         _cell_id(?:cell_)?(\d+)             # 'cell_id' or 'cell_idcell_'
+#         \.pkl$
+#         """,
+#         re.VERBOSE
+#     )
+
+#     raw_rank_mse_dict = {}
+
+#     for fname in os.listdir(mse_dir):
+#         if not fname.endswith(".pkl"):
+#             continue
+
+#         m = pattern.match(fname)
+#         if not m:
+#             print(f"[Skipping] Unexpected filename format: {fname}")
+#             continue
+
+#         rank = int(m.group(1))
+#         animal_id = int(m.group(2))
+#         cell_id = int(m.group(3))
+
+#         path = os.path.join(mse_dir, fname)
+#         with open(path, "rb") as f:
+#             model_list = pickle.load(f)
+
+#         raw_rank_mse_dict.setdefault(rank, {}).setdefault(animal_id, {})[cell_id] = model_list
+
+#     # Sort into OrderedDicts for deterministic iteration/printing
+#     rank_mse_dict = OrderedDict()
+#     # for rank in sorted(raw_rank_mse_dict.keys()):
+#         # rank_mse_dict[rank] = OrderedDict()
+#     for animal_id in sorted(raw_rank_mse_dict[rank].keys()):
+#         cells = raw_rank_mse_dict[rank][animal_id]
+#         rank_mse_dict[animal_id] = OrderedDict(sorted(cells.items()))
+
+#     # # Summary
+#     # print(f"Loaded MSEs for {len(rank_mse_dict)} rank(s).")
+#     # for rank, animal_dict in rank_mse_dict.items():
+#     #     print(f"  Rank {rank}:")
+#     #     for animal_id, cell_dict in animal_dict.items():
+#     #         print(f"    Animal {animal_id}: {len(cell_dict)} cells")
+
+#     return rank_mse_dict
+
+
+
+
+
 def plot_per_cell_clustering_internals_single_cluster(cell_EC_model_ranks20_contig_x00, cell_NDNF_model_ranks20_kmeans_reassign_umap_x00, residual_activity_dict_NDNF, animal_id=1, cell_id=1, num_clusters=4, plot=True, early_late_nothing="nothing"):
     animal_first_changepoints_list, fraction_first_changepoints_list, animal_second_changepoints_list, fraction_second_changepoints_list = get_changepoints(cell_EC_model_ranks20_contig_x00, residual_activity_dict_NDNF, animal_TCA=False)
 
@@ -743,7 +806,7 @@ def preprocess_data2(filepath, normalize=True, new_NDNF=False):
 
     if new_NDNF:
         with h5py.File(filepath, 'r') as f:
-            animal_group = f['animal']
+            animal_group = f['animal'] #animal_group = f['animal']
             shiftR_refs = animal_group['ShiftR'][:]
             shiftRunning_refs = animal_group['ShiftRunning'][:]
             shiftL_refs = animal_group['ShiftL'][:]
@@ -777,13 +840,15 @@ def preprocess_data2(filepath, normalize=True, new_NDNF=False):
                 factors_dict[animal_key] = {
                     "Licks": lick_rate[:, ~nan_trials],
                     "Reward_loc": reward_loc[:, ~nan_trials],
-                    "Velocity": velocity[:, ~nan_trials]
+                    "Velocity": (velocity[:, ~nan_trials] *80) / 100 #meters/sec
                 }
 
                 if normalize:
                     for var in factors_dict[animal_key]:
-                        factors_dict[animal_key][var] = ((factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
-                                                         (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+                        if var != "Velocity":
+                            factors_dict[animal_key][var] = ((factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+                                                            (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+                            
 
                 activity_dict[animal_key] = {}
                 for neuron_idx in range(delta_f.shape[2]):  # loop over neurons
@@ -827,7 +892,7 @@ def preprocess_data2(filepath, normalize=True, new_NDNF=False):
             factors_dict[animal_key] = {
                 "Licks": lick_rate[:, ~nan_trials],
                 "Reward_loc": reward_loc[:, ~nan_trials],
-                "Velocity": velocity[:, ~nan_trials]}
+                "Velocity": (velocity[:, ~nan_trials] *80) / 100}
 
             # Add position info
             num_trials = factors_dict[animal_key]["Velocity"].shape[1]
@@ -837,9 +902,10 @@ def preprocess_data2(filepath, normalize=True, new_NDNF=False):
 
             if normalize:
                 for var in factors_dict[animal_key]:
-                    factors_dict[animal_key][var] = (
-                            (factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
-                            (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+                    if var != "Velocity":
+                        factors_dict[animal_key][var] = (
+                                (factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+                                (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
 
             activity_dict[animal_key] = {}
             for neuron_idx in range(delta_f.shape[2]):
@@ -853,6 +919,125 @@ def preprocess_data2(filepath, normalize=True, new_NDNF=False):
                 activity_dict[animal_key][neuron_key] = cleaned_activity
 
     return activity_dict, factors_dict
+
+
+# def preprocess_data2(filepath, normalize=True, new_NDNF=False):
+#     factors_dict = {}
+#     activity_dict = {}
+
+#     if new_NDNF:
+#         with h5py.File(filepath, 'r') as f:
+#             animal_group = f['animal']
+#             shiftR_refs = animal_group['ShiftR'][:]
+#             shiftRunning_refs = animal_group['ShiftRunning'][:]
+#             shiftL_refs = animal_group['ShiftL'][:]
+#             shiftV_refs = animal_group['ShiftV'][:]
+
+#             for animal_idx in range(len(shiftR_refs)):
+#                 delta_f = np.array(f[shiftR_refs[animal_idx][0]])
+#                 delta_f = delta_f.swapaxes(0, 2)
+#                 velocity = np.array(f[shiftRunning_refs[animal_idx][0]]).T
+#                 lick_rate = np.array(f[shiftL_refs[animal_idx][0]]).T
+#                 reward_loc = np.array(f[shiftV_refs[animal_idx][0]]).T
+
+#                 if delta_f.shape[1] > 1:
+#                     delta_f = delta_f[:, 1:, :]  # remove duplicate neuron
+
+#                 num_trials = min(delta_f.shape[1], velocity.shape[1], lick_rate.shape[1], reward_loc.shape[1])
+
+#                 delta_f = delta_f[:, :num_trials, :]
+#                 velocity = velocity[:, :num_trials]
+#                 lick_rate = lick_rate[:, :num_trials]
+#                 reward_loc = reward_loc[:, :num_trials]
+
+#                 nan_trials = (
+#                         np.any(np.isnan(lick_rate), axis=0) |
+#                         np.any(np.isnan(reward_loc), axis=0) |
+#                         np.any(np.isnan(velocity), axis=0) |
+#                         np.any(np.isnan(delta_f), axis=(0, 2))
+#                 )
+
+#                 animal_key = f'animal_{animal_idx + 1}'
+#                 factors_dict[animal_key] = {
+#                     "Licks": lick_rate[:, ~nan_trials],
+#                     "Reward_loc": reward_loc[:, ~nan_trials],
+#                     "Velocity": velocity[:, ~nan_trials]
+#                 }
+
+#                 if normalize:
+#                     for var in factors_dict[animal_key]:
+#                         factors_dict[animal_key][var] = ((factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+#                                                          (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+
+#                 activity_dict[animal_key] = {}
+#                 for neuron_idx in range(delta_f.shape[2]):  # loop over neurons
+#                     neuron_activity = delta_f[:, :, neuron_idx]  # (trial, bin)
+#                     if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
+#                         continue
+
+#                     cleaned_activity = neuron_activity[:, ~nan_trials]
+#                     if normalize:
+#                         cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+#                     neuron_key = f'cell_{neuron_idx + 1}'
+#                     activity_dict[animal_key][neuron_key] = cleaned_activity
+
+
+#     else:
+#         data_dict = mat73.loadmat(filepath)
+
+#         # Setup position variables
+#         num_spatial_bins = 10
+#         position_matrix = np.zeros((50, num_spatial_bins))
+#         bin_size = 50 // num_spatial_bins
+#         for i in range(num_spatial_bins):
+#             position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
+
+#         for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
+#                 zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
+
+#             num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
+#             delta_f = delta_f[:, :num_trials, :]
+#             velocity = velocity[:, :num_trials]
+#             lick_rate = lick_rate[:, :num_trials]
+#             reward_loc = reward_loc[:, :num_trials]
+
+#             nan_trials = (
+#                     np.any(np.isnan(lick_rate), axis=0) |
+#                     np.any(np.isnan(reward_loc), axis=0) |
+#                     np.any(np.isnan(velocity), axis=0) |
+#                     np.any(np.isnan(delta_f), axis=(0, 2)))
+
+#             animal_key = f'animal_{animal_idx + 1}'
+#             factors_dict[animal_key] = {
+#                 "Licks": lick_rate[:, ~nan_trials],
+#                 "Reward_loc": reward_loc[:, ~nan_trials],
+#                 "Velocity": velocity[:, ~nan_trials]}
+
+#             # Add position info
+#             num_trials = factors_dict[animal_key]["Velocity"].shape[1]
+#             for bin_idx in range(num_spatial_bins):
+#                 bin_key = f"Position_{bin_idx + 1}"
+#                 factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials)
+
+#             if normalize:
+#                 for var in factors_dict[animal_key]:
+#                     factors_dict[animal_key][var] = (
+#                             (factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+#                             (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+
+#             activity_dict[animal_key] = {}
+#             for neuron_idx in range(delta_f.shape[2]):
+#                 neuron_activity = delta_f[:, :, neuron_idx]
+#                 if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
+#                     continue
+#                 cleaned_activity = neuron_activity[:, ~nan_trials]
+#                 if normalize:
+#                     cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+#                 neuron_key = f'cell_{neuron_idx + 1}'
+#                 activity_dict[animal_key][neuron_key] = cleaned_activity
+
+#     return activity_dict, factors_dict
+
 
 
 def get_sorted_activity(activity_dict, title="New NDNF Raw"):
