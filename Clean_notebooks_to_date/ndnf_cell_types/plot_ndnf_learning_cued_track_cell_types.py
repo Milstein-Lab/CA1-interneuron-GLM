@@ -32,6 +32,12 @@ from scipy.spatial.distance import cdist
 
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
+from scipy.spatial.distance import mahalanobis
+
+plt.rcParams['xtick.labelsize'] = 9
+plt.rcParams['ytick.labelsize'] = 9
+
+
 
 def get_cp_dict(cell_SST_model_ranks20_contig_x00):
     changepoints_dict = {}
@@ -69,31 +75,6 @@ def get_max_proportion(early_labels, use_max=True):
                 og_proportion=proportion_early
     return good_dict
 
-# def get_lists_out_of_dicts(fixed_TT_data, fixed_activity_dict_NDNF_newest, cp_dict_NDNF):
-#     TT_list = []
-#     for animal in fixed_TT_data:
-#         for cell in fixed_TT_data[animal]:
-#             TT_list.append(fixed_TT_data[animal][cell][1][f"cell_{cell}"])
-
-#     print(len(TT_list)) 
-
-#     NDNF_activity_list = []
-#     for animal in fixed_activity_dict_NDNF_newest:
-#         for cell in fixed_activity_dict_NDNF_newest[animal]:
-#             NDNF_activity_list.append(fixed_activity_dict_NDNF_newest[animal][cell])
-
-#     print(len(NDNF_activity_list)) 
-
-#     cp_list_NDNF = []
-
-#     for animal in cp_dict_NDNF:
-#         for cell in cp_dict_NDNF[animal]:
-#             cp_list_NDNF.append(cp_dict_NDNF[animal][cell])
-
-#     print(len(cp_list_NDNF)) 
-
-    # return TT_list, NDNF_activity_list, cp_list_NDNF
-
 def find_elbow_point(y_vals, min_index=2):
 
     x = np.arange(len(y_vals))
@@ -115,6 +96,224 @@ def find_elbow_point(y_vals, min_index=2):
     # Force elbow to be at least min_index (default = 2)
     elbow_idx = np.argmax(dist_to_line[min_index:]) + min_index
     return int(elbow_idx)
+
+
+
+def preprocess_data2(filepath, normalize=True, new_NDNF=False, use_final=False):
+    factors_dict = {}
+    activity_dict = {}
+
+    if new_NDNF:
+        with h5py.File(filepath, 'r') as f:
+            if use_final:
+                animal_group = f['animals']
+            else:
+                animal_group = f['animal']
+            shiftR_refs = animal_group['ShiftR'][:]
+            shiftRunning_refs = animal_group['ShiftRunning'][:]
+            shiftL_refs = animal_group['ShiftL'][:]
+            shiftV_refs = animal_group['ShiftV'][:]
+
+            for animal_idx in range(len(shiftR_refs)):
+                delta_f = np.array(f[shiftR_refs[animal_idx][0]])
+                delta_f = delta_f.swapaxes(0, 2)
+                velocity = np.array(f[shiftRunning_refs[animal_idx][0]]).T
+                lick_rate = np.array(f[shiftL_refs[animal_idx][0]]).T
+                reward_loc = np.array(f[shiftV_refs[animal_idx][0]]).T
+
+                if delta_f.shape[1] > 1:
+                    delta_f = delta_f[:, 1:, :]  # remove duplicate neuron
+
+                num_trials = min(delta_f.shape[1], velocity.shape[1], lick_rate.shape[1], reward_loc.shape[1])
+
+                delta_f = delta_f[:, :num_trials, :]
+                velocity = velocity[:, :num_trials]
+                lick_rate = lick_rate[:, :num_trials]
+                reward_loc = reward_loc[:, :num_trials]
+
+                nan_trials = (
+                        np.any(np.isnan(lick_rate), axis=0) |
+                        np.any(np.isnan(reward_loc), axis=0) |
+                        np.any(np.isnan(velocity), axis=0) |
+                        np.any(np.isnan(delta_f), axis=(0, 2))
+                )
+
+                animal_key = f'animal_{animal_idx + 1}'
+                factors_dict[animal_key] = {
+                    "Licks": lick_rate[:, ~nan_trials],
+                    "Reward_loc": reward_loc[:, ~nan_trials],
+                    "Velocity": velocity[:, ~nan_trials]
+                }
+
+                if normalize:
+                    for var in factors_dict[animal_key]:
+                        factors_dict[animal_key][var] = ((factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+                                                         (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+
+                activity_dict[animal_key] = {}
+                for neuron_idx in range(delta_f.shape[2]):  # loop over neurons
+                    neuron_activity = delta_f[:, :, neuron_idx]  # (trial, bin)
+                    if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
+                        continue
+
+                    cleaned_activity = neuron_activity[:, ~nan_trials]
+                    if normalize:
+                        cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+                    neuron_key = f'cell_{neuron_idx + 1}'
+                    activity_dict[animal_key][neuron_key] = cleaned_activity
+
+
+    else:
+        data_dict = mat73.loadmat(filepath)
+
+        # Setup position variables
+        num_spatial_bins = 10
+        position_matrix = np.zeros((50, num_spatial_bins))
+        bin_size = 50 // num_spatial_bins
+        for i in range(num_spatial_bins):
+            position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
+
+        for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
+                zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
+
+            num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
+            delta_f = delta_f[:, :num_trials, :]
+            velocity = velocity[:, :num_trials]
+            lick_rate = lick_rate[:, :num_trials]
+            reward_loc = reward_loc[:, :num_trials]
+
+            nan_trials = (
+                    np.any(np.isnan(lick_rate), axis=0) |
+                    np.any(np.isnan(reward_loc), axis=0) |
+                    np.any(np.isnan(velocity), axis=0) |
+                    np.any(np.isnan(delta_f), axis=(0, 2)))
+
+            animal_key = f'animal_{animal_idx + 1}'
+            factors_dict[animal_key] = {
+                "Licks": lick_rate[:, ~nan_trials],
+                "Reward_loc": reward_loc[:, ~nan_trials],
+                "Velocity": velocity[:, ~nan_trials]}
+
+            # Add position info
+            num_trials = factors_dict[animal_key]["Velocity"].shape[1]
+            for bin_idx in range(num_spatial_bins):
+                bin_key = f"Position_{bin_idx + 1}"
+                factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials)
+
+            if normalize:
+                for var in factors_dict[animal_key]:
+                    factors_dict[animal_key][var] = (
+                            (factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
+                            (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
+
+            activity_dict[animal_key] = {}
+            for neuron_idx in range(delta_f.shape[2]):
+                neuron_activity = delta_f[:, :, neuron_idx]
+                if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
+                    continue
+                cleaned_activity = neuron_activity[:, ~nan_trials]
+                if normalize:
+                    cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
+                neuron_key = f'cell_{neuron_idx + 1}'
+                activity_dict[animal_key][neuron_key] = cleaned_activity
+
+    return activity_dict, factors_dict
+
+
+def load_data_regular(file_path=r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM", name="NDNFanalC", new_NDNF=True, use_final=False):
+    file_path = file_path
+    filename = name
+    filepath = os.path.join(file_path, "datasets", filename + ".mat")
+
+    activity_dict, factors_dict = preprocess_data2(filepath, normalize=True, new_NDNF=new_NDNF, use_final=use_final)
+
+    filtered_factors_dict = subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"])
+
+    GLM_params, double_predicted_activity_dict_NDNF_new = fit_GLM_population(filtered_factors_dict, activity_dict, quintile=None, regression='linear')
+    double_residual_activity_dict_NDNF_new = get_residual_activity_dict(activity_dict, double_predicted_activity_dict_NDNF_new)
+
+    return GLM_params, activity_dict, double_predicted_activity_dict_NDNF_new, factors_dict, filtered_factors_dict, double_residual_activity_dict_NDNF_new
+
+
+def flatten_data(neuron_dict):
+    flattened_data = {}
+    for var in neuron_dict:
+        flattened_data[var] = neuron_dict[var].flatten()
+    return flattened_data
+
+def fit_GLM(animal_factors_dict, neuron_activity, regression='linear', alphas=None):
+    neuron_activity_flat = neuron_activity.flatten()
+    flattened_data = flatten_data(animal_factors_dict)
+    variable_names = [var for var in flattened_data]
+    design_matrix_X = np.stack([flattened_data[var] for var in variable_names], axis=1)
+
+    if regression == 'linear':
+        model = LinearRegression()
+    elif regression == 'lasso':
+        model = LassoCV(alphas=alphas, cv=None) if alphas is not None else LassoCV(cv=None)
+    elif regression == 'ridge':
+        model = RidgeCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000], cv=None)
+    elif regression == 'elastic':
+        l1_ratio = [0.1, 0.3, 0.5, 0.7, 0.9, 1]
+        model = ElasticNetCV(alphas=alphas if alphas is not None else [0.1, 1, 10, 100, 1000, 5000],
+                             l1_ratio=l1_ratio, cv=None)
+
+    model.fit(design_matrix_X, neuron_activity_flat)
+    neuron_predicted_activity = model.predict(design_matrix_X)
+
+    trialavg_neuron_activity = np.mean(neuron_activity, axis=1)
+    trialavg_predicted_activity = np.mean(neuron_predicted_activity.reshape(neuron_activity.shape), axis=1)
+    pearson_R = np.corrcoef(trialavg_predicted_activity, trialavg_neuron_activity)[0, 1]
+    neuron_GLM_params = {}
+    neuron_GLM_params['weights'] = {var: model.coef_[idx] for idx, var in enumerate(variable_names)}
+    neuron_GLM_params['intercept'] = model.intercept_
+    neuron_GLM_params['alpha'] = model.alpha_ if regression == 'ridge' else None
+    neuron_GLM_params['l1_ratio'] = model.l1_ratio_ if regression == 'elastic' else None
+    neuron_GLM_params['R2'] = model.score(design_matrix_X, neuron_activity_flat)
+    neuron_GLM_params['pearson_R'] = pearson_R
+    neuron_GLM_params['model'] = model
+    return neuron_GLM_params, neuron_predicted_activity
+
+def get_residual_activity_dict(activity_dict, predicted_activity_dict):
+    residual_activity_dict = {}
+    for animal in activity_dict:
+        residual_activity_dict[animal] = {}
+        for neuron in activity_dict[animal]:
+            residual_activity_dict[animal][neuron] = activity_dict[animal][neuron] - predicted_activity_dict[animal][neuron]
+    return residual_activity_dict
+
+def fit_GLM_population(factors_dict, activity_dict, quintile=None, regression='ridge', alphas=None):
+    GLM_params = {}
+    predicted_activity_dict = {}
+
+    for animal in factors_dict:
+        GLM_params[animal] = {}
+        predicted_activity_dict[animal] = {}
+        animal_factors_dict = factors_dict[animal].copy()
+
+        if quintile is not None:
+            num_trials = animal_factors_dict['Activity'].shape[1]
+            start_idx, end_idx = get_quintile_indices(num_trials, quintile)
+            for var in animal_factors_dict:
+                animal_factors_dict[var] = animal_factors_dict[var][:, start_idx:end_idx]
+
+        for neuron_idx in activity_dict[animal]:
+            neuron_activity = activity_dict[animal][neuron_idx]
+            neuron_GLM_params, neuron_predicted_activity = fit_GLM(animal_factors_dict, neuron_activity, regression, alphas)
+            GLM_params[animal][neuron_idx] = neuron_GLM_params
+            predicted_activity_dict[animal][neuron_idx] = neuron_predicted_activity.reshape(activity_dict[animal][neuron_idx].shape)
+                
+    return GLM_params, predicted_activity_dict
+
+def subset_variables_from_data(factors_dict, variables_to_keep=["Velocity"]):
+    filtered_factors_dict = {}
+    for animal in factors_dict:
+        filtered_factors_dict[animal] = {}
+        for variable in variables_to_keep:
+            filtered_factors_dict[animal][variable] = factors_dict[animal][variable]
+    return filtered_factors_dict
+
+
 
 # def get_most_expressed_cluster(TT_list, activity_list, cp_list_NDNF, early_late_none="early", to_include=None, most_expressed=True):
     
@@ -341,23 +540,18 @@ def get_labels_all_different_Ks_single(model_20_NDNF_resid, which_vectors: int):
     F = f1.detach().cpu().numpy()   # (latents, cells, pos) = (20, 115, 50)
     W = w1.detach().cpu().numpy()   # (latents, trials) = (20, 100)
 
-    print(f"F.shape {F.shape}  W.shape {W.shape}")
-
     # Build X so rows = cells (115)
     if which_vectors == 0:
         # Use latent×pos per cell, flattened: (115, 20*50)
         X = np.moveaxis(F, 1, 0)              # (cells=115, latents=20, pos=50)
         X = X.reshape(X.shape[0], -1)         # (115, 1000)
-        print("X shape (latent×pos flat):", X.shape)
 
     elif which_vectors == 1:
         X = W.T  # (115, 20) mean over pos
-        print("X shape (mean over pos):", X.shape)
 
     else:
         X = np.moveaxis(F, 2, 0)     # -> (cells=115, latents=20, trials=100)
         X = X.reshape(X.shape[0], -1)  # -> (115, 20*100) = (115, 2000)
-        print(X.shape)  # (115, 2000)
 
     # Standardize then KMeans over K=1..10
     Xz = StandardScaler().fit_transform(X)
@@ -468,14 +662,14 @@ def get_labels_all_different_Ks_single(model_20_NDNF_resid, which_vectors: int):
 
     plt.show()
 
-def plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, activity_array_late, K=2, title="", cue=False, ax_list=None):
-    data_good = means_dict_cluster_0x0_raw[K]["labels_loc_dict"]
+def plot_clustered_data_learn(title_fs, labels_list, activity_early_array, activity_array_late, K=2, title="", cue=False, ax_list=None): #means_dict_cluster_0x0_raw, 
+    # data_good = means_dict_cluster_0x0_raw[K]["labels_loc_dict"]
 
-    # fig, axs = plt.subplots(1,2, figsize=(4*len(data_good), 4))
-    # fig.suptitle(title)
+    color_list_dict = [{"Early":"purple", "Late":"magenta"},{"Early":"red", "Late":"orange"}] 
 
-    for idx, i in enumerate(data_good):
-        labels = data_good[i]
+    for idx in range(len(labels_list)):
+        # labels = data_good[i]
+        labels = labels_list[idx]
         n=len(labels)
         sliced_early = activity_early_array[labels,:]
         mean_sliced_early = np.mean(sliced_early, axis=0)
@@ -487,29 +681,31 @@ def plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, 
         sem_sliced_late = sem(sliced_late, axis=0)
 
         # sliced_data_late_dict[i] = sliced_late
-        ax_list[idx].plot(mean_sliced_early, label='Early')
-        ax_list[idx].fill_between(range(len(mean_sliced_early)), mean_sliced_early-sem_sliced_early, mean_sliced_early+sem_sliced_early, alpha=0.2)
+        ax_list[idx].plot(mean_sliced_early, label='Early', color=color_list_dict[idx]["Early"])
+        ax_list[idx].fill_between(range(len(mean_sliced_early)), mean_sliced_early-sem_sliced_early, mean_sliced_early+sem_sliced_early, alpha=0.2, color=color_list_dict[idx]["Early"])
 
-        ax_list[idx].plot(mean_sliced_late, label="Late")
-        ax_list[idx].fill_between(range(len(mean_sliced_late)), mean_sliced_late-sem_sliced_late, mean_sliced_late+sem_sliced_late, alpha=0.2)
-        ax_list[idx].set_title(f"Cluster {i} n={n}")
+        ax_list[idx].plot(mean_sliced_late, label="Late", color=color_list_dict[idx]["Late"])
+        ax_list[idx].fill_between(range(len(mean_sliced_late)), mean_sliced_late-sem_sliced_late, mean_sliced_late+sem_sliced_late, alpha=0.2, color=color_list_dict[idx]["Late"])
+        ax_list[idx].set_title(f"Cluster {idx} n={n}", fontsize=title_fs)
         if cue:
             ax_list[idx].axvline(10,linestyle='--', color='r', label="Cue")
-        ax_list[idx].legend()
+        ax_list[idx].legend(fontsize=title_fs-2)
+        ax_list[idx].set_ylabel("Z-Scored dF/F", fontsize=title_fs-1)
+        ax_list[idx].set_xlabel("Position bins", fontsize=title_fs-1)
+        ax_list[idx].set_ylim(-0.5, 1.0)
+
 
     # plt.tight_layout()
     # plt.show()
 
-def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="", plot=False):
+def plot_reconstructions(labels_list, fixed_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="", plot=False):
 
 
     synthetic_mean_array = {}
     means_dict_cluster= {}
-    for num_clusters in labels_cells_dict_all_K_NDNF:
-        data_truncated_array_NDNF = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
-        # print(data_truncated_array_NDNF.shape)
-        labels = labels_cells_dict_all_K_NDNF[num_clusters]
-        # print(labels)
+    for num_clusters in range(len(labels_list)):
+        data_truncated_array_NDNF, _ = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
+        labels = labels_list[num_clusters]
         uniq = np.unique(labels)
         real_data_mean_array = np.empty(data_truncated_array_NDNF.shape)
         mean_data_dict = {}
@@ -573,7 +769,7 @@ def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_
 
 
 
-    data_truncated_array_NDNF = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
+    data_truncated_array_NDNF, _ = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
     data_truncated_array_NDNF_ta = np.mean(data_truncated_array_NDNF, axis=2),
     if plot:
         fig, axs = plt.subplots(2,len(synthetic_mean_array), figsize=(30,8))
@@ -594,30 +790,29 @@ def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_
     return means_dict_cluster
 
 
-def plot_mean_resid(residual_activity_dict_NDNF_newest, title, ax=None, plot=False):
-    cue_residual_activity_dict_NDNF_newest = {}
-    for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
-        if idx > 30:
-            cue_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
+# def plot_mean_resid(residual_activity_dict_NDNF_newest, title, ax=None, plot=False):
+#     cue_residual_activity_dict_NDNF_newest = {}
+#     for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
+#         if idx > 30:
+#             cue_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
 
-    listy = []
-    for animal in cue_residual_activity_dict_NDNF_newest:
-        print(animal)
-        for cell in cue_residual_activity_dict_NDNF_newest[animal]:
-            listy.append(np.mean(cue_residual_activity_dict_NDNF_newest[animal][cell], axis=1))
+#     listy = []
+#     for animal in cue_residual_activity_dict_NDNF_newest:
+#         for cell in cue_residual_activity_dict_NDNF_newest[animal]:
+#             listy.append(np.mean(cue_residual_activity_dict_NDNF_newest[animal][cell], axis=1))
 
-    good_array = np.array(listy)
-    means = np.mean(good_array, axis=0)
-    sems = sem(good_array, axis=0)
+#     good_array = np.array(listy)
+#     means = np.mean(good_array, axis=0)
+#     sems = sem(good_array, axis=0)
 
-    if plot:
-        ax.plot(means)
-        ax.axvline(10, linestyle="--", color='red', label='Cue')
-        ax.fill_between(range(len(means)), means+sems, means-sems, alpha=0.2)
-        ax.legend()
-        ax.set_title(title)
+#     if plot:
+#         ax.plot(means)
+#         ax.axvline(10, linestyle="--", color='red', label='Cue')
+#         ax.fill_between(range(len(means)), means+sems, means-sems, alpha=0.2)
+#         ax.legend()
+#         ax.set_title(title)
 
-    return cue_residual_activity_dict_NDNF_newest
+#     return cue_residual_activity_dict_NDNF_newest
 
 def get_cells_per_animal_dict(fixed_activity_dict_NDNF_newest):
     cells_per_animal_dict = {}
@@ -695,122 +890,172 @@ def get_cells_per_animal_dict(fixed_activity_dict_NDNF_newest):
 #     plt.show()
 
 
+# def plot_cluster_traces_by_animal(title_fs,
+#     labels,
+#     #means_dict_cluster,                 # output from plot_reconstructions (has cell_ids_per_cluster_dict)
+#     fixed_activity_dict_NDNF_newest,    # to recompute TA traces
+#     cells_per_animal_dict,              # {animal: [global_cell_ids...]}
+#     K, 
+#     ncol=1,                             # legend columns
+#     ylim=(-1.1, 2.6), 
+#     spacing=0.25,                       # horizontal spacing between subplots (wspace)
+#     title_prefix="",
+#     axs=None,                           # list/array of Axes (len >= #clusters) or None
+#     legend="bottom",                    # "bottom", "right", "inside", or None
+# color_list=None):
+#     """
+#     Plots trial-averaged (TA) traces per cluster, coloring each trace by its animal.
+#     If `axs` is None, creates a new 1×(#clusters) figure (shared y). Otherwise draws into provided axes.
+#     Legend shows animals with their colors and can be placed at 'bottom', 'right', 'inside', or disabled with None.
+#     """
+
+#     cell_to_animal = {}
+#     for animal, cell_ids in cells_per_animal_dict.items():
+#         for cid in cell_ids:
+#             cell_to_animal[int(cid)] = animal
+
+#     data = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
+#     ta = data.mean(axis=2)                                                   # (cells, pos)
+#     _, n_pos = ta.shape
+
+#     uniq = np.unique(labels)
+#     n_panels = len(uniq)
+#     labels_list = []
+#     for i in uniq:
+#         cells_data = np.where()
+#         labels_list.append(cells_data)
+
+
+#     # --- color map per animal ---
+#     animals = sorted(set(cell_to_animal.values()))
+#     cmap = plt.get_cmap("tab20", max(1, len(animals)))
+#     animal_to_color = {a: cmap(i % cmap.N) for i, a in enumerate(animals)}
+
+#     # --- axes handling ---
+#     created_fig = False
+#     if axs is None:
+#         fig, axs = plt.subplots(1, n_panels, figsize=(4 * n_panels, 6), sharey=True)
+#         if n_panels == 1:
+#             axs = np.array([axs])
+#         created_fig = True
+#     else:
+#         if not isinstance(axs, (list, tuple, np.ndarray)):
+#             axs = np.array([axs])
+#         else:
+#             axs = np.array(axs).ravel()
+#         if len(axs) < n_panels:
+#             raise ValueError(f"Provided axs has length {len(axs)} but need at least {n_panels} axes.")
+#         fig = axs[0].figure
+
+#     # adjust spacing if requested
+#     if spacing is not None:
+#         fig.subplots_adjust(wspace=spacing)
+
+#     # --- draw each cluster ---
+#     for i in range(len(uniq)):
+#         idx = np.asarray(clust_idx_dict[lab], dtype=int)
+#         if idx.size == 0:
+#             axs[i].set_title(f"Cluster {i} (n=0)")
+#             axs[i].set_xlim(0, n_pos - 1)
+#             axs[i].set_ylim(*ylim)
+#             continue
+
+#         traces = ta[idx]  # (n_k, n_pos)
+
+#         # plot each cell trace colored by its animal
+#         for j, cid in enumerate(idx):
+#             a = cell_to_animal.get(int(cid), "unknown")
+#             color = animal_to_color.get(a, (0.5, 0.5, 0.5, 0.6))
+#             ax.plot(traces[j, :], lw=1.0, alpha=0.7, color=color)
+
+#         # overlay mean ± SEM (neutral color)
+#         m = traces.mean(axis=0)
+#         s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
+#         ax.plot(m, lw=2.0, color=color_list[i], zorder=5)
+#         # ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color=color_list[i], zorder=4)
+
+#         ax.set_title(f"{title_prefix} Cluster {lab} (n={len(idx)})".strip(), fontsize=title_fs)
+#         ax.set_xlabel("Position bins", fontsize=title_fs-1)
+#         ax.set_ylim(*ylim)
+
+#     axs[0].set_ylabel("Z-scored dF/F", fontsize=title_fs-1)
+#     axs[1].set_ylabel("Z-scored dF/F", fontsize=title_fs-1)
+
+#     return fig, axs
+
 def plot_cluster_traces_by_animal(
-    means_dict_cluster,                 # output from plot_reconstructions (has cell_ids_per_cluster_dict)
-    fixed_activity_dict_NDNF_newest,    # to recompute TA traces
-    cells_per_animal_dict,              # {animal: [global_cell_ids...]}
-    K, 
-    ncol=1,                             # legend columns
-    ylim=(-1.1, 2.6), 
-    spacing=0.25,                       # horizontal spacing between subplots (wspace)
+    title_fs,
+    labels,                          # 1D array, length = n_cells
+    fixed_activity_dict_NDNF_newest, # to recompute TA traces
+    cells_per_animal_dict,           # {animal: [global_cell_ids...]}
+    K=None,                          # not really needed anymore
+    ncol=1,
+    ylim=(-1.1, 2.6),
+    spacing=0.25,
     title_prefix="",
-    axs=None,                           # list/array of Axes (len >= #clusters) or None
-    legend="bottom",                    # "bottom", "right", "inside", or None
-color_list=None):
+    axs=None,
+    legend="bottom",
+    color_list=None,
+):
     """
-    Plots trial-averaged (TA) traces per cluster, coloring each trace by its animal.
-    If `axs` is None, creates a new 1×(#clusters) figure (shared y). Otherwise draws into provided axes.
-    Legend shows animals with their colors and can be placed at 'bottom', 'right', 'inside', or disabled with None.
+    Plots trial-averaged (TA) traces per label (0/1), coloring each trace by its animal.
+    `labels` is a 1D array (n_cells,) with cluster IDs (e.g., 0 and 1).
     """
 
-    # --- build cell_id -> animal map ---
     cell_to_animal = {}
     for animal, cell_ids in cells_per_animal_dict.items():
         for cid in cell_ids:
             cell_to_animal[int(cid)] = animal
 
-    # --- get TA data (cells × pos) ---
-    data = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
+    data, _ = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
     ta = data.mean(axis=2)                                                   # (cells, pos)
-    _, n_pos = ta.shape
+    n_cells, n_pos = ta.shape
 
-    # --- clusters & subplot layout ---
-    clust_idx_dict = means_dict_cluster[K]["cell_ids_per_cluster_dict"]      # {cluster_label: array(cell_ids)}
-    uniq = sorted(clust_idx_dict.keys())
+    labels = np.asarray(labels)
+    if labels.shape[0] != n_cells:
+        raise ValueError(f"labels has length {labels.shape[0]} but ta has {n_cells} cells")
+
+    uniq = np.unique(labels)
     n_panels = len(uniq)
     label_to_col = {lab: j for j, lab in enumerate(uniq)}
 
-    # --- color map per animal ---
     animals = sorted(set(cell_to_animal.values()))
     cmap = plt.get_cmap("tab20", max(1, len(animals)))
     animal_to_color = {a: cmap(i % cmap.N) for i, a in enumerate(animals)}
 
-    # --- axes handling ---
-    created_fig = False
-    if axs is None:
-        fig, axs = plt.subplots(1, n_panels, figsize=(4 * n_panels, 6), sharey=True)
-        if n_panels == 1:
-            axs = np.array([axs])
-        created_fig = True
-    else:
-        if not isinstance(axs, (list, tuple, np.ndarray)):
-            axs = np.array([axs])
-        else:
-            axs = np.array(axs).ravel()
-        if len(axs) < n_panels:
-            raise ValueError(f"Provided axs has length {len(axs)} but need at least {n_panels} axes.")
-        fig = axs[0].figure
-
-    # adjust spacing if requested
-    if spacing is not None:
-        fig.subplots_adjust(wspace=spacing)
-
-    # --- draw each cluster ---
     for i, lab in enumerate(uniq):
         ax = axs[label_to_col[lab]]
-        idx = np.asarray(clust_idx_dict[lab], dtype=int)
+
+        idx = np.where(labels == lab)[0]
         if idx.size == 0:
-            ax.set_title(f"Cluster {lab} (n=0)")
+            ax.set_title(f"{title_prefix} Cluster {lab} (n=0)", fontsize=title_fs)
             ax.set_xlim(0, n_pos - 1)
             ax.set_ylim(*ylim)
             continue
 
         traces = ta[idx]  # (n_k, n_pos)
 
-        # plot each cell trace colored by its animal
         for j, cid in enumerate(idx):
             a = cell_to_animal.get(int(cid), "unknown")
             color = animal_to_color.get(a, (0.5, 0.5, 0.5, 0.6))
             ax.plot(traces[j, :], lw=1.0, alpha=0.7, color=color)
 
-        # overlay mean ± SEM (neutral color)
         m = traces.mean(axis=0)
         s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
-        ax.plot(m, lw=2.0, color=color_list[i], zorder=5)
-        # ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color=color_list[i], zorder=4)
-
-        ax.set_title(f"{title_prefix} Cluster {lab} (n={len(idx)})".strip())
-        ax.set_xlabel("Position bins")
+        if color_list is not None:
+            main_color = color_list[i]
+        else:
+            main_color = "k"
+        ax.plot(m, lw=2.0, color=main_color, zorder=5)
+    
+        ax.set_title(f"{title_prefix} Cluster {lab} (n={len(idx)})".strip(), fontsize=title_fs)
+        ax.set_xlabel("Position bins", fontsize=title_fs - 1)
         ax.set_ylim(*ylim)
 
-    axs[0].set_ylabel("Z-scored dF/F")
+    axs[0].set_ylabel("Z-scored dF/F", fontsize=title_fs - 1)
+    axs[1].set_ylabel("Z-scored dF/F", fontsize=title_fs - 1)
 
-    # # --- legend handling ---
-    # if legend is not None and len(animals) > 0:
-    #     # make legend handles
-    #     handles = []
-    #     labels = []
-    #     for a in animals:
-    #         handles.append(plt.Line2D([0], [0], color=animal_to_color[a], lw=3))
-    #         labels.append(str(a))
 
-    #     if legend == "inside":
-    #         axs[-1].legend(handles, labels, frameon=True, loc="upper right", ncol=ncol)
-    #     elif legend == "right":
-    #         # put one consolidated legend on the right of the rightmost axis
-    #         leg = axs[-1].legend(handles, labels, frameon=False, loc="center left",
-    #                              bbox_to_anchor=(1.02, 0.5), ncol=ncol)
-    #         fig.subplots_adjust(right=0.78 if ncol == 1 else 0.88)
-    #     elif legend == "bottom":
-    #         # global legend at bottom of figure
-    #         fig.legend(handles, labels, loc="lower center", ncol=max(ncol, 1), frameon=False)
-    #         fig.subplots_adjust(bottom=0.15)
-    #     # else: unknown string → skip legend silently
-
-    # if created_fig:
-    #     plt.show()
-
-    return fig, axs
 
 
     # --- title ---
@@ -904,88 +1149,111 @@ color_list=None):
 
 
 def plot_cluster_animal_composition_stacked(
-    means_dict_cluster,
-    cells_per_animal_dict,
+    title_fs,
+    labels_list,             # list of arrays: one array of global cell IDs per cluster
+    cells_per_animal_dict,   # {animal: [global_cell_ids...]}
     K,
     title_prefix="",
     show_percent_labels=False,
     ax=None,
-    legend="outside",   # "outside", "inside", or None
-    legend_ncol=1
+    legend="outside",        # "outside", "inside", or None
+    legend_ncol=1,
 ):
-    # --- build cell_id -> animal map ---
+    """
+    Stacked bar plot of animal composition per cluster.
+
+    labels_list: list of 1D arrays
+        labels_list[k] = array of global cell IDs belonging to cluster k.
+    """
+
+    # --- map cell -> animal ---
     cell_to_animal = {}
     for animal, cell_ids in cells_per_animal_dict.items():
         for cid in cell_ids:
             cell_to_animal[int(cid)] = animal
 
-    # --- cluster membership dict for this K ---
-    clust_idx_dict = means_dict_cluster[K]["cell_ids_per_cluster_dict"]  # {cluster_label: array(cell_ids)}
-    clusters = sorted(clust_idx_dict.keys())  # keep order stable
+    n_clusters = len(labels_list)
 
-    # --- all animals & consistent colors ---
+    # --- animals & colors ---
     animals = sorted(set(cell_to_animal.values()))
     cmap = plt.get_cmap("tab20", len(animals))
     animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
 
-    # --- counts matrix: rows=clusters, cols=animals ---
-    import numpy as np
-    counts = np.zeros((len(clusters), len(animals)), dtype=int)
-    for r, clab in enumerate(clusters):
-        for cid in clust_idx_dict[clab]:
+    # --- counts[cluster, animal] ---
+    counts = np.zeros((n_clusters, len(animals)), dtype=int)
+
+    for r, cell_ids in enumerate(labels_list):
+        cell_ids = np.asarray(cell_ids, dtype=int)
+        for cid in cell_ids:
             a = cell_to_animal.get(int(cid), None)
             if a is not None:
-                c = animals.index(a)
-                counts[r, c] += 1
+                j = animals.index(a)
+                counts[r, j] += 1
 
-    totals = counts.sum(axis=1)  # cells per cluster
-    x = np.arange(len(clusters))
+    totals = counts.sum(axis=1)              # total cells per cluster
+    x = np.arange(n_clusters)
 
-    # --- axes handling ---
-    created_fig = False
     if ax is None:
-        fig, ax = plt.subplots(figsize=(1.2*len(clusters)+3, 5))
-        created_fig = True
+        fig, ax = plt.subplots(figsize=(4, 6))
+    else:
+        fig = ax.figure
 
-    # --- plot stacked bars (height = counts, stacked by animal) ---
+    # --- stacked bars ---
     bottom = np.zeros_like(totals, dtype=float)
     for j, a in enumerate(animals):
-        ax.bar(x, counts[:, j], bottom=bottom, width=0.8,
-               color=animal_to_color[a], label=f"{a}")
+        ax.bar(
+            x,
+            counts[:, j],
+            bottom=bottom,
+            width=0.8,
+            color=animal_to_color[a],
+            label=str(a),
+        )
         bottom += counts[:, j]
 
-    # x-ticks as cluster labels with n
+    # --- x labels & title ---
     ax.set_xticks(x)
-    ax.set_xticklabels([f"C{clab}\n(n={totals[i]})" for i, clab in enumerate(clusters)])
-    ax.set_ylabel("# cells")
-    ax.set_title(f"{title_prefix} K={K}")
+    ax.set_xticklabels(
+        [f"C{i}\n(n={totals[i]})" for i in range(n_clusters)],
+        fontsize=title_fs - 1,
+    )
+    ax.set_ylabel("# cells", fontsize=title_fs - 1)
+    ax.set_title(f"{title_prefix}", fontsize=title_fs)
 
-    # optional % labels inside segments
+    # --- optional percent labels ---
     if show_percent_labels:
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             props = counts / totals[:, None]
             props[np.isnan(props)] = 0.0
-        for i in range(len(clusters)):
+        for i in range(n_clusters):
             cum = 0.0
             for j in range(len(animals)):
                 h = counts[i, j]
-                if h > 0 and props[i, j] >= 0.07:  # label only if ≥7% to avoid clutter
-                    ax.text(x[i], cum + h/2.0, f"{props[i, j]*100:.0f}%",
-                            ha="center", va="center", fontsize=8, color="white")
+                if h > 0 and props[i, j] >= 0.07:
+                    ax.text(
+                        x[i],
+                        cum + h / 2.0,
+                        f"{props[i, j]*100:.0f}%",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color="white",
+                    )
                 cum += h
 
-    # legend placement
+    # --- legend ---
     if legend == "outside":
-        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=legend_ncol)
-        # don't adjust figure if we're drawing into a provided ax
-        if created_fig:
-            fig.subplots_adjust(right=0.78)
+        ax.legend(
+            loc="center left",
+            bbox_to_anchor=(1.02, 0.5),
+            frameon=False,
+            ncol=legend_ncol,
+            fontsize=title_fs - 2,
+        )
     elif legend == "inside":
         ax.legend(loc="upper right", frameon=False)
-    else:
-        pass  # no legend
 
-    return ax
+    return fig, ax
 
 
 
@@ -1026,35 +1294,48 @@ def get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest):
 
     data_truncated_array = np.array(data_truncated_list)
 
-    return data_truncated_array
+    return data_truncated_array, min_val
+
+def get_mean_behav_factor_per_cell(residual_activity_dict, factors_dict, min_num_trials, factor:str):
+
+    data_list = []
+    for animal in residual_activity_dict:
+        for cell in residual_activity_dict[animal]:
+            data_list.append(factors_dict[animal][factor][:, :min_num_trials])
+
+    return data_list
 
 
-def plot_lick_vel_data_clust(means_dict_cluster_0x0_raw, num_clusters=3, use_vel=False, title=None, ax=None, color_list=None):
-
-    if use_vel:
-        vel_data = means_dict_cluster_0x0_raw[num_clusters]["vel_data_sliced_dict"]
-    else:
-        vel_data = means_dict_cluster_0x0_raw[num_clusters]["lick_data_sliced_dict"]
+def plot_lick_vel_data_clust(title_fs, labels_list, mean_factor_list, use_vel=False, title=None, ax=None, color_list=None):
 
 
-    # fig, axs = plt.subplots(1,len(vel_data), figsize=(len(vel_data)*4, 4))
-    for i, clust in enumerate(vel_data):
-        vel_array = vel_data[clust]
-        trial_av_vel_array = np.mean(vel_array, axis=2)
+    for i in range(len(labels_list)):
 
-        mean_over_cells = np.mean(trial_av_vel_array, axis=0)
-        sem_over_cells = sem(trial_av_vel_array, axis=0)
+        vels_sliced_list = []
 
-        ax.plot(mean_over_cells, label=f"Cluster {clust} n={vel_array.shape[0]}", color=color_list[i])
+        labels = labels_list[i]
+
+        for cell in labels:
+            vels_sliced = mean_factor_list[cell]
+            vels_sliced_list.append(vels_sliced)
+
+        vel_array = np.array(vels_sliced_list)
+
+        ta_vel_array = np.mean(vel_array, axis=2)
+
+        mean_over_cells = np.mean(ta_vel_array, axis=0)
+        sem_over_cells = sem(ta_vel_array, axis=0)
+
+        ax.plot(mean_over_cells, label=f"Cluster {i} n={vel_array.shape[0]}", color=color_list[i])
         ax.fill_between(range(len(mean_over_cells)), mean_over_cells-sem_over_cells, mean_over_cells+sem_over_cells, alpha=0.2, color=color_list[i])
         # plt.title(f"Cluster {clust}")
-        ax.set_xlabel("Position Bins")
+        ax.set_xlabel("Position Bins", fontsize=title_fs-1)
         if use_vel:
-            ax.set_ylabel(f"Velocity (meters/sec)")
+            ax.set_ylabel(f"Velocity (meters/sec)", fontsize=title_fs-1)
         else:
-            ax.set_ylabel(f"Normalized Lick Rate")
-    ax.set_title(title)
-    ax.legend()
+            ax.set_ylabel(f"Normalized Lick Rate", fontsize=title_fs-1)
+    ax.set_title(title, fontsize=title_fs)
+    ax.legend(fontsize=title_fs-2)
 
 
 
@@ -1476,7 +1757,7 @@ def get_mean_sem_lists(binned_data):
 
 
 
-def plot_the_CDF_early_late(binned_data_0_early, binned_data_1_early, binned_data_0_late, binned_data_1_late, title="Selectivity Distribution Across Cells +-SEM",  n_bins = None, ax=None):
+def plot_the_CDF_early_late(title_fs, binned_data_0_early, binned_data_1_early, binned_data_0_late, binned_data_1_late, title="Selectivity Distribution Across Cells +-SEM",  n_bins = None, ax=None):
     mean_0_early, sem_0_early = get_mean_sem_lists(binned_data_0_early)
     mean_1_early, sem_1_early = get_mean_sem_lists(binned_data_1_early)
 
@@ -1494,13 +1775,13 @@ def plot_the_CDF_early_late(binned_data_0_early, binned_data_1_early, binned_dat
     ax.errorbar(mean_1_early, percentiles, xerr=sem_1_early, fmt='o-', label='Cell Type 1 Early', color='red', capsize=3)
     ax.errorbar(mean_1_late, percentiles, xerr=sem_1_late, fmt='o-', label='Cell Type 1 Late', color='orange', capsize=3)
 
-    ax.set_ylabel("Percentile of Cells")
-    ax.set_xlabel("Selectivity")
-    ax.set_title(title)
+    ax.set_ylabel("Percentile of Cells", fontsize=title_fs-1)
+    ax.set_xlabel("Selectivity", fontsize=title_fs-1)
+    ax.set_title(title, fontsize=title_fs)
     ax.legend(fontsize=6)
 
 
-def plot_the_CDF_celltypes(binned_data_0, binned_data_1, title="Selectivity Distribution Across Cells +-SEM",  n_bins = None, ax=None):
+def plot_the_CDF_celltypes(title_fs, binned_data_0, binned_data_1, title="Selectivity Distribution Across Cells +-SEM",  n_bins = None, ax=None):
     mean_0, sem_0 = get_mean_sem_lists(binned_data_0)
     mean_1, sem_1 = get_mean_sem_lists(binned_data_1)
 
@@ -1512,45 +1793,11 @@ def plot_the_CDF_celltypes(binned_data_0, binned_data_1, title="Selectivity Dist
     ax.errorbar(mean_0, percentiles, xerr=sem_0, fmt='o-', label='Cell Type 0', color='purple', capsize=3)
     ax.errorbar(mean_1, percentiles, xerr=sem_1, fmt='o-', label='Cell Type 1', color='red', capsize=3)
 
-    ax.set_ylabel("Percentile of Cells")
-    ax.set_xlabel("Selectivity")
-    ax.set_title(title)
-    ax.legend()
+    ax.set_ylabel("Percentile of Cells", fontsize=title_fs-1)
+    ax.set_xlabel("Selectivity", fontsize=title_fs-1)
+    ax.set_title(title, fontsize=title_fs)
+    ax.legend(fontsize=title_fs-2)
 
-
-
-
-# def _flatten_selectivities(sel_dict):
-#     vals = [v for d in sel_dict.values() for v in d.values()]
-#     arr = np.asarray(vals, float)
-#     return arr[np.isfinite(arr)]
-
-# def _ecdf(arr):
-#     if arr.size == 0:
-#         return np.array([]), np.array([])
-#     x = np.sort(arr)
-#     y = (np.arange(1, x.size + 1) / x.size) * 100.0  # percent
-#     return x, y
-
-# def plot_ecdf_celltypes(sel_dict_0, sel_dict_1, title="Selectivity CDF"):
-#     a0 = _flatten_selectivities(sel_dict_0)
-#     a1 = _flatten_selectivities(sel_dict_1)
-
-#     x0, y0 = _ecdf(a0)
-#     x1, y1 = _ecdf(a1)
-
-#     plt.figure(figsize=(7,6))
-#     if x0.size:
-#         plt.step(x0, y0, where='post', label='Cell Type 0')
-#     if x1.size:
-#         plt.step(x1, y1, where='post', label='Cell Type 1')
-#     plt.xlabel("Selectivity")
-#     plt.ylabel("Cumulative % of cells")
-#     plt.title(title)
-#     plt.grid(True)
-#     plt.legend()
-#     plt.tight_layout()
-#     plt.show()
 
 
 def get_selectivity_each_trial_early_late_cluster(activity_dict_EC, cp_dict_EC, cell_cluster_list, neg_sel=True, trial_av=False, eml="early", norm=None):
@@ -1639,7 +1886,7 @@ def get_selectivity_array(animal_average_selectivity_dict):
     return all_cell_selectivity
 
 
-def plot_selectivity_over_trials(group_0_selectivity, group_1_selectivity, color_list=None, ax=None):
+def plot_selectivity_over_trials(title_fs, group_0_selectivity, group_1_selectivity, color_list=None, ax=None):
 
     mean_selectivity_0 = np.mean(group_0_selectivity, axis=0)
     sem_selectivity_0 = sem(group_0_selectivity, axis=0)
@@ -1653,11 +1900,11 @@ def plot_selectivity_over_trials(group_0_selectivity, group_1_selectivity, color
     ax.fill_between(x, mean_selectivity_0 - sem_selectivity_0, mean_selectivity_0 + sem_selectivity_0, alpha=0.2, color=color_list[0])
     ax.plot(x, mean_selectivity_1, color=color_list[1], label='Cell Type 1')
     ax.fill_between(x, mean_selectivity_1 - sem_selectivity_1, mean_selectivity_1 + sem_selectivity_1, alpha=0.2, color=color_list[1])
-    ax.set_xticks(ticks=x, labels=[f"{int(p)}%" for p in np.linspace(0, 100, 10)])
-    ax.set_xlabel("Percentile of Trials")
-    ax.set_ylabel("Average Selectivity Across Cells")
-    ax.set_title("Selectivity Across Trials")
-    ax.legend()
+    ax.set_xticks(ticks=x, labels=[f"{int(p)}" for p in np.linspace(0, 100, 10)])
+    ax.set_xlabel("Percentile of Trials (%)", fontsize=title_fs-1)
+    ax.set_ylabel("Average Selectivity Across Cells", fontsize=title_fs-1)
+    ax.set_title("Selectivity Across Trials", fontsize=title_fs)
+    ax.legend(fontsize=title_fs-2)
 
 
 def get_percentlie_slices(activity_dict_SST):
@@ -1684,6 +1931,43 @@ def get_percentlie_slices(activity_dict_SST):
 
     return percentile_slices
 
+
+def plot_cell_clusters_LDA_space(title_fs, which_vectors, model_20_NDNF_resid_0x0_cue, labels, ax=None, color_list=None):
+
+    w1 = model_20_NDNF_resid_0x0_cue.vectors[which_vectors][0]
+    f1 = model_20_NDNF_resid_0x0_cue.vectors[which_vectors][1]
+
+    n_latents_expected = 20
+    n_cells_expected = len(labels)  
+
+    X = get_cell_features(
+        w1, f1,
+        feature_mode="0x0",
+        n_cells_expected=n_cells_expected,
+        n_latents_expected=n_latents_expected,)
+
+
+    
+    if X.shape[0] != len(labels) and X.shape[1] == len(labels):
+        X = X.T
+    elif X.shape[0] != len(labels):
+        raise ValueError(f"Shape mismatch: X.shape={X.shape}, labels={len(labels)}")
+
+
+    # plot_lda_projection(X, labels, title_prefix="LDA Projection", cluster_subset=None, ax=axs[2,2])
+
+    uniq = np.unique(labels)
+    X_2d = lda_with_orthogonal_axis_2d(X, labels, title_prefix="")
+
+    for i, k in enumerate(uniq):
+        m = labels == k
+        ax.scatter(X_2d[m, 0], X_2d[m, 1], s=40, alpha=0.6, color=color_list[i], label=f"C{k} (n={m.sum()})")
+
+    ax.set_xlabel("LDA Component 1", fontsize=title_fs-1)
+    ax.set_ylabel("LDA Component 2", fontsize=title_fs-1)
+
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1, fontsize=title_fs-2)
+    # fig.subplots_adjust(right=0.78)
 
 def selectivity_from_percentile_slices(percentile_slices, norm='min_max', neg_sel=False):
     """
@@ -1826,7 +2110,7 @@ def collect_eml_data(animal_average_selectivity_dict_NDNF_0_early):
     return cell_array
             
 
-def plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=None, color_list=None):
+def plot_eml_data(title_fs, animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=None, color_list=None):
 
     cell_array_0_early = collect_eml_data(animal_average_selectivity_dict_NDNF_0_early)
     cell_array_1_early = collect_eml_data(animal_average_selectivity_dict_NDNF_1_early)
@@ -1862,196 +2146,443 @@ def plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_s
     means1 = [cell_array_1_early_mean,cell_array_1_middle_mean, cell_array_1_late_mean]
     sems1 = [cell_array_1_early_sem,cell_array_1_middle_sem, cell_array_1_late_sem]
 
-    ax.errorbar(range(len(means0)), means0, yerr=sems0, label="Cell Type 0", color=color_list[0])
-    ax.errorbar(range(len(means1)), means1, yerr=sems1, label="Cell Type 1", color=color_list[1])
+    ax.errorbar(range(len(means0)), means0, yerr=sems0, label="Cell Type 0", color=color_list[0], marker="o", capsize=3)
+    ax.errorbar(range(len(means1)), means1, yerr=sems1, label="Cell Type 1", color=color_list[1], marker="o", capsize=3)
     ax.set_xticks(np.arange(3), ["Early", "Middle", "Late"])
-    ax.legend()
+    ax.set_ylabel("Average Selectivity Across Cells", fontsize=title_fs-1)
+    ax.set_xlabel("Contiguous K-Means Learning Stage", fontsize=title_fs-1)
+    ax.set_title("Selectivity by Unsupervised Learning Stage", fontsize=title_fs)
+    ax.legend(fontsize=title_fs-2)
+
+
+
+def plot_LDA_hist(title_fs, group_1_array, title=None, color_list=None, ax=None):
+    X = group_1_array            # (n_samples, n_cells) = (5000, 59)
+    n_samples, n_cells = X.shape
+    n_pos_bins = 50
+    n_trials   = n_samples // n_pos_bins
+    assert n_samples == n_pos_bins * n_trials
+
+    print(f"n_cells = {n_cells}, n_trials = {n_trials}, n_pos_bins = {n_pos_bins}")
+
+    # per-sample pos index within trial: 0..49 repeated over trials
+    pos_idx   = np.tile(np.arange(n_pos_bins), n_trials)
+
+    # -------------------------
+    # 1) BINARY LABELS: start vs end of track
+    #    0: bins 0–24 (first half)
+    #    1: bins 25–49 (second half)
+    # -------------------------
+    start_end_labels = (pos_idx >= 25).astype(int)   # 0 = start, 1 = end
+
+    # -------------------------
+    # TRIAL QUINTILES for learning (early vs late 1/5 of trials)
+    # -------------------------
+    trial_idx = np.repeat(np.arange(n_trials), n_pos_bins)  # 0..n_trials-1 per sample
+    trials_per_quint = n_trials // 5  # assume divisible by 5
+
+    trial_quint = trial_idx // trials_per_quint  # 0..4
+    early_trials_mask = (trial_quint == 0)
+    late_trials_mask  = (trial_quint == 4)
+    mid_trials_mask   = ~(early_trials_mask | late_trials_mask)
+
+    # -------------------------
+    # 2) z-score across samples for each cell
+    # -------------------------
+    X_z = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-8)
+
+    # -------------------------
+    # 3) LDA with 2 classes (start vs end)
+    #    With 2 classes, there is only 1 discriminant axis.
+    # -------------------------
+    lda = LinearDiscriminantAnalysis(n_components=1, solver="svd") #eigen
+    X_lda1 = lda.fit_transform(X_z, start_end_labels).ravel()   # shape (n_samples,)
+
+    print("LDA explained variance ratio (start vs end):", lda.explained_variance_ratio_)
+
+
+    bins = 40
+
+    ax.hist(X_lda1[early_trials_mask], bins=bins, alpha=0.5,
+             density=True, label="Early Trials", color=color_list[0])
+    ax.hist(X_lda1[late_trials_mask], bins=bins, alpha=0.5,
+             density=True, label="Late Trials", color=color_list[1])
+
+    ax.set_xlabel("LDA 1 (start vs end axis)", fontsize=title_fs-1)
+    ax.set_ylabel("density", fontsize=title_fs-1)
+    ax.set_title(f"{title} LDA1 (Pre- vs Post-Reward Bins) \n Early and Late Learn Trials", fontsize=title_fs)
+    ax.legend(fontsize=title_fs-3)
 
 
 
 
+def plot_LDA1_LDA2_state_space_prepost(title_fs, group_array, title="", ax=None):
+    """
+    LDA1: spatial axis (pre vs post reward bins).
+    LDA2: learning axis (early vs late trials, using full track).
+    Scatter colors: early/late × pre/post reward.
+    """
 
-def run():
-    GLM_params_SST, activity_dict_SST, double_predicted_activity_dict_SST, factors_dict_SST, filtered_factors_dict_SST, residual_activity_dict_SST = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="SSTindivsomata_GLM", new_NDNF=False)
-    GLM_params_EC, activity_dict_EC, double_predicted_activity_dict_EC, factors_dict_EC, filtered_factors_dict_EC, residual_activity_dict_EC = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="EC_GLM", new_NDNF=False)
+    n_samples, n_cells = group_array.shape
+    n_pos_bins = 50
+    n_trials   = n_samples // n_pos_bins
+
+    pos_idx   = np.tile(np.arange(n_pos_bins), n_trials)
+    trial_idx = np.repeat(np.arange(n_trials), n_pos_bins)
+
+    trials_per_quint = n_trials // 5
+    trial_quint = trial_idx // trials_per_quint
 
 
-    GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="NDNF_E1A1B", new_NDNF=True)
+    early_mask = (trial_quint == 0)
+    late_mask  = (trial_quint == 4)
+    mid_mask   = ~(early_mask | late_mask)
 
-    # fixed_residual_activity_dict_NDNF_newest = {}
-    # for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
-    #     if 17 < idx < 31:
-    #         fixed_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
+    pre_mask  = (pos_idx < 25)
+    post_mask = (pos_idx >= 25)
+    
+    space_labels = post_mask.astype(int)  # 0 = pre, 1 = post
 
-    # fixed_activity_dict_NDNF_newest = {}
-    # for idx, animal in enumerate(activity_dict_NDNF_newest):
-    #     if 17 < idx < 31:
-    #         fixed_activity_dict_NDNF_newest[f"animal_{idx+1}"] = activity_dict_NDNF_newest[animal]
+    print(f"group_array.shape {group_array.shape}")
+
+    print("Any NaNs?", np.isnan(group_array).any())
+    print("Any infs?", np.isinf(group_array).any())
+
+    pre = group_array[space_labels == 0]
+    post = group_array[space_labels == 1]
+
+    var_pre  = pre.var(axis=0)
+    var_post = post.var(axis=0)
+
+    print("Zero-var features in pre:", np.where(var_pre == 0)[0])
+    print("Zero-var features in post:", np.where(var_post == 0)[0])
+
+
+    lda_space = LinearDiscriminantAnalysis(n_components=1, solver="svd") #eigen
+    print("LDA1 solver at runtime:", lda_space.solver)
+    LDA1 = lda_space.fit_transform(group_array, space_labels).ravel()
+    print(f"{title} | LDA1 explained var (pre vs post):",
+          lda_space.explained_variance_ratio_)
+
+    used_mask = np.zeros_like(early_mask, dtype=bool)
+    used_mask[early_mask] = True
+    used_mask[late_mask] = True
+    
+    X_used = group_array[used_mask, :]  
+
+    late_for_used = late_mask[used_mask]
+    y_used = np.zeros(late_for_used.shape[0], dtype=int)
+    y_used[late_for_used] = 1 ###binary array for lda
+    lda_learn = LinearDiscriminantAnalysis(n_components=1, solver="svd") #eigen
+    print("LDA2 solver at runtime:", lda_learn.solver)
+    LDA2_used = lda_learn.fit_transform(X_used, y_used) 
+    LDA2_used = LDA2_used[:, 0]  
+
+    n_samples = group_array.shape[0]
+    LDA2 = np.full(n_samples, np.nan)
+    LDA2[used_mask] = LDA2_used
+    
+    
+    # d_pre_1 = mahal_group_distance(X1, mask_early_pre1, mask_late_pre1)
+    # d_post_1 = mahal_group_distance(X1, mask_early_post1, mask_late_post1)
+
+
+    mid_valid = mid_mask & ~np.isnan(LDA2)
+    ax.scatter(LDA1[mid_valid], LDA2[mid_valid],
+                s=8, alpha=0.15, color="lightgray", label="middle trials")
+
+    mask_early_pre = early_mask & pre_mask & ~np.isnan(LDA2)
+    ax.scatter(LDA1[mask_early_pre], LDA2[mask_early_pre],
+                s=14, alpha=0.9, color='b', label="early pre-reward")
+
+    mask_early_post = early_mask & post_mask & ~np.isnan(LDA2)
+    ax.scatter(LDA1[mask_early_post], LDA2[mask_early_post],
+                s=14, alpha=0.9, color="r", label="early post-reward")
+
+    mask_late_pre = late_mask & pre_mask & ~np.isnan(LDA2)
+    ax.scatter(LDA1[mask_late_pre], LDA2[mask_late_pre],
+                s=14, alpha=0.9, color="green", label="late pre-reward")
+
+    mask_late_post = late_mask & post_mask & ~np.isnan(LDA2)
+    ax.scatter(LDA1[mask_late_post], LDA2[mask_late_post],
+                s=14, alpha=0.9, color="k", label="late post-reward")
+
+    ax.axvline(0, color="k", lw=1, alpha=0.4)
+    ax.axhline(0, color="k", lw=1, alpha=0.4)
+
+    ax.set_xlabel("LDA1 (pre vs post reward)", fontsize=title_fs-1)
+    ax.set_ylabel("LDA2 (early vs late trials)", fontsize=title_fs-1)
+    ax.set_ylim(-5,5)
+    ax.set_xlim(-5,5)
+    ax.legend(frameon=True, fontsize=title_fs-3)
+
+    def mahal_group_distance(X, maskA, maskB):
+        A = X[maskA]; B = X[maskB]
+        meanA = A.mean(axis=0)
+        meanB = B.mean(axis=0)
+        cov = np.cov(np.vstack([A,B]).T)
+        inv_cov = np.linalg.inv(cov)
+        return mahalanobis(meanA, meanB, inv_cov)
+    
+    X0 = np.column_stack([LDA1, LDA2])  # shape (n_samples, 2)
+
+    d_pre_0 = mahal_group_distance(X0, mask_early_pre, mask_late_pre)
+    d_post_0 = mahal_group_distance(X0, mask_early_post, mask_late_post)
+
+    ax.set_title(f"{title} \n Mahal. Dist. Early vs Late Pre={d_pre_0:.2f}, Post={d_post_0:.2f}", fontsize=title_fs-1)
+
+
+    # return mask_early_pre, mask_early_post, mask_late_pre, mask_late_post, LDA1, LDA2
+
+
+
+def run(use_fixed_track, use_new_data):
+    
+    
+
+    if use_new_data:
+        GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="NDNF_E0A1B1_251107", new_NDNF=True, use_final=True)
+        first_an_idx = 14
+        last_an_idx = 29
+
+    else:
+        GLM_params_NDNF_newest, activity_dict_NDNF_newest, double_predicted_activity_dict_NDNF_newest, factors_dict_NDNF_newest, filtered_factors_dict_NDNF_newest, residual_activity_dict_NDNF_newest = load_data_regular(file_path='/Users/michaelfinch/CA1-interneuron-GLM', name="NDNF_E1A1B", new_NDNF=True)
+        first_an_idx = 17
+        last_an_idx = 31
+
 
     mse_dir = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/real_final_NDNF_model_ranks20_contig_x00_cell'
     cell_NDNF_model_ranks20_contig_x00_cue = get_model_data_per_cell(mse_dir)
     
     cued_cell_NDNF_model_ranks20_contig_x00_cue = {20: {}}
     for idx, animal in enumerate(cell_NDNF_model_ranks20_contig_x00_cue[20]):
-        if idx>30:
-            cued_cell_NDNF_model_ranks20_contig_x00_cue[20][animal-31] = cell_NDNF_model_ranks20_contig_x00_cue[20][animal]
-
+        if use_fixed_track:
+            if first_an_idx < idx < last_an_idx:
+                cued_cell_NDNF_model_ranks20_contig_x00_cue[20][animal-(first_an_idx+1)] = cell_NDNF_model_ranks20_contig_x00_cue[20][animal]
+        else:
+            if idx>last_an_idx-1:
+                cued_cell_NDNF_model_ranks20_contig_x00_cue[20][animal-last_an_idx] = cell_NDNF_model_ranks20_contig_x00_cue[20][animal]
 
     cued_factors_dict_NDNF_newest = {}
     for idx, animal in enumerate(factors_dict_NDNF_newest):
-        if idx > 30:
-            cued_factors_dict_NDNF_newest[f"animal_{idx+1}"] = factors_dict_NDNF_newest[animal]
-
+        if use_fixed_track:
+            if first_an_idx < idx < last_an_idx:
+                cued_factors_dict_NDNF_newest[f"animal_{idx+1}"] = factors_dict_NDNF_newest[animal]
+        else:
+            if idx > last_an_idx-1:
+                cued_factors_dict_NDNF_newest[f"animal_{idx+1}"] = factors_dict_NDNF_newest[animal]
+        
 
     cued_activity_dict_NDNF_newest = {}
     for idx, animal in enumerate(activity_dict_NDNF_newest):
-        if idx> 30:
-            cued_activity_dict_NDNF_newest[f"animal_{idx+1}"] = activity_dict_NDNF_newest[animal]
-
-    cued_residual_activity_dict_NDNF_newest = {}
+        if use_fixed_track:
+            if first_an_idx < idx < last_an_idx:
+                cued_activity_dict_NDNF_newest[f"animal_{idx+1}"] = activity_dict_NDNF_newest[animal]
+        else:
+            if idx > last_an_idx-1:
+                cued_activity_dict_NDNF_newest[f"animal_{idx+1}"] = activity_dict_NDNF_newest[animal]
+        
+        
+    cue_residual_activity_dict_NDNF_newest = {}
     for idx, animal in enumerate(residual_activity_dict_NDNF_newest):
-        if idx> 30:
-            cued_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
+        if use_fixed_track:
+            if first_an_idx < idx < last_an_idx:
+                cue_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
+        else:
+            if idx > last_an_idx-1:
+                cue_residual_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_newest[animal]
 
 
-############ make this for the cued list and then make plot the run and licks
 
-# 
-    data_truncated_array_NDNF = get_truncated_to_min_data_array(cued_activity_dict_NDNF_newest)
+    # cue_residual_activity_dict_NDNF_newest = cued_activity_dict_NDNF_newest
+            
+
+    data_truncated_array_NDNF, min_num_trials = get_truncated_to_min_data_array(cued_activity_dict_NDNF_newest)
 
 
     r_dict_vel = get_r_list(cued_activity_dict_NDNF_newest, cued_factors_dict_NDNF_newest, data_truncated_array_NDNF, data_to_corr="Velocity")
     r_dict_licks = get_r_list(cued_activity_dict_NDNF_newest, cued_factors_dict_NDNF_newest, data_truncated_array_NDNF, data_to_corr="Licks")
 
-    
-    mse_dir = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/real_final_NDNF_model_ranks20_contig_x00_cell'
-    cell_NDNF_model_ranks20_contig_x00_cue = get_model_data_per_cell(mse_dir)
+################ old method of getting the cp_dict #########
+    # mse_dir = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/real_final_NDNF_model_ranks20_contig_x00_cell'
+    # cell_NDNF_model_ranks20_contig_x00_cue = get_model_data_per_cell(mse_dir)
+
+    # cued_cp_dict_NDNF = get_cp_dict(cued_cell_NDNF_model_ranks20_contig_x00_cue)
+##########################################################
+
+
+    if use_new_data:
+
+        if use_fixed_track:
+            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_new_fixed_contig_models_NDNF.pkl', 'rb') as f:
+                contig_data_dict = pickle.load(f)
+
+        else:
+            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_new_cued_contig_models_NDNF.pkl', 'rb') as f:
+                contig_data_dict = pickle.load(f)
+            
 
         
+
+    else:
+        mse_dir = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/real_final_NDNF_model_ranks20_contig_x00_cell'
+        data_dict = get_model_data_per_cell(mse_dir)
+
+
+        contig_data_dict = {20: {}}
+        for idx, animal in enumerate(data_dict[20]):
+            if use_fixed_track:
+                if first_an_idx<idx<last_an_idx:
+                    
+                    contig_data_dict[20][animal-(first_an_idx+1)] = data_dict[20][animal]
+            else:
+                if idx>last_an_idx-1:
+                    contig_data_dict[20][animal-(last_an_idx)] = data_dict[20][animal]
+
+
+    print(f"contig_data_dict[20].keys() {contig_data_dict[20].keys()}")
+
+    cp_dict_NDNF = get_cp_dict(contig_data_dict)
+
+    print(f"cp_dict_NDNF.keys() {cp_dict_NDNF.keys()}")
+
+
+
+
+##################### load in all the sliceTCA models ############################
+    
+    if use_new_data:
+        if use_fixed_track:
+            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/model_20_NDNF_resid_0x0_fixed_new_data.pkl', 'rb') as f:
+                sliceTCA_model = pickle.load(f)
+        else:
+            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/model_20_NDNF_resid_0x0_cue_new_data.pkl', 'rb') as f:
+                sliceTCA_model = pickle.load(f)
+    else:
+        if use_fixed_track:
+            save_path="/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/pickle_every_slice_type_NDNF.pkl"
+            with open (save_path, 'rb') as f:
+                models_dict = pickle.load(f)
+                sliceTCA_model = models_dict[20]['model']
+
+        else:
+            save_path="/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/model_20_NDNF_resid_0x0_cue.pkl"
+            with open (save_path, 'rb') as f:
+                sliceTCA_model = pickle.load(f)
+
+    labels_cells_dict_all_K_NDNF = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
+
+###################### old ##########################################
+
+    # save_path="/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/model_20_NDNF_resid_0x0_cue.pkl"
+    # with open(save_path, 'rb') as f:
+    #     model_20_NDNF_resid_0x0_cue = pickle.load(f)
+    #     print(save_path)
+
+    # labels_cells_dict_all_K_NDNF_0x0_resid_cue = get_labels_all_different_Ks_single(model_20_NDNF_resid_0x0_cue, which_vectors=1)
+
+###################### old ##########################################
+
+
     
 
-    cued_cp_dict_NDNF = get_cp_dict(cued_cell_NDNF_model_ranks20_contig_x00_cue)
+    fig, axs = plt.subplots(4,4, figsize=(20,20))
 
 
-    save_path="/Users/michaelfinch/CA1-interneuron-GLM/Clean_notebooks_to_date/model_20_NDNF_resid_0x0_cue.pkl"
+    if use_fixed_track and use_new_data:
+        fig.suptitle("Fixed Track Newest Data")
+    elif use_fixed_track and not use_new_data:
+        fig.suptitle("Fixed Track Old Data")
+    elif not use_fixed_track and use_new_data:
+        fig.suptitle("Cued Track Newest Data")
+    else:
+        fig.suptitle("Cued Track Old Data")
+
+    title_fs=9
 
 
-    with open(save_path, 'rb') as f:
-        model_20_NDNF_resid_0x0_cue = pickle.load(f)
-        print(save_path)
+    # cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals", ax=axs[0,0], plot=False)
 
+    
 
-    fig, axs = plt.subplots(3,4, figsize=(15,15))
-
-
-    labels_cells_dict_all_K_NDNF_0x0_resid_cue = get_labels_all_different_Ks_single(model_20_NDNF_resid_0x0_cue, which_vectors=1)
-
-
-    cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals", ax=axs[0,0], plot=False)
-
-
-    means_dict_cluster_0x0_cue_resid = plot_reconstructions(labels_cells_dict_all_K_NDNF_0x0_resid_cue, cue_residual_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="NDNF 0x0 Cue Resid")
-
-    activity_early_array, activity_array_late = get_activity_cut_learn(cue_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF)
-    plot_clustered_data_learn(means_dict_cluster_0x0_cue_resid, activity_early_array, activity_array_late, K=2, title="Cued Track Residuals NDNF Clustered Changepoint", ax_list=[axs[2,0],axs[2,1]])
+    activity_early_array, activity_array_late = get_activity_cut_learn(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF)
+    
 
     cells_per_animal_dict = get_cells_per_animal_dict(cue_residual_activity_dict_NDNF_newest)
 
+    color_list=["purple", "red"]
 
-    color_list = ["purple", "red"]
-
-
-    plot_cluster_traces_by_animal(means_dict_cluster_0x0_cue_resid,
-                                cue_residual_activity_dict_NDNF_newest,
-                                cells_per_animal_dict,
-                                K=2,
-                                ncol=5, spacing=0.2,
-                                title_prefix="Residuals", axs=[axs[0,0],axs[0,1]], color_list = color_list)
-    
-
-    plot_cluster_animal_composition_stacked(means_dict_cluster_0x0_cue_resid, cells_per_animal_dict, K=2,
-                                            title_prefix="NDNF 0x0 Residual Cue", show_percent_labels=True, ax=axs[1,0])
-
-
-
-    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=False, title="Licks NDNF Cued Track", ax=axs[1,2], color_list=color_list)
-    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=True, title="Velocity NDNF Cued Track", ax=axs[1,1], color_list=color_list)
 
     which_vectors=1
-
-    labels_cells_dict_all_K_NDNF = get_labels_all_different_Ks_single(model_20_NDNF_resid_0x0_cue, which_vectors=which_vectors)
-
     labels = np.asarray(labels_cells_dict_all_K_NDNF[2])
-
-    w1 = model_20_NDNF_resid_0x0_cue.vectors[which_vectors][0]
-    f1 = model_20_NDNF_resid_0x0_cue.vectors[which_vectors][1]
-
-    labels = np.asarray(labels_cells_dict_all_K_NDNF[2])
-    n_latents_expected = 20
-    n_cells_expected = len(labels)  
-
-    X = get_cell_features(
-        w1, f1,
-        feature_mode="0x0",
-        n_cells_expected=n_cells_expected,
-        n_latents_expected=n_latents_expected,)
-
-
-    
-    if X.shape[0] != len(labels) and X.shape[1] == len(labels):
-        X = X.T
-    elif X.shape[0] != len(labels):
-        raise ValueError(f"Shape mismatch: X.shape={X.shape}, labels={len(labels)}")
-
-
-    # plot_lda_projection(X, labels, title_prefix="LDA Projection", cluster_subset=None, ax=axs[2,2])
-
-    uniq = np.unique(labels)
-    X_2d = lda_with_orthogonal_axis_2d(X, labels, title_prefix="")
-
-    for i, k in enumerate(uniq):
-        m = labels == k
-        axs[0,2].scatter(X_2d[m, 0], X_2d[m, 1], s=40, alpha=0.6, color=color_list[i], label=f"C{k} (n={m.sum()})")
-
-    axs[0,2].set_xlabel("LDA Component 1")
-    axs[0,2].set_ylabel("LDA Component 2")
-
-    leg = axs[0,2].legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
-    fig.subplots_adjust(right=0.78)
 
     cells_list_0 = np.where(labels==0)[0]
     cells_list_1 = np.where(labels==1)[0]
 
-    # sel0 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_0, neg_sel=False, trial_av=True, norm="min_max")
-    # sel1 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
+    animal_average_selectivity_dict_NDNF_0, animals_dict_data_NDNF_0 = get_selectivity_each_trial_cell_type(cue_residual_activity_dict_NDNF_newest, cells_list_0, neg_sel=False, trial_av=True, norm="min_max")
+    animal_average_selectivity_dict_NDNF_1, animals_dict_data_NDNF_1 = get_selectivity_each_trial_cell_type(cue_residual_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
 
-    # plot_ecdf_celltypes(sel0, sel1, title="Selectivity CDF")
+    animal_average_selectivity_dict_NDNF_0_list = []
+    for animal in animal_average_selectivity_dict_NDNF_0:
+        for cell in animal_average_selectivity_dict_NDNF_0[animal]:
+            animal_average_selectivity_dict_NDNF_0_list.append(animal_average_selectivity_dict_NDNF_0[animal][cell])
+
+    animal_average_selectivity_dict_NDNF_1_list = []
+    for animal in animal_average_selectivity_dict_NDNF_1:
+        for cell in animal_average_selectivity_dict_NDNF_1[animal]:
+            animal_average_selectivity_dict_NDNF_1_list.append(animal_average_selectivity_dict_NDNF_1[animal][cell])
+
+    if np.mean(animal_average_selectivity_dict_NDNF_0_list) > np.mean(animal_average_selectivity_dict_NDNF_1_list):
+        inverted_labels = 1 - labels
+        cells_list_0 = np.where(inverted_labels==0)[0]
+        cells_list_1 = np.where(inverted_labels==1)[0]
+        labels = inverted_labels
+
+    labels_list = [cells_list_0, cells_list_1]
+
+    means_dict_cluster_0x0_cue_resid = plot_reconstructions(labels_list, cue_residual_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="NDNF 0x0 Cue Resid")
+
+    plot_cluster_traces_by_animal(title_fs, labels,
+                                cue_residual_activity_dict_NDNF_newest,
+                                cells_per_animal_dict,
+                                K=2,
+                                ncol=5, spacing=0.2,
+                                title_prefix="", axs=[axs[0,0],axs[0,1]], color_list = color_list)
+    
+
+    plot_cell_clusters_LDA_space(title_fs, which_vectors, sliceTCA_model, labels, ax=axs[0,2], color_list=color_list)        
+
+    plot_cluster_animal_composition_stacked(title_fs,labels_list, cells_per_animal_dict, K=2,
+                                            title_prefix="Fraction of Clusters Cells by Animal", show_percent_labels=True, ax=axs[1,0])
+
+    mean_vel_list = get_mean_behav_factor_per_cell(cue_residual_activity_dict_NDNF_newest, cued_factors_dict_NDNF_newest, min_num_trials, factor="Velocity")
+    plot_lick_vel_data_clust(title_fs, labels_list, mean_vel_list, use_vel=True, title="Weighted Av. Animal Velocity", ax=axs[1,1], color_list=color_list)
+    mean_lick_list = get_mean_behav_factor_per_cell(cue_residual_activity_dict_NDNF_newest, cued_factors_dict_NDNF_newest, min_num_trials, factor="Licks")
+    plot_lick_vel_data_clust(title_fs, labels_list, mean_lick_list, use_vel=False, title="Weighted Av. Animal Lick", ax=axs[1,2], color_list=color_list)
 
 
-    animal_average_selectivity_dict_NDNF_0, animals_dict_data_NDNF_0 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_0, neg_sel=False, trial_av=True, norm="min_max")
-    animal_average_selectivity_dict_NDNF_1, animals_dict_data_NDNF_1 = get_selectivity_each_trial_cell_type(cued_residual_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
 
+    plot_clustered_data_learn(title_fs, labels_list, activity_early_array, activity_array_late, K=2, title="Cued Track Residuals NDNF Clustered Changepoint", ax_list=[axs[2,0],axs[2,1]])
+    
+    animal_average_selectivity_dict_NDNF_0, animals_dict_data_NDNF_0 = get_selectivity_each_trial_cell_type(cue_residual_activity_dict_NDNF_newest, cells_list_0, neg_sel=False, trial_av=True, norm="min_max")
+    animal_average_selectivity_dict_NDNF_1, animals_dict_data_NDNF_1 = get_selectivity_each_trial_cell_type(cue_residual_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
 
     binned_data_NDNF_0 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0, n_bins=20)
     binned_data_NDNF_1 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1, n_bins=20)
 
-    plot_the_CDF_celltypes(binned_data_NDNF_0, binned_data_NDNF_1, title="Selectivity Distribution", n_bins = 20, ax=axs[2,2])
+    plot_the_CDF_celltypes(title_fs, binned_data_NDNF_0, binned_data_NDNF_1, title="Selectivity Distribution", n_bins = 20, ax=axs[2,2])
 
+    animal_average_selectivity_dict_NDNF_0_early,_ = get_selectivity_each_trial_early_late_cluster(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="early", norm="min_max")
+    animal_average_selectivity_dict_NDNF_1_early,_ = get_selectivity_each_trial_early_late_cluster(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="early", norm="min_max")
 
+    animal_average_selectivity_dict_NDNF_0_late,_ = get_selectivity_each_trial_early_late_cluster(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="late", norm="min_max")
+    animal_average_selectivity_dict_NDNF_1_late,_ = get_selectivity_each_trial_early_late_cluster(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="late", norm="min_max")
 
+    animal_average_selectivity_dict_NDNF_0_middle,_ = get_selectivity_each_trial_early_late_cluster(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="middle", norm="min_max")
+    animal_average_selectivity_dict_NDNF_1_middle,_ = get_selectivity_each_trial_early_late_cluster(cue_residual_activity_dict_NDNF_newest, cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="middle", norm="min_max")
+
+    plot_eml_data(title_fs, animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=axs[0,3], color_list=color_list)
     
-    animal_average_selectivity_dict_NDNF_0_early,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="early", norm="min_max")
-    animal_average_selectivity_dict_NDNF_1_early,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="early", norm="min_max")
-
-    animal_average_selectivity_dict_NDNF_0_late,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="late", norm="min_max")
-    animal_average_selectivity_dict_NDNF_1_late,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="late", norm="min_max")
-
-    animal_average_selectivity_dict_NDNF_0_middle,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_0, neg_sel=False, trial_av=True, eml="middle", norm="min_max")
-    animal_average_selectivity_dict_NDNF_1_middle,_ = get_selectivity_each_trial_early_late_cluster(cued_residual_activity_dict_NDNF_newest, cued_cp_dict_NDNF, cells_list_1, neg_sel=False, trial_av=True, eml="middle", norm="min_max")
-
-    print(f"animal_average_selectivity_dict_NDNF_1_middle {animal_average_selectivity_dict_NDNF_1_middle}")
-
-
     binned_data_NDNF_0_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_early, n_bins=20)
     binned_data_NDNF_1_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_early, n_bins=20)
 
@@ -2059,7 +2590,7 @@ def run():
     binned_data_NDNF_1_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_late, n_bins=20)
 
 
-    plot_the_CDF_early_late(binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="Selectivity Distribution Early Late Learn", n_bins = 20, ax=axs[2,3])
+    plot_the_CDF_early_late(title_fs, binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="Selectivity Distribution Early Late Learn", n_bins = 20, ax=axs[2,3])
 
 
 
@@ -2070,19 +2601,63 @@ def run():
     all_cells_NDNF_0 = selectivity_from_percentile_slices(percentile_slices_NDNF0, norm='min_max', neg_sel=False)
     all_cells_NDNF_1 = selectivity_from_percentile_slices(percentile_slices_NDNF1, norm='min_max', neg_sel=False)
 
-    plot_selectivity_over_trials(all_cells_NDNF_0, all_cells_NDNF_1, color_list=color_list, ax=axs[1,3])
-
-
-    plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=axs[0,3], color_list=color_list)
+    plot_selectivity_over_trials(title_fs, all_cells_NDNF_0, all_cells_NDNF_1, color_list=color_list, ax=axs[1,3])
 
 
 
-    plt.tight_layout()
 
+    fixed_residual_list = []
+
+    to_plot_list = []
+
+    min_t = 10000
+
+    for animal in cue_residual_activity_dict_NDNF_newest:
+        for cell in cue_residual_activity_dict_NDNF_newest[animal]:
+            data = cue_residual_activity_dict_NDNF_newest[animal][cell]
+            data_flat = data.flatten()
+            if data.shape[1] < min_t:
+                min_t = data.shape[1]
+
+    for animal in cue_residual_activity_dict_NDNF_newest:
+        for cell in cue_residual_activity_dict_NDNF_newest[animal]:
+            data_trunc = cue_residual_activity_dict_NDNF_newest[animal][cell][:,:min_t]
+            to_plot_list.append(np.mean(data_trunc, axis=1))
+            fixed_residual_list.append(data_trunc.flatten())
+
+    fixed_residual_array = np.array(fixed_residual_list)
+    fixed_residual_array_correct_shape = fixed_residual_array.T
+
+    group_1_array = fixed_residual_array_correct_shape[:,cells_list_1]
+
+    group_0_array = fixed_residual_array_correct_shape[:,cells_list_0]
+
+
+    plot_LDA1_LDA2_state_space_prepost(title_fs, group_0_array, title="Cell Type 0", ax=axs[3,2])
+
+    plot_LDA1_LDA2_state_space_prepost(title_fs, group_1_array, title="Cell Type 1", ax=axs[3,3])
+
+
+    plot_LDA_hist(title_fs, group_0_array, title="Cell Type 0", color_list=["blue", "orange"], ax=axs[3,0])
+    plot_LDA_hist(title_fs, group_1_array, title="Cell Type 1", color_list=["red", "green"], ax=axs[3,1])
+
+
+
+
+
+
+
+    fig.tight_layout(pad=3.0, w_pad=3.0, h_pad=4.0)
     plt.show()
 
 
 
-if __name__ == "__main__":
-    run()
+@click.command()
+@click.option('--use_fixed_track/--use_cued_track', default=True, help="Use the 'most expressed' scanning logic.")
+@click.option('--use_new_data/--use_old_data', default=True, help="Use the Final NDNF data")
 
+def cli(use_fixed_track, use_new_data):
+    run(use_fixed_track, use_new_data)
+
+if __name__ == "__main__":
+    cli()
