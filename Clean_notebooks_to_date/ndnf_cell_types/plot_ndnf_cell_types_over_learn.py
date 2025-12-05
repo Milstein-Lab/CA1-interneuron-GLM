@@ -1080,45 +1080,13 @@ def plot_LDA_hist_compare_types(
 
         return X_lda1_trials, early_mask, late_mask, lda.explained_variance_ratio_
 
-    # def get_LDA1_for_group(X):
-    #     n_samples, n_cells = X.shape
-    #     n_pos_bins = 50
-    #     n_trials   = n_samples // n_pos_bins
-    #     assert n_samples == n_pos_bins * n_trials
 
-    #     trial_idx = np.repeat(np.arange(n_trials), n_pos_bins)
-
-    #     # quintile split
-    #     trials_per_quint = n_trials // 5
-    #     trial_quint = trial_idx // trials_per_quint
-
-    #     early_mask = (trial_quint == 0)
-    #     late_mask  = (trial_quint == 4)
-
-    #     # labels per sample (pos-bin)
-    #     y = np.zeros(n_samples, dtype=int)
-    #     y[late_mask] = 1
-
-    #     # z-score across samples
-    #     X_z = (X - X.mean(axis=0)) / (X.std(axis=0) + 1e-8)
-
-    #     lda = LinearDiscriminantAnalysis(n_components=1, solver="svd")
-    #     X_lda1 = lda.fit_transform(X_z, y).ravel()
-
-    #     return X_lda1, early_mask, late_mask, lda.explained_variance_ratio_
-
-    # -----------------------------------
-    # Run LDA separately for both cell types
-    # -----------------------------------
     lda0, early0, late0, var0 = get_LDA1_for_group(group0_array)
     lda1, early1, late1, var1 = get_LDA1_for_group(group1_array)
 
     print("Group 0 (cell type 0) LDA variance:", var0)
     print("Group 1 (cell type 1) LDA variance:", var1)
 
-    # -----------------------------------
-    # Plot 4 histograms on same axis
-    # -----------------------------------
     bins = 5
 
     ax.hist(lda0[early0], bins=bins, alpha=0.45, density=True,
@@ -1210,10 +1178,6 @@ def plot_LDA1_LDA2_state_space_prepost(title_fs, group_array, title="", ax=None)
     n_samples = group_array.shape[0]
     LDA2 = np.full(n_samples, np.nan)
     LDA2[used_mask] = LDA2_used
-    
-    
-    # d_pre_1 = mahal_group_distance(X1, mask_early_pre1, mask_late_pre1)
-    # d_post_1 = mahal_group_distance(X1, mask_early_post1, mask_late_post1)
 
 
     mid_valid = mid_mask & ~np.isnan(LDA2)
@@ -1259,9 +1223,6 @@ def plot_LDA1_LDA2_state_space_prepost(title_fs, group_array, title="", ax=None)
     d_post_0 = mahal_group_distance(X0, mask_early_post, mask_late_post)
 
     ax.set_title(f"{title} \n Mahal. Dist. Early vs Late Pre-Reward={d_pre_0:.2f} \n Mahal. Dist. Early vs Late Post-Reward={d_post_0:.2f}", fontsize=title_fs)
-
-
-    # return mask_early_pre, mask_early_post, mask_late_pre, mask_late_post, LDA1, LDA2
 
 
 def preprocess_data2(filepath, normalize=True, new_NDNF=False, use_final=False):
@@ -1861,7 +1822,7 @@ def run(use_fixed_track, use_new_data):
 
 
     else:
-        mse_dir = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/real_final_NDNF_model_ranks20_contig_x00_cell'
+        mse_dir = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/'
         cell_NDNF_model_ranks20_contig_x00_cue = get_model_data_per_cell(mse_dir)
 
 
@@ -1948,7 +1909,28 @@ def run(use_fixed_track, use_new_data):
         inverted_labels = 1 - cell_type_labels
         cells_group_0 = np.where(inverted_labels==0)[0]
         cells_group_1 = np.where(inverted_labels==1)[0]
-        labels = inverted_labels
+        cell_type_labels = inverted_labels
+
+    
+    # if use_new_data:
+    #     if use_fixed_track:
+    #         with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_fix_new.pkl', 'wb') as f:
+    #             pickle.dump(cell_type_labels, f)
+    #             print('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_fix_new.pkl')
+    #     else:
+    #         with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_cue_new.pkl', 'wb') as f:
+    #             pickle.dump(cell_type_labels, f)
+    #             print('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_cue_new.pkl')
+    # else:
+    #     if use_fixed_track:
+    #         with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_fix_old.pkl', 'wb') as f:
+    #             pickle.dump(cell_type_labels, f)
+    #             print('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_fix_old.pkl')
+    #     else:
+    #         with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_cue_old.pkl', 'wb') as f:
+    #             pickle.dump(cell_type_labels, f)
+    #             print('/Users/michaelfinch/CA1-interneuron-GLM/datasets/save_labels_cue_old.pkl')
+
 
 
 
