@@ -1531,6 +1531,7 @@ def plot_cps(cp_dict_NDNF, idx_session_name_dict, first_an_idx, last_an_idx, ear
     axs = axs.ravel()
 
 
+    mean_cps_list = []
 
 
     for idx in range(n_animals):
@@ -1546,6 +1547,8 @@ def plot_cps(cp_dict_NDNF, idx_session_name_dict, first_an_idx, last_an_idx, ear
 
         session_name = idx_session_name_dict[idx]
 
+        mean_cps_list.append(np.mean(cps))
+
         axs[idx].hist(cps, bins=bins, color=color, alpha=0.7, edgecolor="black")
         axs[idx].set_title(session_name, fontsize=10)
         axs[idx].set_xlabel("Trial # for Changepoint")
@@ -1559,8 +1562,29 @@ def plot_cps(cp_dict_NDNF, idx_session_name_dict, first_an_idx, last_an_idx, ear
     plt.tight_layout()
     plt.show()
 
+    # for idx in range(n_animals):
+    #     mean_cp = mean_cps_list[idx]
 
-        
+    plt.figure()
+    if use_fixed:
+        if early_cp:
+            plt.title("Fixed Track Session Average Early CP", fontsize=10)
+            color="blue"
+        else:
+            plt.title("Fixed Track Session Average Late CP", fontsize=10)
+            color="orange"
+    else:
+        if early_cp:
+            plt.title("Cued Track Session Average Early CP", fontsize=10)
+            color="blue"
+        else:
+            plt.title("Cued Track Session Average Late CP", fontsize=10)
+            color="orange"
+    plt.hist(mean_cps_list, color=color, bins=bins, alpha=0.7, edgecolor="black")
+    plt.ylabel("Number of Sessions")
+    plt.xlabel("Trial # for Changepoint")
+    plt.show()
+
 
 
 def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict, num_clusters=8, reassign_clusters=False, x00=True, umap=True, contiguous=True, ranks=20):

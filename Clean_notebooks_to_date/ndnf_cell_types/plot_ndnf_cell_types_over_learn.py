@@ -107,7 +107,6 @@ def get_lists_out_of_dicts(fixed_TT_data, fixed_activity_dict_NDNF_newest, cp_di
 
 def find_elbow_point(y_vals, min_index=2):
     from scipy.spatial.distance import cdist
-    import numpy as np
 
     x = np.arange(len(y_vals))
     y = y_vals
@@ -333,8 +332,7 @@ def plot_no_learn_cell_types(title_fs,
     least_expressed_label_dict_animal_all_group0,
     least_expressed_label_dict_animal_all_group1,
     group=None,
-    axs_list=None, color_dict=None
-):
+    axs_list=None, color_dict=None):
     """
     Expects axs_list length == 8 laid out however you want.
     Panel order:
