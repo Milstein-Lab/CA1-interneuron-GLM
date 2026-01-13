@@ -5,7 +5,7 @@ import torch
 import slicetca
 from sklearn.cluster import KMeans
 from scipy.stats import sem
-from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV, LinearRegression
+from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV
 import pickle 
 from sklearn.decomposition import PCA
 import ruptures as rpt
@@ -15,13 +15,16 @@ from sklearn.preprocessing import StandardScaler
 from scipy.stats import pearsonr
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 import os
-import mat73
+from matplotlib.lines import Line2D
+
 
 plt.rcParams['axes.titlesize'] = 8       # all titles
 plt.rcParams['axes.labelsize'] = 7       # x and y labels
 plt.rcParams['xtick.labelsize'] = 6      # tick labels
 plt.rcParams['ytick.labelsize'] = 6
 plt.rcParams["legend.fontsize"] = 7
+plt.rcParams['savefig.dpi'] = 600
+
 
 
 def Vinje2000(tuning_curve, norm='None', negative_selectivity=False):
@@ -83,7 +86,10 @@ def plot_clustered_data_learn(labels_full, activity_early_array, activity_array_
         axs.plot(mean_sliced_late, label="Late")
         axs.fill_between(range(len(mean_sliced_late)), mean_sliced_late-sem_sliced_late, mean_sliced_late+sem_sliced_late, alpha=0.2)
         axs.set_title(f"Cluster {i} n={n}")
+        axs.set_ylabel("Z-Scored DF/F")
+        axs.set_xlabel("Position bins")
         axs.legend()
+
 
 
 
@@ -95,8 +101,8 @@ def get_activity_cut_learn(fixed_residual_activity_dict_NDNF_newest, cp_dict_NDN
         for idt, cell in enumerate(fixed_residual_activity_dict_NDNF_newest[animal]):
             data = fixed_residual_activity_dict_NDNF_newest[animal][cell]
             # print(f"animal {animal} cp_dict_NDNF.keys() {cp_dict_NDNF.keys()}")
-            cp_early = cp_dict_NDNF[animal][idt][0]
-            cp_late = cp_dict_NDNF[animal][idt][0]
+            cp_early = cp_dict_NDNF[animal][cell][0]
+            cp_late = cp_dict_NDNF[animal][cell][0]
 
             early_data = data[:,:cp_early]
             late_data = data[:,-cp_late:]
@@ -114,6 +120,97 @@ def get_activity_cut_learn(fixed_residual_activity_dict_NDNF_newest, cp_dict_NDN
 
     return activity_early_array, activity_array_late
 
+
+# def plot_reconstructions(labels_list, fixed_activity_dict_NDNF_newest, prefix="", plot=False):
+
+#     synthetic_mean_array = {}
+#     means_dict_cluster= {}
+#     for num_clusters in labels_list:
+#     # for num_clusters in range(len(labels_list)):
+#         data_truncated_array_NDNF, _ = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
+#         labels = labels_list[num_clusters]
+#         uniq = np.unique(labels)
+#         real_data_mean_array = np.empty(data_truncated_array_NDNF.shape)
+#         mean_data_dict = {}
+
+#         r_vel_dict_per_clust = {}
+#         r_lick_dict_per_clust = {}
+
+#         cell_ids_per_cluster_dict = {}
+
+#         vel_data_sliced_dict = {}
+#         lick_data_sliced_dict = {}
+
+#         # vel_array = r_dict_vel["array_data"]
+#         # lick_array = r_dict_licks["array_data"]
+
+#         labels_loc_dict = {}
+
+#         mean_data_list = []
+#         fraction_cells_list = []
+#         for i in uniq:
+#             labels_loc = np.where(labels==i)[0]
+#             cell_ids_per_cluster_dict[i] = labels_loc
+#             fraction_cells = (len(labels_loc) / data_truncated_array_NDNF.shape[0])*100
+#             fraction_cells_list.append(fraction_cells)
+#             real_data_array_sliced = data_truncated_array_NDNF[labels_loc,:,:]
+#             mean_real_data_array_sliced = np.mean(real_data_array_sliced, axis=0)
+#             mean_data_list.append(mean_real_data_array_sliced)
+#             real_data_mean_array[labels_loc,:,:] = mean_real_data_array_sliced
+
+#             labels_loc_dict[i] = labels_loc
+            
+#             # r_list_vel = np.array(r_dict_vel["r_list"])
+
+#             # r_list_licks = np.array(r_dict_licks["r_list"])
+
+            
+
+#             # vel_data_sliced_dict[i] = vel_array[labels_loc,:,:]
+
+#             # lick_data_sliced_dict[i] = lick_array[labels_loc,:,:]
+
+#             # r_vel_dict_per_clust[i] = r_list_vel[labels_loc]
+#             # r_lick_dict_per_clust[i] = r_list_licks[labels_loc]
+
+
+
+#         MSE_reco_vs_real = np.mean(np.square(data_truncated_array_NDNF-real_data_mean_array))
+
+#         mean_data_dict = {"mean_data_list":mean_data_list,
+#                         "fraction_cells":fraction_cells_list,
+#                         "MSE_reco_vs_real":MSE_reco_vs_real,
+#                         # "r_vel_dict_per_clust":r_vel_dict_per_clust,
+#                         # "r_lick_dict_per_clust":r_lick_dict_per_clust,
+#                         "cell_ids_per_cluster_dict":cell_ids_per_cluster_dict,
+#                         # "vel_data_sliced_dict":vel_data_sliced_dict,
+#                         # "lick_data_sliced_dict":lick_data_sliced_dict,
+#                         "labels_loc_dict":labels_loc_dict}
+        
+#         means_dict_cluster[num_clusters] = mean_data_dict
+#         synthetic_mean_array[num_clusters] = real_data_mean_array
+
+
+
+#     data_truncated_array_NDNF, _ = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
+#     data_truncated_array_NDNF_ta = np.mean(data_truncated_array_NDNF, axis=2),
+#     if plot:
+#         fig, axs = plt.subplots(2,len(synthetic_mean_array), figsize=(30,8))
+#         plt.suptitle(f"Reconstructed vs Real Trial Averaged Data {prefix}")
+#         for num_clusters in synthetic_mean_array:
+#             reconstructed_data = synthetic_mean_array[num_clusters]
+#             reconstructed_data_ta = np.mean(reconstructed_data, axis=2)
+#             axs[0,num_clusters-1].imshow(reconstructed_data_ta, aspect='auto')
+#             axs[0,num_clusters-1].set_ylabel("Cell ID")
+#             axs[0,num_clusters-1].set_title(f"Reconstructed K={num_clusters}")
+#             axs[0,num_clusters-1].set_xlabel("Position Bin")
+#             axs[1,num_clusters-1].imshow(data_truncated_array_NDNF_ta, aspect='auto')
+#             axs[1,num_clusters-1].set_title("Real T.A. Data")
+#             axs[1,num_clusters-1].set_xlabel("Position Bin")
+#         plt.tight_layout()
+#         plt.show()
+
+#     return means_dict_cluster
 
 
 
@@ -282,7 +379,7 @@ def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict,
             cell_data_3d = torch.from_numpy(cell_data_3d)
 
             # use the same animal_key for the model dict
-            cell_model = NDNF_fixed_model_dict[animal_key][idt]
+            cell_model = NDNF_fixed_model_dict[animal_key][cell]
 
             internals_dict = get_animal_model_reconstruction_dict_mod(
                 cell_model,
@@ -295,12 +392,35 @@ def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict,
                 use_breakpoints=contiguous,
             )
 
-            internals_per_animal_dict_EC_animal_x00_regkmean_cell[idt] = internals_dict
+            internals_per_animal_dict_EC_animal_x00_regkmean_cell[cell] = internals_dict
 
         internals_per_animal_dict_EC_animal_x00_regkmean[animal_key] = \
             internals_per_animal_dict_EC_animal_x00_regkmean_cell
 
     return internals_per_animal_dict_EC_animal_x00_regkmean
+
+
+# def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict, num_clusters=8, reassign_clusters=False, x00=True, umap=True, contiguous=True, ranks=20):
+
+#     internals_per_animal_dict_EC_animal_x00_regkmean = {}
+    
+#     for idx, animal in enumerate(residual_activity_dict):
+#         internals_per_animal_dict_EC_animal_x00_regkmean_cell = {}
+#         for idt, cell in enumerate(residual_activity_dict[animal]):
+
+#             cell_data = residual_activity_dict[animal][cell].T
+#             cell_data = ((cell_data-np.min(cell_data)) / np.max(cell_data) - np.min(cell_data))
+#             cell_data_3d = np.expand_dims(cell_data, axis=1)
+#             cell_data_3d = torch.from_numpy(cell_data_3d)
+#             cell_model = NDNF_fixed_model_dict[idx][idt]
+
+#             internals_dict = get_animal_model_reconstruction_dict_mod(cell_model, cell_data_3d, max_clusters=num_clusters, display=False, reassign_small_clusters=reassign_clusters, x00=x00, use_umap=umap, use_breakpoints=contiguous)
+
+#             internals_per_animal_dict_EC_animal_x00_regkmean_cell[idt] = internals_dict
+        
+#         internals_per_animal_dict_EC_animal_x00_regkmean[idx] = internals_per_animal_dict_EC_animal_x00_regkmean_cell
+
+#     return internals_per_animal_dict_EC_animal_x00_regkmean
 
 
 def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False):
@@ -464,160 +584,194 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
 
 
 
-def get_animal_clean_dict_activity(filepath, use_final=None):
-
-    with h5py.File(filepath, 'r') as f:
+def get_animal_clean_dict_activity(filepath, use_final=True):
+    with h5py.File(filepath, "r") as f:
         if use_final:
-            animal_group = f['animals']
+            animal_group = f["animals"]
         else:
-            animal_group = f['animal']
+            animal_group = f["animal"]
 
-        shiftR_refs = animal_group['ShiftR'][:]
+        shiftR_refs = animal_group["ShiftR"][:]
+        shiftRunning_refs = animal_group["ShiftRunning"][:]
 
-        shiftRunning_refs = animal_group['ShiftRunning'][:]
-
-        shiftL_refs = animal_group['ShiftL'][:]
+        if use_final:
+            shiftL_refs = animal_group["ShiftL"][:]
+        else:
+            shiftL_refs = animal_group["ShiftLrate"][:]
 
         animal_clean_dict_activity = {}
-
-
         animal_trials_original = []
         animal_trials_clean = []
-
-        count = 0
 
         animal_vel_dict = {}
         animal_lick_dict = {}
 
-        trials_to_remove_local = []
-        for animal_idx in range(len(shiftR_refs)):
-            delta_f = np.array(f[shiftR_refs[animal_idx][0]])
+        trials_to_remove_local = []  # debug tracking for count == 105
+        count = 0  # global cell counter (across animals)
 
+        for animal_idx in range(len(shiftR_refs)):
+            # ΔF: (cells, trials, time)
+            delta_f = np.array(f[shiftR_refs[animal_idx][0]])
             animal_trials_original.append(delta_f.shape[1])
 
-            vel = f[shiftRunning_refs[animal_idx][0]]
-            vel = np.array(vel).T
+            # velocity & lick: raw (trials, time?) → transpose: (time, trials)
+            vel = np.array(f[shiftRunning_refs[animal_idx][0]]).T
+            lick = np.array(f[shiftL_refs[animal_idx][0]]).T
 
-            lick = f[shiftL_refs[animal_idx][0]]
-            lick = np.array(lick).T
+            # --- align trial counts across df / vel / lick ---
+            n_df_trials = delta_f.shape[1]
+            n_vel_trials = vel.shape[1]
+            n_lick_trials = lick.shape[1]
 
+            n_trials = min(n_df_trials, n_vel_trials, n_lick_trials)
 
-            vel_clean = np.empty(vel.shape)
-            lick_clean = np.empty(lick.shape)
+            if (n_df_trials, n_vel_trials, n_lick_trials) != (n_trials,) * 3:
+                delta_f = delta_f[:, :n_trials, :]
+                vel = vel[:, :n_trials]
+                lick = lick[:, :n_trials]
 
-        
+            # preallocate clean arrays
+            vel_clean = np.empty_like(vel)
+            lick_clean = np.empty_like(lick)
+            delta_f_clean = np.empty_like(delta_f)
+
+            # list of trials to drop for this animal (union across cells)
             trials_to_remove_list = []
 
-            delta_f_clean = np.empty(delta_f.shape)
-
-            
+            # special case: skip cell 0 for this animal
             if animal_idx == 22:
                 valid_cells = range(1, delta_f.shape[0])
             else:
                 valid_cells = range(delta_f.shape[0])
 
-            for cell in valid_cells: #range(delta_f.shape[0]):
-                
-            
-                cell_data = delta_f[cell,:,:].T
-
+            # --- clean per cell / per trial ---
+            for cell in valid_cells:
+                # cell_data: (time, trials)
+                cell_data = delta_f[cell, :, :].T
 
                 for trial in range(cell_data.shape[1]):
-
                     trial_data = cell_data[:, trial]
+                    vel_data_trial = vel[:, trial]
+                    lick_data_trial = lick[:, trial]
 
-                    vel_data_trial = vel[:,trial]
-                    lick_data_trial = lick[:,trial]
+                    nan_trial = np.any(np.isnan(trial_data))
+                    nan_vel = np.any(np.isnan(vel_data_trial))
 
-                    if np.any(np.isnan(trial_data)) or np.any(np.isnan(vel_data_trial)):
+                    if nan_trial or nan_vel:
+                        # decide: drop or interpolate based on runs of >=5 NaNs
+                        too_many_nans = (
+                            has_run_of_n_nans(trial_data, n=5)
+                            or has_run_of_n_nans(vel_data_trial, n=5)
+                        )
 
-                        has_5_nans = has_run_of_n_nans(trial_data, n=5)
-
-                        has_5_nans_vel = has_run_of_n_nans(vel_data_trial, n=5)
-                        
-                        if has_5_nans or has_5_nans_vel:                            
+                        if too_many_nans:
+                            # mark for removal (for all cells later)
                             if count == 105:
                                 trials_to_remove_local.append(trial)
-
-
                             if trial not in trials_to_remove_list:
                                 trials_to_remove_list.append(trial)
                         else:
+                            # interpolate and keep this trial
+                            clean_trial = interp_nans_1d(trial_data.copy())
+                            delta_f_clean[cell, trial, :] = clean_trial
 
-                            trial_data = interp_nans_1d(trial_data)
-                            delta_f_clean[cell, trial, :] = trial_data
+                            clean_vel = interp_nans_1d(vel_data_trial.copy())
+                            vel_clean[:, trial] = clean_vel
 
-                            trial_data_vel = interp_nans_1d(vel_data_trial)
-                            vel_clean[:,trial] = trial_data_vel
-
-                            trial_data_lick = interp_nans_1d(lick_data_trial)
-                            lick_clean[:,trial] = trial_data_lick
-
+                            clean_lick = interp_nans_1d(lick_data_trial.copy())
+                            lick_clean[:, trial] = clean_lick
                     else:
+                        # no NaNs anywhere: just copy
                         delta_f_clean[cell, trial, :] = trial_data
+                        vel_clean[:, trial] = vel_data_trial
+                        lick_clean[:, trial] = lick_data_trial
 
-                        vel_clean[:,trial] = vel_data_trial 
-                        lick_clean[:,trial] = lick_data_trial 
+                count += 1  # increment per cell
 
+            # --- drop bad trials across all cells for this animal ---
+            trials_to_remove_array = np.array(trials_to_remove_list, dtype=int)
 
-                count+=1
-
-
-
-
-            trials_to_remove_array = np.array(trials_to_remove_list) 
-
-            if len(trials_to_remove_array) !=0:
-
-                mask = np.ones(cell_data.shape[1], dtype=bool)
+            if trials_to_remove_array.size > 0:
+                mask = np.ones(delta_f_clean.shape[1], dtype=bool)
                 mask[trials_to_remove_array] = False
-                delta_f_clean = delta_f_clean[:, mask,:]
 
+                delta_f_clean = delta_f_clean[:, mask, :]
                 vel_clean = vel_clean[:, mask]
                 lick_clean = lick_clean[:, mask]
 
             animal_trials_clean.append(delta_f_clean.shape[1])
 
+            # --- build per-cell dict with z-scoring ---
             cell_dict = {}
+            for cell in valid_cells:
+                cell_data = delta_f_clean[cell, :, :]  # (trials, time)
 
+                mean = np.mean(cell_data)
+                std = np.std(cell_data)
 
-            for cell in valid_cells:#range(delta_f.shape[0]):
+                if std == 0 or not np.isfinite(std):
+                    # print(" -> zero or bad std for this cell, skipping")
+                    continue
 
-                cell_data = delta_f_clean[cell,:,:]
-
-                cell_data = (cell_data - np.mean(cell_data)) / np.std(cell_data)
-
-                cell_dict[f"cell_{cell+1}"] = cell_data.T
-                
+                cell_z = (cell_data - mean) / std  # (trials, time)
+                cell_dict[f"cell_{cell+1}"] = cell_z.T  # (time, trials)
 
             animal_clean_dict_activity[f"animal_{animal_idx+1}"] = cell_dict
-            animal_vel_dict[f"animal_{animal_idx+1}"] = {"Velocity":vel_clean}
-            animal_lick_dict[f"animal_{animal_idx+1}"] = {"Licks":lick_clean}
+            animal_vel_dict[f"animal_{animal_idx+1}"] = {"Velocity": vel_clean}
+            animal_lick_dict[f"animal_{animal_idx+1}"] = {"Licks": lick_clean}
 
-        return animal_clean_dict_activity, animal_vel_dict, animal_trials_original, animal_trials_clean, trials_to_remove_local, animal_lick_dict
-
-
-
-
-def get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest):
-    min_val = 10000
-
-    for animal in fixed_activity_dict_NDNF_newest:
-        for cell in fixed_activity_dict_NDNF_newest[animal]:
-            data = fixed_activity_dict_NDNF_newest[animal][cell]
-            if data.shape[1] < min_val:
-                min_val = data.shape[1]
-
-    data_truncated_list = []
-    for animal in fixed_activity_dict_NDNF_newest:
-        for cell in fixed_activity_dict_NDNF_newest[animal]:
-            data_truncated = fixed_activity_dict_NDNF_newest[animal][cell][:,:min_val]
-            data_truncated_list.append(data_truncated)
+        return (
+            animal_clean_dict_activity,
+            animal_vel_dict,
+            animal_trials_original,
+            animal_trials_clean,
+            trials_to_remove_local,
+            animal_lick_dict,
+        )
 
 
-    data_truncated_array = np.array(data_truncated_list)
+def get_truncated_to_min_data_array(activity_dict):
+    # deterministic ordering
+    animals = sorted(activity_dict.keys(), key=lambda a: int(a.split("_")[1]))
 
-    return data_truncated_array, min_val
+    # global min trials across all cells
+    min_val = min(
+        activity_dict[a][c].shape[1]
+        for a in animals
+        for c in sorted(activity_dict[a].keys(), key=lambda s: int(s.split("_")[1]))
+    )
+
+    data_list = []
+    idx_to_key = []  # list of (animal, cell_key) in the exact stacking order
+
+    for a in animals:
+        cell_keys = sorted(activity_dict[a].keys(), key=lambda s: int(s.split("_")[1]))
+        for c in cell_keys:
+            data_list.append(activity_dict[a][c][:, :min_val])
+            idx_to_key.append((a, c))
+
+    return np.array(data_list), min_val, idx_to_key
+
+
+# def get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest):
+#     min_val = 10000
+
+#     for animal in fixed_activity_dict_NDNF_newest:
+#         for cell in fixed_activity_dict_NDNF_newest[animal]:
+#             data = fixed_activity_dict_NDNF_newest[animal][cell]
+#             if data.shape[1] < min_val:
+#                 min_val = data.shape[1]
+
+#     data_truncated_list = []
+#     for animal in fixed_activity_dict_NDNF_newest:
+#         for cell in fixed_activity_dict_NDNF_newest[animal]:
+#             data_truncated = fixed_activity_dict_NDNF_newest[animal][cell][:,:min_val]
+#             data_truncated_list.append(data_truncated)
+
+
+#     data_truncated_array = np.array(data_truncated_list)
+
+#     return data_truncated_array, min_val
 
 def get_mean_behav_factor_per_cell(residual_activity_dict, factors_dict, min_num_trials, factor:str):
 
@@ -628,126 +782,6 @@ def get_mean_behav_factor_per_cell(residual_activity_dict, factors_dict, min_num
 
     return data_list
 
-
-def preprocess_data2(filepath, normalize=True, new_NDNF=False, use_final=False):
-    factors_dict = {}
-    activity_dict = {}
-
-    if new_NDNF:
-        with h5py.File(filepath, 'r') as f:
-            if use_final:
-                animal_group = f['animals']
-            else:
-                animal_group = f['animal']
-            shiftR_refs = animal_group['ShiftR'][:]
-            shiftRunning_refs = animal_group['ShiftRunning'][:]
-            shiftL_refs = animal_group['ShiftL'][:]
-            shiftV_refs = animal_group['ShiftV'][:]
-
-            for animal_idx in range(len(shiftR_refs)):
-                delta_f = np.array(f[shiftR_refs[animal_idx][0]])
-                delta_f = delta_f.swapaxes(0, 2)
-                velocity = np.array(f[shiftRunning_refs[animal_idx][0]]).T
-                lick_rate = np.array(f[shiftL_refs[animal_idx][0]]).T
-                reward_loc = np.array(f[shiftV_refs[animal_idx][0]]).T
-
-                if delta_f.shape[1] > 1:
-                    delta_f = delta_f[:, 1:, :]  # remove duplicate neuron
-
-                num_trials = min(delta_f.shape[1], velocity.shape[1], lick_rate.shape[1], reward_loc.shape[1])
-
-                delta_f = delta_f[:, :num_trials, :]
-                velocity = velocity[:, :num_trials]
-                lick_rate = lick_rate[:, :num_trials]
-                reward_loc = reward_loc[:, :num_trials]
-
-                nan_trials = (
-                        np.any(np.isnan(lick_rate), axis=0) |
-                        np.any(np.isnan(reward_loc), axis=0) |
-                        np.any(np.isnan(velocity), axis=0) |
-                        np.any(np.isnan(delta_f), axis=(0, 2))
-                )
-
-                animal_key = f'animal_{animal_idx + 1}'
-                factors_dict[animal_key] = {
-                    "Licks": lick_rate[:, ~nan_trials],
-                    "Reward_loc": reward_loc[:, ~nan_trials],
-                    "Velocity": velocity[:, ~nan_trials]
-                }
-
-                if normalize:
-                    for var in factors_dict[animal_key]:
-                        factors_dict[animal_key][var] = ((factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
-                                                         (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
-
-                activity_dict[animal_key] = {}
-                for neuron_idx in range(delta_f.shape[2]):  # loop over neurons
-                    neuron_activity = delta_f[:, :, neuron_idx]  # (trial, bin)
-                    if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
-                        continue
-
-                    cleaned_activity = neuron_activity[:, ~nan_trials]
-                    if normalize:
-                        cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
-                    neuron_key = f'cell_{neuron_idx + 1}'
-                    activity_dict[animal_key][neuron_key] = cleaned_activity
-
-
-    else:
-        data_dict = mat73.loadmat(filepath)
-
-        # Setup position variables
-        num_spatial_bins = 10
-        position_matrix = np.zeros((50, num_spatial_bins))
-        bin_size = 50 // num_spatial_bins
-        for i in range(num_spatial_bins):
-            position_matrix[i * bin_size:(i + 1) * bin_size, i] = 1
-
-        for animal_idx, (delta_f, velocity, lick_rate, reward_loc) in enumerate(
-                zip(data_dict['animal']['ShiftR'], data_dict['animal']['ShiftRunning'], data_dict['animal']['ShiftLrate'], data_dict['animal']['ShiftV'])):
-
-            num_trials = min(delta_f.shape[1], lick_rate.shape[1], reward_loc.shape[1], velocity.shape[1])
-            delta_f = delta_f[:, :num_trials, :]
-            velocity = velocity[:, :num_trials]
-            lick_rate = lick_rate[:, :num_trials]
-            reward_loc = reward_loc[:, :num_trials]
-
-            nan_trials = (
-                    np.any(np.isnan(lick_rate), axis=0) |
-                    np.any(np.isnan(reward_loc), axis=0) |
-                    np.any(np.isnan(velocity), axis=0) |
-                    np.any(np.isnan(delta_f), axis=(0, 2)))
-
-            animal_key = f'animal_{animal_idx + 1}'
-            factors_dict[animal_key] = {
-                "Licks": lick_rate[:, ~nan_trials],
-                "Reward_loc": reward_loc[:, ~nan_trials],
-                "Velocity": velocity[:, ~nan_trials]}
-
-            # Add position info
-            num_trials = factors_dict[animal_key]["Velocity"].shape[1]
-            for bin_idx in range(num_spatial_bins):
-                bin_key = f"Position_{bin_idx + 1}"
-                factors_dict[animal_key][bin_key] = np.tile(position_matrix[:, bin_idx][:, np.newaxis], num_trials)
-
-            if normalize:
-                for var in factors_dict[animal_key]:
-                    factors_dict[animal_key][var] = (
-                            (factors_dict[animal_key][var] - np.min(factors_dict[animal_key][var])) /
-                            (np.max(factors_dict[animal_key][var]) - np.min(factors_dict[animal_key][var])))
-
-            activity_dict[animal_key] = {}
-            for neuron_idx in range(delta_f.shape[2]):
-                neuron_activity = delta_f[:, :, neuron_idx]
-                if np.all(np.isnan(neuron_activity)) or np.all(neuron_activity == 0):
-                    continue
-                cleaned_activity = neuron_activity[:, ~nan_trials]
-                if normalize:
-                    cleaned_activity = (cleaned_activity - np.mean(cleaned_activity)) / np.std(cleaned_activity)
-                neuron_key = f'cell_{neuron_idx + 1}'
-                activity_dict[animal_key][neuron_key] = cleaned_activity
-
-    return activity_dict, factors_dict
 
 
 def load_data_regular(file_path=r"C:\Users\Msfin\cloned_repositories\CA1-interneuron-GLM", name="NDNFanalC", new_NDNF=True, use_final=False):
@@ -1167,62 +1201,62 @@ def rebin_means_sems(means, sems, bins_per_group=10):
     return np.array(x_coarse), np.array(m_coarse), np.array(s_coarse)
 
 
-def plot_cluster_traces_by_animal(
-    labels,                 # output from plot_reconstructions (has cell_ids_per_cluster_dict)
-    fixed_activity_dict_NDNF_newest,    # to recompute TA traces
-    cells_per_animal_dict,              # {animal: [global_cell_ids...]}
-    K, ncol=None,                                  # which K to plot
-    ylim=(-1.1, 2.6), spacing=None,  
-    title_prefix="", ax_list=None):
+# def plot_cluster_traces_by_animal(
+#     labels,                 # output from plot_reconstructions (has cell_ids_per_cluster_dict)
+#     fixed_activity_dict_NDNF_newest,    # to recompute TA traces
+#     cells_per_animal_dict,              # {animal: [global_cell_ids...]}
+#     K, ncol=None,                                  # which K to plot
+#     ylim=(-1.1, 2.6), spacing=None,  
+#     title_prefix="", ax_list=None):
 
     
-    cell_to_animal = {}
-    for animal, cell_ids in cells_per_animal_dict.items():
-        for cid in cell_ids:
-            cell_to_animal[cid] = animal
+#     cell_to_animal = {}
+#     for animal, cell_ids in cells_per_animal_dict.items():
+#         for cid in cell_ids:
+#             cell_to_animal[cid] = animal
 
-    data, min_val = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
-    ta = data.mean(axis=2)                                                   # (cells, pos)
-    n_cells, n_pos = ta.shape
+#     data, min_val = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
+#     ta = data.mean(axis=2)                                                   # (cells, pos)
+#     n_cells, n_pos = ta.shape
 
-    # clust_idx_dict = means_dict_cluster[K]["cell_ids_per_cluster_dict"]      # {cluster_label: array(cell_ids)}
-    # uniq = sorted(clust_idx_dict.keys())
+#     # clust_idx_dict = means_dict_cluster[K]["cell_ids_per_cluster_dict"]      # {cluster_label: array(cell_ids)}
+#     # uniq = sorted(clust_idx_dict.keys())
 
-    uniq = np.unique(labels)
+#     uniq = np.unique(labels)
 
-    label_to_col = {lab: j for j, lab in enumerate(uniq)}
+#     label_to_col = {lab: j for j, lab in enumerate(uniq)}
 
-    print(f"label_to_col {label_to_col}")
+#     print(f"label_to_col {label_to_col}")
 
-    animals = sorted(set(cell_to_animal.values()))
-    cmap = plt.get_cmap("tab20", len(animals))
-    animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
+#     animals = sorted(set(cell_to_animal.values()))
+#     cmap = plt.get_cmap("tab20", len(animals))
+#     animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
 
-    for lab in uniq:
-        ax = ax_list[lab]
-        idx = uniq[lab]
-        traces = ta[idx]                                   # (n_k, n_pos)
+#     for lab in uniq:
+#         ax = ax_list[lab]
+#         idx = uniq[lab]
+#         traces = ta[idx]                                   # (n_k, n_pos)
 
-        for cid in idx:
-            a = cell_to_animal.get(int(cid), "unknown")
-            color = animal_to_color.get(a, (0.5,0.5,0.5,0.6))
-            ax.plot(traces[np.where(idx==cid)[0][0], :], lw=1.0, alpha=0.7, color=color)
+#         for cid in idx:
+#             a = cell_to_animal.get(int(cid), "unknown")
+#             color = animal_to_color.get(a, (0.5,0.5,0.5,0.6))
+#             ax.plot(traces[np.where(idx==cid)[0][0], :], lw=1.0, alpha=0.7, color=color)
 
-        m = traces.mean(axis=0)
-        s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
-        ax.plot(m, lw=2.0, color="k")
-        ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color="k")
+#         m = traces.mean(axis=0)
+#         s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
+#         ax.plot(m, lw=2.0, color="k")
+#         ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color="k")
 
-        ax.set_title(f"Cluster {lab} (n={len(idx)})")
-        ax.set_xlabel("Position bins")
-        ax.set_ylim(*ylim)
-    ax.set_ylabel("Z-scored dF/F")
+#         ax.set_title(f"Cluster {lab} (n={len(idx)})")
+#         ax.set_xlabel("Position bins")
+#         ax.set_ylim(*ylim)
+#     ax.set_ylabel("Z-scored dF/F")
 
-    fig = ax_list[0].figure
-    handles = [plt.Line2D([0],[0], color=animal_to_color[a], lw=2) for a in animals]
-    labels = [f"{a}" for a in animals]
-    fig.legend(handles, labels, loc="lower center", ncol=ncol, frameon=False)
-    fig.subplots_adjust(top=0.85, right=0.98, left=0.07, bottom=spacing)
+#     fig = ax_list[0].figure
+#     handles = [plt.Line2D([0],[0], color=animal_to_color[a], lw=2) for a in animals]
+#     labels = [f"{a}" for a in animals]
+#     fig.legend(handles, labels, loc="lower center", ncol=ncol, frameon=False)
+#     fig.subplots_adjust(top=0.85, right=0.98, left=0.07, bottom=spacing)
 
 
 # def plot_cluster_traces_by_animal(
@@ -1251,10 +1285,6 @@ def plot_cluster_traces_by_animal(
 #     n_cells, n_pos = ta.shape
 
 #     labels = np.asarray(labels)
-
-#     # print(f"labels.shape {labels.shape}")
-#     # print(f"labels.type {labels.type}")
-
 #     assert labels.shape[0] == n_cells, \
 #         f"labels length {labels.shape[0]} does not match n_cells {n_cells}"
 
@@ -1340,6 +1370,102 @@ def plot_cluster_traces_by_animal(
 #     #            frameon=False)
 #     # fig.subplots_adjust(top=0.85, right=0.98, left=0.07, bottom=spacing)
 
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import sem
+
+def plot_cluster_traces_by_animal_labels(
+    labels,                              # 1D array, length = n_cells
+    fixed_activity_dict,                 # {animal: {cell_x: (pos, trials)}}
+    animal_to_color,
+    ylim=(-1.1, 2.6),
+    title_prefix="",
+    ncol=None,
+    ax_list=None,
+    spacing=0.15,
+):
+    """
+    Plot TA traces per cluster, colored by animal.
+
+    Correctness guarantee:
+    - Uses the SAME cell stacking order for both TA and animal mapping
+      via idx_to_key returned by get_truncated_to_min_data_array.
+    """
+
+    # --- 1) Build TA array + ordering map ---
+    data, min_val, idx_to_key = get_truncated_to_min_data_array(fixed_activity_dict)  # (cells, pos, trials)
+    ta = data.mean(axis=2)  # (cells, pos)
+    n_cells, n_pos = ta.shape
+
+    labels = np.asarray(labels)
+    if labels.shape[0] != n_cells:
+        raise ValueError(f"labels length {labels.shape[0]} does not match n_cells {n_cells}")
+
+    # --- 2) Map cell_idx -> animal using idx_to_key (same order as TA) ---
+    cell_idx_to_animal = {i: a for i, (a, cell_key) in enumerate(idx_to_key)}
+
+    # --- 3) Unique clusters and subplot layout ---
+    uniq_clusters = np.unique(labels)
+    n_clusters = len(uniq_clusters)
+
+    if ax_list is None:
+        if ncol is None:
+            ncol = min(4, n_clusters)
+        nrow = int(np.ceil(n_clusters / ncol))
+        fig, axs = plt.subplots(
+            nrow, ncol,
+            figsize=(4 * ncol, 3 * nrow),
+            sharey=True,
+        )
+        ax_list = np.atleast_1d(axs).ravel()
+    else:
+        ax_list = np.atleast_1d(ax_list)
+        if len(ax_list) < n_clusters:
+            raise ValueError(f"Not enough axes ({len(ax_list)}) for {n_clusters} clusters")
+
+    # --- 4) Color per animal ---
+    animals = list(animal_to_color.keys())
+    # cmap = plt.get_cmap("tab20", len(animals))
+    # animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
+
+    # --- 5) Plot each cluster ---
+    for j, lab in enumerate(uniq_clusters):
+        ax = ax_list[j]
+        idx = np.where(labels == lab)[0]  # indices into TA
+
+        if idx.size == 0:
+            ax.set_axis_off()
+            continue
+
+        traces = ta[idx, :]  # (n_k, n_pos)
+
+        # individual traces colored by animal
+        for row_i, cell_idx in enumerate(idx):
+            a = cell_idx_to_animal[cell_idx]
+            ax.plot(traces[row_i, :], lw=1.0, alpha=0.7, color=animal_to_color[a])
+
+        # mean ± SEM
+        m = traces.mean(axis=0)
+        s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
+        ax.plot(m, lw=2.0, color="k")
+        ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color="k")
+
+        ax.set_title(f"{title_prefix}Cluster {lab} (n={len(idx)})")
+        ax.set_xlabel("Position bins")
+        ax.set_ylim(*ylim)
+
+        ax.set_ylabel("Z-Scored DF/F")
+
+    # # legend (optional)
+    # fig = ax_list[0].figure
+    # handles = [plt.Line2D([0], [0], color=animal_to_color[a], lw=2) for a in animals]
+    # legend_labels = [f"{a}" for a in animals]
+    # fig.legend(handles, legend_labels, loc="lower center", ncol=(ncol or min(6, len(animals))), frameon=False)
+
+    # fig.subplots_adjust(bottom=spacing, top=0.90)
+
+
     
 def get_r_list(fixed_activity_dict_NDNF_newest, factors_dict_NDNF_newest, data_truncated_array_EC, data_to_corr=None):
 
@@ -1359,102 +1485,165 @@ def get_r_list(fixed_activity_dict_NDNF_newest, factors_dict_NDNF_newest, data_t
 
     return r_dict_vel
 
+# def plot_cluster_animal_composition_stacked_from_index(
+#     labels,
+#     fixed_activity_dict,   # same dict you pass to get_truncated_to_min_data_array
+#     K,
+#     title_prefix="",
+#     show_percent_labels=False,
+#     ax=None,
+#     legend="outside",
+#     legend_ncol=1
+# ):
+#     import numpy as np
+#     import matplotlib.pyplot as plt
 
-def plot_cluster_animal_composition_stacked(
-    labels,
-    cells_per_animal_dict,
-    K,
+#     # Build cell_idx -> animal in the SAME order you stacked data
+#     cell_idx_to_animal = {}
+#     idx_counter = 0
+#     for animal in sorted(fixed_activity_dict.keys()):
+#         cell_keys = sorted(fixed_activity_dict[animal].keys(),
+#                            key=lambda s: int(s.split("_")[1]))
+#         for _ in cell_keys:
+#             cell_idx_to_animal[idx_counter] = animal
+#             idx_counter += 1
+
+#     labels = np.asarray(labels)
+#     n_cells = labels.shape[0]
+#     if idx_counter != n_cells:
+#         print(f"⚠️ ordering mismatch: built {idx_counter} indices but labels has {n_cells}")
+
+#     clusters = np.unique(labels)
+#     animals = sorted(set(cell_idx_to_animal.values()))
+#     cmap = plt.get_cmap("tab20", len(animals))
+#     animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
+
+#     counts = np.zeros((len(clusters), len(animals)), dtype=int)
+#     for r, clab in enumerate(clusters):
+#         cell_indices = np.where(labels == clab)[0]
+#         for cell_idx in cell_indices:
+#             a = cell_idx_to_animal.get(int(cell_idx), None)
+#             if a is None:
+#                 continue
+#             counts[r, animals.index(a)] += 1
+
+#     totals = counts.sum(axis=1)
+#     x = np.arange(len(clusters))
+
+#     if ax is None:
+#         fig, ax = plt.subplots(figsize=(1.2 * len(clusters) + 3, 5))
+
+#     bottom = np.zeros_like(totals, dtype=float)
+#     for j, a in enumerate(animals):
+#         ax.bar(x, counts[:, j], bottom=bottom, width=0.8,
+#                color=animal_to_color[a], label=a)
+#         bottom += counts[:, j]
+
+#     ax.set_xticks(x)
+#     ax.set_xticklabels([f"C{cl}\n(n={totals[i]})" for i, cl in enumerate(clusters)])
+#     ax.set_ylabel("# cells")
+#     ax.set_title(f"{title_prefix} K={K}")
+
+#     if show_percent_labels:
+#         with np.errstate(divide="ignore", invalid="ignore"):
+#             props = counts / totals[:, None]
+#             props[np.isnan(props)] = 0.0
+#         for i in range(len(clusters)):
+#             cum = 0.0
+#             for j in range(len(animals)):
+#                 h = counts[i, j]
+#                 if h > 0 and props[i, j] >= 0.07:
+#                     ax.text(x[i], cum + h/2, f"{props[i,j]*100:.0f}%",
+#                             ha="center", va="center", fontsize=8, color="white")
+#                 cum += h
+
+#     if legend == "outside":
+#         ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5),
+#                   frameon=False, ncol=legend_ncol)
+#     elif legend == "inside":
+#         ax.legend(loc="upper right", frameon=False)
+
+#     return ax
+
+
+
+def plot_cluster_animal_composition_stacked_from_index(
+    labels, animal_to_color,
+    fixed_activity_dict,   # same dict you pass to get_truncated_to_min_data_array
+    K=None,
     title_prefix="",
     show_percent_labels=False,
     ax=None,
-    legend="outside",   # "outside", "inside", or None
+    legend="outside",
     legend_ncol=1
 ):
-    # --- build cell_id -> animal map ---
-    cell_to_animal = {}
-    for animal, cell_ids in cells_per_animal_dict.items():
-        for cid in cell_ids:
-            cell_to_animal[int(cid)] = animal
 
-    # --- all clusters present in labels ---
+    # --- Build cell_idx -> animal using THE SAME stacking order as TA ---
+    data, min_val, idx_to_key = get_truncated_to_min_data_array(fixed_activity_dict)
+    # idx_to_key is [(animal, cell_key), ...] in the same order as your cell axis
+    cell_idx_to_animal = {i: a for i, (a, c) in enumerate(idx_to_key)}
+
+    labels = np.asarray(labels)
+    n_cells = labels.shape[0]
+    if len(idx_to_key) != n_cells:
+        print(f"⚠️ mismatch: idx_to_key has {len(idx_to_key)} cells but labels has {n_cells}")
+
     clusters = np.unique(labels)
 
-    # --- all animals & consistent colors ---
-    animals = sorted(set(cell_to_animal.values()))
-    cmap = plt.get_cmap("tab20", len(animals))
-    animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
+    # animals present (in deterministic order for legend/color stability)
+    animals = list(animal_to_color.keys())
 
-    # --- counts matrix: rows=clusters, cols=animals ---
+    animal_to_j = {a: j for j, a in enumerate(animals)}
+
+    # counts[cluster, animal]
     counts = np.zeros((len(clusters), len(animals)), dtype=int)
-
     for r, clab in enumerate(clusters):
-        # indices of cells that belong to this cluster
         cell_indices = np.where(labels == clab)[0]
-        for cid in cell_indices:
-            a = cell_to_animal.get(int(cid), None)
-            if a is not None:
-                c = animals.index(a)
-                counts[r, c] += 1
+        for cell_idx in cell_indices:
+            a = cell_idx_to_animal.get(int(cell_idx), None)
+            if a is None:
+                continue
+            counts[r, animal_to_j[a]] += 1
 
-    totals = counts.sum(axis=1)  # cells per cluster
+    totals = counts.sum(axis=1)
     x = np.arange(len(clusters))
 
-    # --- axes handling ---
-    created_fig = False
     if ax is None:
         fig, ax = plt.subplots(figsize=(1.2 * len(clusters) + 3, 5))
-        created_fig = True
 
-    # --- plot stacked bars (height = counts, stacked by animal) ---
     bottom = np.zeros_like(totals, dtype=float)
     for j, a in enumerate(animals):
         ax.bar(
-            x,
-            counts[:, j],
-            bottom=bottom,
-            width=0.8,
-            color=animal_to_color[a],
-            label=f"{a}",
+            x, counts[:, j], bottom=bottom, width=0.8,
+            color=animal_to_color[a], label=a
         )
         bottom += counts[:, j]
 
-    # x-ticks as cluster labels with n
     ax.set_xticks(x)
-    ax.set_xticklabels([f"C{clab}\n(n={totals[i]})" for i, clab in enumerate(clusters)])
+    ax.set_xticklabels([f"C{cl}\n(n={totals[i]})" for i, cl in enumerate(clusters)])
     ax.set_ylabel("# cells")
-    ax.set_title(f"{title_prefix} K={K}")
+    k_txt = "" if K is None else f" "
+    ax.set_title(f"{title_prefix}{k_txt}")
 
-    # optional % labels inside segments
     if show_percent_labels:
         with np.errstate(divide="ignore", invalid="ignore"):
             props = counts / totals[:, None]
             props[np.isnan(props)] = 0.0
+
         for i in range(len(clusters)):
             cum = 0.0
             for j in range(len(animals)):
                 h = counts[i, j]
-                if h > 0 and props[i, j] >= 0.07:  # label only if ≥7% to avoid clutter
+                if h > 0 and props[i, j] >= 0.07:
                     ax.text(
-                        x[i],
-                        cum + h / 2.0,
-                        f"{props[i, j] * 100:.0f}%",
-                        ha="center",
-                        va="center",
-                        fontsize=8,
-                        color="white",
+                        x[i], cum + h/2, f"{props[i,j]*100:.0f}%",
+                        ha="center", va="center", fontsize=8, color="white"
                     )
                 cum += h
 
-    # legend placement
     if legend == "outside":
-        ax.legend(
-            loc="center left",
-            bbox_to_anchor=(1.02, 0.5),
-            frameon=False,
-            ncol=legend_ncol,
-        )
-        if created_fig:
-            fig.subplots_adjust(right=0.78)
+        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5),
+                  frameon=False, ncol=legend_ncol)
     elif legend == "inside":
         ax.legend(loc="upper right", frameon=False)
 
@@ -1558,16 +1747,38 @@ def plot_lick_vel_data_clust(
         mean_over_cells = np.nanmean(trial_av_vel_array, axis=0)
         sem_over_cells = sem(trial_av_vel_array, axis=0, nan_policy='omit')
 
-        ax.plot(mean_over_cells, label=f"Cluster {clust} n={vel_array.shape[0]}", color=color_list[i])
-        ax.fill_between(range(len(mean_over_cells)), mean_over_cells-sem_over_cells, mean_over_cells+sem_over_cells, alpha=0.2, color=color_list[i])
-        # plt.title(f"Cluster {clust}")
-        ax.set_xlabel("Position Bins")
-        if use_vel:
-            ax.set_ylabel(f"Velocity (meters/sec)")
-        else:
-            ax.set_ylabel(f"Normalized Lick Rate")
-    ax.set_title(title)
+        # plot
+        ax.plot(
+            mean_over_cells,
+            label=f"Cluster {clab} (n={vel_array.shape[0]})",
+            color=color_list[i_idx],
+        )
+        ax.fill_between(
+            range(len(mean_over_cells)),
+            mean_over_cells - sem_over_cells,
+            mean_over_cells + sem_over_cells,
+            alpha=0.2,
+            color=color_list[i_idx],
+        )
+
+    # --- labels etc. ---
+    ax.set_xlabel("Position bins")
+    if use_vel:
+        ax.set_ylabel("Velocity (meters/sec)")
+    else:
+        ax.set_ylabel("Normalized Lick Rate")
+
+    if title is not None:
+        ax.set_title(title)
+
     ax.legend()
+
+    if created_fig:
+        plt.tight_layout()
+        plt.show()
+
+    return ax
+
 
 
 def get_cell_features(w1, f1, *,
@@ -1824,7 +2035,7 @@ def get_selectivity_each_trial_early_late_cluster(activity_dict_EC, cp_dict_EC, 
             
             if count in cell_cluster_list:
 
-                cp = cp_dict_EC[idx][idt]
+                cp = cp_dict_EC[animal][cell]
                 early_cut = cp[0]
                 late_cut = cp[1]
                 cell_data = activity_dict_EC[animal][cell]
@@ -2080,236 +2291,226 @@ def plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_s
     ax.errorbar(range(len(means0)), means0, yerr=sems0, label="Cell Type 0", color=color_list[0])
     ax.errorbar(range(len(means1)), means1, yerr=sems1, label="Cell Type 1", color=color_list[1])
     ax.set_xticks(np.arange(3), ["Early", "Middle", "Late"])
+    ax.set_ylabel("Selectivity")
     ax.legend()
 
 
 
-def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict, num_clusters=8, reassign_clusters=False, x00=True, umap=True, contiguous=True, ranks=20):
-    # tensor_list_by_animal_all_SST = []
-    # for animal in residual_activity_dict:
-    #     neural_data = ut.get_animal_neural_tensor(residual_activity_dict, animal=animal)
-    #     neural_data_tensor = torch.tensor(neural_data)
-    #     # Normalize per cell
-    #     for i in range(neural_data_tensor.shape[1]):
-    #         cell = neural_data_tensor[:, i, :]
-    #         min_val = cell.min()
-    #         max_val = cell.max()
-    #         neural_data_tensor[:, i, :] = (cell - min_val) / (max_val - min_val + 1e-8)
-    #     tensor_list_by_animal_all_SST.append(neural_data_tensor)
+def debug_lda_orth_geometry(X, y, title=""):
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    lda = LinearDiscriminantAnalysis(n_components=1).fit(X, y)
+    w = lda.coef_[0].astype(float)
+    w /= np.linalg.norm(w)
+
+    # LD1 scores (projection onto w)
+    ld1 = X @ w
+
+    # Remove LD1 component to get orthogonal residual cloud
+    X_perp = X - np.outer(ld1, w)
+
+    # PCA on residual to get orth axis
+    X_perp_centered = X_perp - X_perp.mean(axis=0, keepdims=True)
+    pca = PCA(n_components=1).fit(X_perp_centered)
+    orth = pca.components_[0]
+    orth = orth - (orth @ w) * w
+    orth /= np.linalg.norm(orth)
+
+    # Check orthogonality numerically
+    print("w·orth =", float(np.dot(w, orth)))
+
+    # 2D embedding
+    X2 = np.c_[X @ w, X @ orth]
+
+    fig, axs = plt.subplots(1, 3, figsize=(14, 4))
+
+    # Panel A: LD1 score distribution
+    for lab in np.unique(y):
+        axs[0].hist(ld1[y == lab], bins=30, alpha=0.5, density=True, label=f"class {lab}")
+    axs[0].set_title("LD1 scores (X @ w)")
+    axs[0].legend()
+
+    # Panel B: variance left after removing LD1 (norm of residual per sample)
+    resid_norm = np.linalg.norm(X_perp_centered, axis=1)
+    for lab in np.unique(y):
+        axs[1].hist(resid_norm[y == lab], bins=30, alpha=0.5, density=True, label=f"class {lab}")
+    axs[1].set_title("Residual magnitude after removing LD1")
+    axs[1].legend()
+
+    # Panel C: final 2D embedding
+    for lab in np.unique(y):
+        idx = (y == lab)
+        axs[2].scatter(X2[idx, 0], X2[idx, 1], s=15, alpha=0.7, label=f"class {lab}")
+    axs[2].axhline(0, lw=1)
+    axs[2].axvline(0, lw=1)
+    axs[2].set_xlabel("LD1 (X @ w)")
+    axs[2].set_ylabel("Orth-PC1 (X @ orth)")
+    axs[2].set_title("LD1 vs Orth-PC1")
+    axs[2].legend()
+
+    fig.suptitle(title, y=1.05)
+    plt.tight_layout()
+    plt.show()
+
+    return X2, w, orth, X_perp
 
 
-    internals_per_animal_dict_EC_animal_x00_regkmean = {}
-    
-    for idx, animal in enumerate(residual_activity_dict):
-        internals_per_animal_dict_EC_animal_x00_regkmean_cell = {}
-        for idt, cell in enumerate(residual_activity_dict[animal]):
+def plot_butterfly_hist(
+    argmax_list_early_0, argmax_list_late_0,
+    argmin_list_early_0, argmin_list_late_0,
+    ax=None, colors_list=None, title=None):
 
-            cell_data = residual_activity_dict[animal][cell].T
-            cell_data = ((cell_data-np.min(cell_data)) / np.max(cell_data) - np.min(cell_data))
-            cell_data_3d = np.expand_dims(cell_data, axis=1)
-            cell_data_3d = torch.from_numpy(cell_data_3d)
-            cell_model = NDNF_fixed_model_dict[idx][idt]
+    bins = np.arange(0, 51)  # 50 position bins
+
+    # ---- ARGMAX histograms (top) ----
+    ax.hist(np.array(argmax_list_early_0),
+            bins=bins, alpha=0.4,
+            color=colors_list[0])
+
+    ax.hist(np.array(argmax_list_late_0),
+            bins=bins, alpha=0.4,
+            color=colors_list[1])
+
+    # ---- ARGMIN histograms (bottom, mirrored) ----
+    weights_early_min = -np.ones_like(argmin_list_early_0, dtype=float)
+    weights_late_min  = -np.ones_like(argmin_list_late_0, dtype=float)
+
+    ax.hist(np.array(argmin_list_early_0),
+            bins=bins, alpha=0.4, weights=weights_early_min,
+            color=colors_list[2])
+
+    ax.hist(np.array(argmin_list_late_0),
+            bins=bins, alpha=0.4, weights=weights_late_min,
+            color=colors_list[3])
+
+    # Zero line
+    ax.axhline(0, color="k", linewidth=1)
+
+    # Axis labels & title
+    ax.set_xlabel("Position bin")
+    ax.set_ylabel("Cluster Count")
+    ax.set_title(f"{title} Cluster Count per Pos Bin")
+
+    # ---- Symmetric y-limits and custom ticks (25 → 0 → 25 style) ----
+    y_min, y_max = ax.get_ylim()
+    max_val = max(abs(y_min), abs(y_max))
+    ax.set_ylim(-max_val, max_val)
+
+    # Hard-code symmetric ticks (e.g., -25..0..25, labeled as 25..0..25)
+    n_ticks = 5  # per side
+    pos_ticks = np.linspace(0, max_val, n_ticks+1)     # 0..26
+    neg_ticks = -pos_ticks[1:][::-1]              # -26..-small
+    ticks = np.concatenate([neg_ticks, [0.0], pos_ticks[1:]])
+    tick_labels = [f"{int(abs(t))}" for t in ticks]
+
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(tick_labels)
+
+    # ---- Separate legends: upper right for Max, lower right for Min ----
+    # Proxy handles for legend (so we don't depend on hist's internal patches)
+    handles_max = [
+        Line2D([0], [0], color=colors_list[0], lw=3, label="Max Early"),
+        Line2D([0], [0], color=colors_list[1], lw=3, label="Max Late"),
+    ]
+    legend_max = ax.legend(handles=handles_max,
+                        loc="upper right",
+                        title="Max Loc")
+    ax.add_artist(legend_max)  # keep this one when adding second legend
+
+    handles_min = [
+        Line2D([0], [0], color=colors_list[2], lw=3, linestyle="--", label="Min Early"),
+        Line2D([0], [0], color=colors_list[3], lw=3, linestyle="--", label="Min Late"),
+    ]
+    legend_min = ax.legend(handles=handles_min,
+                        loc="lower right",
+                        title="Min Loc")
+
+    return ax
 
 
-    # internals_per_animal_dict_EC_animal_x00_regkmean = {}
-    # for animal in animal_EC_model_ranks20_contig_x00[ranks]:
-    #     animal_model = animal_EC_model_ranks20_contig_x00[ranks][animal][0]
-        # tensor_for_animal = tensor_list_by_animal_all_SST[animal]
-            internals_dict = get_animal_model_reconstruction_dict_mod(cell_model, cell_data_3d, max_clusters=num_clusters, display=False, reassign_small_clusters=reassign_clusters, x00=x00, use_umap=umap, use_breakpoints=contiguous)
+def get_argmin_argmax_list_learning_celltype(labels, residual_activity_dict_EC, cp_dict_EC):
 
-            internals_per_animal_dict_EC_animal_x00_regkmean_cell[idt] = internals_dict
-        
-        internals_per_animal_dict_EC_animal_x00_regkmean[idx] = internals_per_animal_dict_EC_animal_x00_regkmean_cell
+    early_cp_argmax_list = []
+    early_cp_argmin_list = []
 
-    return internals_per_animal_dict_EC_animal_x00_regkmean
+    late_cp_argmax_list = []
+    late_cp_argmin_list = []
+
+    argmax_amp_list_early = [[] for _ in range(50)]
+    argmin_amp_list_early = [[] for _ in range(50)]
+
+    argmax_amp_list_late = [[] for _ in range(50)]
+    argmin_amp_list_late = [[] for _ in range(50)]
+
+    count = 0
+
+    for idx, animal in enumerate(residual_activity_dict_EC):
+        for idt, cell in enumerate(residual_activity_dict_EC[animal]):
+
+            if count in labels:
+                early_cp = cp_dict_EC[animal][cell][0]
+                late_cp = cp_dict_EC[animal][cell][1]
+
+                data_early = np.mean(residual_activity_dict_EC[animal][cell][:, :early_cp], axis=1)
+                data_late = np.mean(residual_activity_dict_EC[animal][cell][:, late_cp:], axis=1)
+
+                max_loc_early = np.argmax(data_early)
+                min_loc_early = np.argmin(data_early)
+
+                early_cp_argmax_list.append(max_loc_early)
+                early_cp_argmin_list.append(min_loc_early)
+
+                argmax_amp_list_early[max_loc_early].append(data_early[max_loc_early])
+                argmin_amp_list_early[min_loc_early].append(data_early[min_loc_early])
+
+                max_loc_late = np.argmax(data_late)
+                min_loc_late = np.argmin(data_late)
+
+                late_cp_argmax_list.append(max_loc_late)
+                late_cp_argmin_list.append(min_loc_late)
+
+                argmax_amp_list_late[max_loc_late].append(data_late[max_loc_late])
+                argmin_amp_list_late[min_loc_late].append(data_late[min_loc_late])
+                
+
+            count+=1
 
 
-def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False):
-    import warnings
-    warnings.filterwarnings("ignore", category=UserWarning)
-    warnings.filterwarnings("ignore", category=FutureWarning)
 
-    per_cell_internals_dict = {}
-    reconstruction_full_animal = animal_model.construct().numpy(force=True)
+    return early_cp_argmax_list, early_cp_argmin_list, late_cp_argmax_list, late_cp_argmin_list, argmax_amp_list_early, argmin_amp_list_early, argmax_amp_list_late, argmin_amp_list_late
 
-    if x00:
-        w1 = animal_model.vectors[0][0].detach().numpy()
-        X = np.abs(w1.T)
-        if use_umap:
-            import umap
-            umap_model = umap.UMAP(n_components=3, random_state=0)
-            X_umap = umap_model.fit_transform(X)
-    else:
-        f = animal_model.vectors[2][1].detach()
-        f1 = f.permute(1, 0, 2).reshape(f.shape[1], -1)
-        f1 = torch.abs(f1).cpu().numpy()
-        if use_umap:
-            import umap
-            umap_model = umap.UMAP(n_components=3, random_state=0)
-            X_umap = umap_model.fit_transform(f1)
 
-    cluster_labels_dict = {}
-    cluster_pca_dict = {}
-    cluster_centroids_dict = {}
+def mean_and_sem(argmax_amp_list):
+        means_list = []
+        sems_list = []
 
-    for clusters_chosen in range(1, max_clusters):
-        if use_breakpoints:
-            print(f"Using breakpoint clustering (clusters = {clusters_chosen})")
-            model_input = X_umap if use_umap else (X if x00 else f1)
-            n_bkps = clusters_chosen - 1
-            algo = rpt.Binseg(model="l2", min_size=3).fit(model_input)
-            try:
-                bkps = algo.predict(n_bkps=n_bkps)
-            except rpt.exceptions.BadSegmentationParameters:
-                print("  Skipping due to bad breakpoint config")
-                continue
-
-            labels = np.zeros(model_input.shape[0], dtype=int)
-            start = 0
-            for cluster_id, end in enumerate(bkps):
-                labels[start:end] = cluster_id
-                start = end
-
-            centroids = np.array([
-                model_input[labels == i].mean(axis=0)
-                for i in range(clusters_chosen)
-            ])
-            X_pca = PCA(n_components=3).fit_transform(model_input)
-
-        else:
-            kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
-            model_input = X_umap if use_umap else (X if x00 else f1)
-            labels = kmeans.fit_predict(model_input)
-
-            centroids = kmeans.cluster_centers_
-            if use_umap:
-                X_pca = PCA(n_components=3).fit_transform(X_umap)
+        for i in range(len(argmax_amp_list)):
+            pos_bin_vals = argmax_amp_list[i]
+            if len(pos_bin_vals)>1:
+                means_list.append(np.mean(pos_bin_vals))
+                sems_list.append(sem(pos_bin_vals))
+            elif len(pos_bin_vals)==1:
+                means_list.append(pos_bin_vals[0])
+                sems_list.append(0.0)
             else:
-                X_pca = PCA(n_components=3).fit_transform(model_input)
+                means_list.append(np.nan)
+                sems_list.append(np.nan)
 
-        cluster_labels_dict[clusters_chosen] = labels
-        cluster_centroids_dict[clusters_chosen] = centroids
-        cluster_pca_dict[clusters_chosen] = X_pca
-
-    for cell in range(reconstruction_full_animal.shape[1]):
-        #     cell = 0
-        print(f"Processing cell {cell}...")
-
-        MSE_dict = {}
-        x_pca_dict = {}
-        labels_dict = {}
-        indices_for_cluster_number = {}
-        TCA_reconstructions_dict = {}
-        Recon_by_cluster_av_dict = {}
-        cluster_trial_mean_dict = {}
-
-        reconstructed_cell = reconstruction_full_animal[:, cell, :]
-        real_cell_activity = tensor_for_animal[:, cell, :].detach().numpy()
-
-        for clusters_chosen in range(1, max_clusters):
-            labels = cluster_labels_dict[clusters_chosen].copy()
-            centroids = cluster_centroids_dict[clusters_chosen]
-            X_pca = cluster_pca_dict[clusters_chosen]
-            model_input = X_umap if use_umap else (X if x00 else f1)
-
-            print(f"\nclusters_chosen = {clusters_chosen}")
-            print("Before reassignment:")
-            for cluster_id in range(clusters_chosen):
-                count = np.sum(labels == cluster_id)
-                print(f"  Cluster {cluster_id}: {count} trials")
-
-            if reassign_small_clusters:
-                if use_umap:
-                    model_input = X_umap
-                    centroid_space = np.array([
-                        model_input[labels == i].mean(axis=0)
-                        for i in range(clusters_chosen)])
-                else:
-                    model_input = X if x00 else f1
-                    centroid_space = centroids
-                for cluster_id in range(clusters_chosen):
-                    trial_indices = np.where(labels == cluster_id)[0]
-                    if len(trial_indices) < 2:
-                        print(f"  Reassigning cluster {cluster_id} (size={len(trial_indices)})...")
-                        for idx in trial_indices:
-                            trial = model_input[idx]
-                            dists = cdist([trial], centroid_space)[0]
-                            dists[cluster_id] = np.inf
-                            new_cluster = np.argmin(dists)
-                            labels[idx] = new_cluster
-
-            print("After reassignment:")
-            for cluster_id in range(clusters_chosen):
-                count = np.sum(labels == cluster_id)
-                print(f"  Cluster {cluster_id}: {count} trials")
-
-            x_pca_dict[f"clusters_chosen_{clusters_chosen}"] = X_pca
-            labels_dict[f"clusters_chosen_{clusters_chosen}"] = labels
-
-            valid_cluster_mean_trials_list = []
-            valid_cluster_indices = []
-            cluster_trial_indices = {}
-
-            for n in range(clusters_chosen):
-                trial_indices = np.where(labels == n)[0]
-                cluster_trial_indices[n] = trial_indices
-                if len(trial_indices) == 0:
-                    continue
-
-                print(f"real_cell_activity.shape {real_cell_activity.shape}")
-                cluster_trials = real_cell_activity[trial_indices, :]
-                mean_cluster = cluster_trials.mean(axis=0)
-                valid_cluster_mean_trials_list.append(mean_cluster)
-                valid_cluster_indices.append((n, trial_indices))
-
-            empty_cell = np.zeros_like(reconstructed_cell)
-            for i, (n, trials) in enumerate(valid_cluster_indices):
-                empty_cell[trials, :] = valid_cluster_mean_trials_list[i]
-
-            key = f"clusters_chosen_{clusters_chosen}"
-            MSE_dict[key] = np.mean((real_cell_activity - empty_cell) ** 2)
-            Recon_by_cluster_av_dict[key] = empty_cell
-            TCA_reconstructions_dict[key] = reconstructed_cell
-            cluster_trial_mean_dict[key] = valid_cluster_mean_trials_list
-            indices_for_cluster_number[key] = cluster_trial_indices
-
-        per_cell_internals_dict[f"cell_{cell}"] = {
-            "MSE_dict": MSE_dict,
-            "x_pca_dict": x_pca_dict,
-            "labels_dict": labels_dict,
-            "indices_for_cluster_number": indices_for_cluster_number,
-            "TCA_reconstructions_dict": TCA_reconstructions_dict,
-            "Recon_by_cluster_av_dict": Recon_by_cluster_av_dict,
-            "cluster_trial_mean_dict": cluster_trial_mean_dict,
-        }
-
-    return per_cell_internals_dict
+        return means_list, sems_list
 
 
 
+def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
 
 
+    fig, axs = plt.subplots(4,4, figsize=(15,13))
+    fig.subplots_adjust(hspace=0.9)
 
-def run(use_fixed_track, data_root):
-
-
-    title_fs = 9
-
-
-
-    which_pop = "NDNF"
-
-
-
-
-
-
-    if which_pop=="NDNF":
-
-
+    if which_celltype=="NDNF":
         filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/NDNF_E0A1B1_251107.mat'
 
-        animal_clean_dict_activity, animal_vel_dict, animal_trials_original, animal_trials_clean, trials_to_remove_local, animal_lick_dict = get_animal_clean_dict_activity(filepath, use_final=True)
+        animal_clean_dict_activity, animal_vel_dict, animal_trials_original, animal_trials_clean, trials_to_remove_local, animal_lick_dict = get_animal_clean_dict_activity(filepath)
 
         GLM_params, predicted_activity_dict = fit_GLM_population(animal_vel_dict, animal_clean_dict_activity, quintile=None, regression='ridge', alphas=None)
 
@@ -2322,6 +2523,66 @@ def run(use_fixed_track, data_root):
         ###### cell by cell slice tca models
 
 
+        gospel_labels_dict={
+            "A1_first_or_only":[17,18,20,21,22],
+            "A1_after_B1":[15,16,19,23,24,25,26,27,28],
+            "B1_first_or_only":[30,31,32,37,38,39,40,41],
+            "B1_after_A1":[29,33,34,35,36]
+        }
+
+        animal_id_per_session_list = [
+
+    "CG186_250123",
+    "CG189_250211",
+    "CG190_250214",
+    "CG191_250216",
+    "LM084_240608",
+    "LM098_240807",
+    "MV161_241218",
+    "MV169_250222",
+    "MV170_250222",
+    "MV177_250325",
+    "MV180_250328",
+    "MV195_250522",
+    "MV196_250523",
+    "MV219_250818",
+    "MV228_250920",
+
+    "CG189_250215",
+    "CG190_250220",
+    "LM084_240610",
+    "MV161_241219",
+    "MV170_250228",
+    "MV171_250306",
+    "MV177_250328",
+    "MV180_250331",
+    "MV191_250516",
+    "MV196_250528",
+    "MV200_250617",
+    "MV219_250822",
+    "MV222_250830",
+    "MV228_250924",
+
+    "CG186_250131",
+    "CG189_250213",
+    "CG190_250217",
+    "CG191_250218",
+    "MV166_250222",
+    "MV171_250315",
+    "MV177_250506",
+    "MV180_250408",
+    "MV191_250514",
+    "MV196_250526",
+    "MV200_250615",
+    "MV219_250820",
+    "MV228_250922"]
+
+
+        print(f"len(animal_id_per_session_list) {len(animal_id_per_session_list)}")
+
+        animal_ids_for_condition_list = []
+
+
         if use_fixed_track:
 
             clean_resid_activity_dict_NDNF_newest = {}
@@ -2330,24 +2591,121 @@ def run(use_fixed_track, data_root):
 
             clean_lick_dict_NDNF_newest = {}
 
-            for idx, animal in enumerate(residual_activity_dict_NDNF_new):
-                if 14 < idx < 29:
-                    clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
-                    clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
-                    clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+            NDNF_model_dict_clean = {}
 
-
-            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/NDNF_fixed_model_dict_clean.pkl', 'rb') as f:
-                NDNF_model_dict_clean  = pickle.load(f)
+            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/better_NDNF_fixed_model_dict_clean.pkl', 'rb') as f:
+                NDNF_model_dict  = pickle.load(f)
 
 
             save_path = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_cells_truncated_fixed_model.pkl'
             with open(save_path, 'rb') as f:
                 sliceTCA_model = pickle.load(f)
 
+            cell_count = 0
+            for idx, animal in enumerate(residual_activity_dict_NDNF_new):
+                if 14 < idx < 29:
+                    idx_for_model_clean = idx-15
+                    animal_key = f"animal_{idx+1}"
+                    for cell in residual_activity_dict_NDNF_new[animal]:
+                        cell_count+=1
+                    if use_all:
+                        if idx in gospel_labels_dict["A1_first_or_only"] or idx in gospel_labels_dict["A1_after_B1"]:
+                                print(f"session idx {idx} in gospel_labels_dict[A1_first_or_only] {gospel_labels_dict['A1_first_or_only']}")
+                                clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
+                                clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
+                                clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                                animal_ids_for_condition_list.append(animal_id_per_session_list[idx])
+
+                                
+                                NDNF_model_dict_clean[animal_key] = NDNF_model_dict[animal] #[idx_for_model_clean]
+
+
+                                idx_array_one = np.array(gospel_labels_dict["A1_first_or_only"])
+                                idx_array_two = np.array(gospel_labels_dict["A1_after_B1"])
+
+                                total_idx = np.concatenate([idx_array_one, idx_array_two])
+
+                                animal_included_list = np.array(animal_id_per_session_list)[total_idx]
+
+                                fig.suptitle(f"All Fixed Sessions {animal_included_list}")
+                    else:
+                        if use_first_or_only:
+                            if idx in gospel_labels_dict["A1_first_or_only"]:
+                                print(f"session idx {idx} in gospel_labels_dict[A1_first_or_only] {gospel_labels_dict['A1_first_or_only']}")
+                                clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
+                                clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
+                                clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                                animal_ids_for_condition_list.append(animal_id_per_session_list[idx])
+
+                                
+                                NDNF_model_dict_clean[animal_key] = NDNF_model_dict[animal] #[idx_for_model_clean]
+
+
+                                idx_array = np.array(gospel_labels_dict["A1_first_or_only"])
+                                animal_included_list = np.array(animal_id_per_session_list)[idx_array]
+
+                                fig.suptitle(f"A1_first_or_only: {animal_included_list}")
+
+
+
+                        else:
+                            if idx in gospel_labels_dict["A1_after_B1"]:
+                                print(f"idx {idx} made it here ")
+                                print(f"session idx {idx} in gospel_labels_dict[A1_after_B1] {gospel_labels_dict['A1_after_B1']}")
+                                clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
+                                clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
+                                clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                                animal_ids_for_condition_list.append(animal_id_per_session_list[idx])
+
+                                NDNF_model_dict_clean[animal_key] = NDNF_model_dict[animal] #[idx_for_model_clean]
+
+
+                                idx_array = np.array(gospel_labels_dict["A1_after_B1"])
+                                animal_included_list = np.array(animal_id_per_session_list)[idx_array]
+
+                                fig.suptitle(f"A1_after_B1: {animal_included_list}")
+
+
+            count = 0
+            binary_array = np.zeros(cell_count)
+            for idx, animal in enumerate(residual_activity_dict_NDNF_new):
+                if 14 < idx < 29:
+                    for cell in residual_activity_dict_NDNF_new[animal]:
+                        if use_all:
+                            if idx in gospel_labels_dict["A1_first_or_only"] or idx in gospel_labels_dict["A1_after_B1"]:
+                                    binary_array[count] = 1
+                        else:
+                            if use_first_or_only:
+                                if idx in gospel_labels_dict["A1_first_or_only"]:
+                                    binary_array[count] = 1
+                            else:
+                                if idx in gospel_labels_dict["A1_after_B1"]:
+                                    binary_array[count] = 1
+                        count+=1
+
+            print(f"binary_array.shape {binary_array.shape} {binary_array}")
+
+            labels_dict_raw_new = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
+
+            cells_array = labels_dict_raw_new[2] ### will produce an array num cells long
+
+            idx_of_interest = np.where(binary_array==1)[0]
+
+            labels = cells_array[idx_of_interest] 
+
+            print(f"labels {labels}")
             
             
         else:
+
+            NDNF_model_dict_clean = {}
+
+            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/better_NDNF_cued_model_dict_clean.pkl', 'rb') as f:
+                NDNF_model_dict = pickle.load(f)
+
+            save_path = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_cells_truncated_cued_model.pkl'
+            with open(save_path, 'rb') as f:
+                sliceTCA_model = pickle.load(f)
 
             clean_resid_activity_dict_NDNF_newest = {}
 
@@ -2355,50 +2713,202 @@ def run(use_fixed_track, data_root):
 
             clean_lick_dict_NDNF_newest = {}
 
+            
+            cell_count = 0
             for idx, animal in enumerate(residual_activity_dict_NDNF_new):
                 if idx > 28:
-                    clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
-                    clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
-                    clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                    idx_for_model_clean = idx-29
+                    animal_key = f"animal_{idx+1}"
+                    for cell in residual_activity_dict_NDNF_new[animal]:
+                        cell_count+=1
 
-                
+                    if use_all:
+                        if idx in gospel_labels_dict["B1_first_or_only"] or idx in gospel_labels_dict['B1_after_A1']:
+                            print(f"session idx {idx} in gospel_labels_dict[B1_first_or_only] {gospel_labels_dict['B1_first_or_only']}")
+                            clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
+                            clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
+                            clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                            animal_ids_for_condition_list.append(animal_id_per_session_list[idx])
 
-            with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/NDNF_cued_model_dict_clean.pkl', 'rb') as f:
-                NDNF_model_dict_clean = pickle.load(f)
+                            idx_array_one = np.array(gospel_labels_dict["B1_first_or_only"])
+                            idx_array_two = np.array(gospel_labels_dict["B1_after_A1"])
 
-            save_path = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_cells_truncated_cued_model.pkl'
-            with open(save_path, 'rb') as f:
-                sliceTCA_model = pickle.load(f)
+                            all_idx = np.concatenate([idx_array_one, idx_array_two])
+
+                            animal_included_list = np.array(animal_id_per_session_list)[all_idx]
+
+                            fig.suptitle(f"All Cued Sessions: {animal_included_list}")
+
+                            NDNF_model_dict_clean[animal_key] = NDNF_model_dict[animal] #[idx_for_model_clean]
+
+                    else:
+                        if use_first_or_only:
+                            if idx in gospel_labels_dict["B1_first_or_only"]:
+                                print(f"session idx {idx} in gospel_labels_dict[B1_first_or_only] {gospel_labels_dict['B1_first_or_only']}")
+                                clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
+                                clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
+                                clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                                animal_ids_for_condition_list.append(animal_id_per_session_list[idx])
+
+                                idx_array = np.array(gospel_labels_dict["B1_first_or_only"])
+                                animal_included_list = np.array(animal_id_per_session_list)[idx_array]
+
+                                fig.suptitle(f"B1_first_or_only: {animal_included_list}")
+
+                                NDNF_model_dict_clean[animal_key] = NDNF_model_dict[animal] #[idx_for_model_clean]
+
+                        else:
+                            if idx in gospel_labels_dict["B1_after_A1"]:
+                                print(f"session idx {idx} in gospel_labels_dict[B1_after_A1] {gospel_labels_dict['B1_after_A1']}")
+                                clean_resid_activity_dict_NDNF_newest[f"animal_{idx+1}"] = residual_activity_dict_NDNF_new[animal]
+                                clean_velocity_dict_NDNF_newest[f"animal_{idx+1}"] = animal_vel_dict[animal]
+                                clean_lick_dict_NDNF_newest [f"animal_{idx+1}"] = animal_lick_dict[animal]
+                                animal_ids_for_condition_list.append(animal_id_per_session_list[idx])
+                            
+                                idx_array = np.array(gospel_labels_dict["B1_after_A1"])
+                                animal_included_list = np.array(animal_id_per_session_list)[idx_array]
+
+                                fig.suptitle(f"B1_after_A1: {animal_included_list}")
+
+                                NDNF_model_dict_clean[animal_key] = NDNF_model_dict[animal] #[idx_for_model_clean]
 
 
-    elif which_pop=="EC":
 
-        GLM_params_EC, _, _, factors_dict_EC, filtered_factors_dict_EC, clean_resid_activity_dict_NDNF_newest = load_data_regular(file_path=data_root, name="EC_GLM", new_NDNF=False)
+            count = 0
+            binary_array = np.zeros(cell_count)
+            for idx, animal in enumerate(residual_activity_dict_NDNF_new):
+                if idx > 28:
+                    for cell in residual_activity_dict_NDNF_new[animal]:
+                        if use_all:
+                            if idx in gospel_labels_dict["B1_first_or_only"] or idx in gospel_labels_dict["B1_after_A1"]:
+                                binary_array[count] = 1
+                        else:
+                            if use_first_or_only:
+                                if idx in gospel_labels_dict["B1_first_or_only"]:
+                                    binary_array[count] = 1
+                            else:
+                                if idx in gospel_labels_dict["B1_after_A1"]:
+                                    binary_array[count] = 1
+                        count+=1
+
+            print(f"binary_array.shape {binary_array.shape} {binary_array}")
+
+            labels_dict_raw_new = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
+
+            cells_array = labels_dict_raw_new[2] ### will produce an array num cells long
+
+            idx_of_interest = np.where(binary_array==1)[0]
+
+            labels = cells_array[idx_of_interest] 
+
+            print(f"labels {labels}")
+
+
+    elif which_celltype=="EC":
+
+        filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/EC_GLM.mat'
+
+        animal_clean_dict_activity, clean_velocity_dict_NDNF_newest, animal_trials_original, animal_trials_clean, trials_to_remove_local, clean_lick_dict_NDNF_newest = get_animal_clean_dict_activity(filepath, use_final=False)
+
+        GLM_params, predicted_activity_dict = fit_GLM_population(clean_velocity_dict_NDNF_newest, animal_clean_dict_activity, quintile=None, regression='ridge', alphas=None)
+
+        clean_resid_activity_dict_NDNF_newest = get_residual_activity_dict(animal_clean_dict_activity, predicted_activity_dict)
 
 
         with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/EC_model_dict_clean.pkl', 'rb') as f:
                 NDNF_model_dict_clean = pickle.load(f)
 
 
-        # filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/NDNF_E0A1B1_251107.mat'
-
-        # animal_clean_dict_activity, animal_vel_dict, animal_trials_original, animal_trials_clean, trials_to_remove_local, animal_lick_dict = get_animal_clean_dict_activity(filepath)
-
-        # GLM_params, predicted_activity_dict = fit_GLM_population(animal_vel_dict, animal_clean_dict_activity, quintile=None, regression='ridge', alphas=None)
-
-        # residual_activity_dict_NDNF_new = get_residual_activity_dict(animal_clean_dict_activity, predicted_activity_dict)
+        save_path = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_cells_truncated_EC_model.pkl'
+        with open(save_path, 'rb') as f:
+            sliceTCA_model = pickle.load(f)
 
 
+        labels_dict = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
+        labels = labels_dict[2]
+
+
+        cell_count = 0
+        for animal in clean_resid_activity_dict_NDNF_newest:
+            for cell in clean_resid_activity_dict_NDNF_newest[animal]:
+                cell_count+=1
+
+        idx_of_interest = np.arange(cell_count)
+
+        fig.suptitle(f"EC All Fixed Track Cells")
+
+
+    elif which_celltype=="SST":
+
+        filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/SSTindivsomata_GLM.mat'
+
+        animal_clean_dict_activity, clean_velocity_dict_NDNF_newest, animal_trials_original, animal_trials_clean, trials_to_remove_local, clean_lick_dict_NDNF_newest = get_animal_clean_dict_activity(filepath, use_final=False)
+
+        GLM_params, predicted_activity_dict = fit_GLM_population(clean_velocity_dict_NDNF_newest, animal_clean_dict_activity, quintile=None, regression='ridge', alphas=None)
+
+        clean_resid_activity_dict_NDNF_newest = get_residual_activity_dict(animal_clean_dict_activity, predicted_activity_dict)
+
+
+        with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/SST_model_dict_clean.pkl', 'rb') as f:
+            NDNF_model_dict_clean = pickle.load(f)
+
+
+        save_path = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/all_cells_truncated_SST_model.pkl'
+        with open(save_path, 'rb') as f:
+            sliceTCA_model = pickle.load(f)
+
+
+        labels_dict = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
+        labels = labels_dict[2]
+
+
+        cell_count = 0
+        for animal in clean_resid_activity_dict_NDNF_newest:
+            for cell in clean_resid_activity_dict_NDNF_newest[animal]:
+                cell_count+=1
+
+        idx_of_interest = np.arange(cell_count)
+
+        fig.suptitle(f"SST All Fixed Track Cells")
+
+
+
+    animals = sorted(clean_resid_activity_dict_NDNF_newest.keys(), key=lambda a: int(a.split("_")[1]))
+    cmap = plt.get_cmap("tab20", len(animals))
+    animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
+
+
+    print(f"labels {labels}")
+    
+    cells_group_0 = np.where(labels==0)[0]
+    cells_group_1 = np.where(labels==1)[0]
+
+    animal_average_selectivity_dict_NDNF_0, animals_dict_data_NDNF_0 = get_selectivity_each_trial_cell_type(clean_resid_activity_dict_NDNF_newest, cells_group_0, neg_sel=False, trial_av=True, norm="min_max")
+    animal_average_selectivity_dict_NDNF_1, animals_dict_data_NDNF_1 = get_selectivity_each_trial_cell_type(clean_resid_activity_dict_NDNF_newest, cells_group_1, neg_sel=False, trial_av=True, norm="min_max")
+
+    animal_average_selectivity_dict_NDNF_0_list = []
+    for animal in animal_average_selectivity_dict_NDNF_0:
+        for cell in animal_average_selectivity_dict_NDNF_0[animal]:
+            animal_average_selectivity_dict_NDNF_0_list.append(animal_average_selectivity_dict_NDNF_0[animal][cell])
+
+    animal_average_selectivity_dict_NDNF_1_list = []
+    for animal in animal_average_selectivity_dict_NDNF_1:
+        for cell in animal_average_selectivity_dict_NDNF_1[animal]:
+            animal_average_selectivity_dict_NDNF_1_list.append(animal_average_selectivity_dict_NDNF_1[animal][cell])
+
+    if np.mean(animal_average_selectivity_dict_NDNF_0_list) > np.mean(animal_average_selectivity_dict_NDNF_1_list):
+        inverted_labels = 1 - labels
+        cells_group_0 = np.where(inverted_labels==0)[0]
+        cells_group_1 = np.where(inverted_labels==1)[0]
+        labels = inverted_labels
+
+            
+    
 
 
     
+    # reassigned_dict = preprocess_animal(NDNF_model_dict_clean, clean_resid_activity_dict_NDNF_newest, num_clusters=8, reassign_clusters=True, x00=True, umap=False, contiguous=False, ranks=20)
 
-                
-    
-
-
-    
-    reassigned_dict = preprocess_animal(NDNF_model_dict_clean, clean_resid_activity_dict_NDNF_newest, num_clusters=8, reassign_clusters=True, x00=True, umap=False, contiguous=False, ranks=20)
 
     contig_dict_all_cell_tca = preprocess_animal(NDNF_model_dict_clean, clean_resid_activity_dict_NDNF_newest, num_clusters=5, reassign_clusters=False, x00=True, umap=False, contiguous=True, ranks=20)
 
@@ -2410,75 +2920,59 @@ def run(use_fixed_track, data_root):
 
     cp_dict_NDNF = get_cp_dict(contig_dict)
 
-    fig, axs = plt.subplots(3,4, figsize=(15,15))
+ 
+    # data_truncated_array_NDNF, min_num_trials = get_truncated_to_min_data_array(clean_resid_activity_dict_NDNF_newest)
 
-
-    labels_dict_raw_new = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
-
-    # cue_means_dict_raw_new = plot_reconstructions(labels_dict_raw_new, clean_resid_activity_dict_NDNF_newest, prefix="NDNF Cue New")
-
-    data_truncated_array_NDNF, min = get_truncated_to_min_data_array(clean_resid_activity_dict_NDNF_newest)
-
-    r_dict_vel = get_r_list(clean_resid_activity_dict_NDNF_newest, clean_velocity_dict_NDNF_newest, data_truncated_array_NDNF, data_to_corr="Velocity")
-    r_dict_licks = get_r_list(clean_resid_activity_dict_NDNF_newest, clean_lick_dict_NDNF_newest, data_truncated_array_NDNF, data_to_corr="Licks")
-
-        
-
-    means_dict_cluster_0x0_cue_resid = plot_reconstructions(labels_dict_raw_new, clean_resid_activity_dict_NDNF_newest, np.nan_to_num(r_dict_vel), np.nan_to_num(r_dict_licks), prefix="NDNF 0x0 Cue Resid") #r_dict_vel, r_dict_licks, 
-
-
-
+   
     cells_per_animal_dict = get_cells_per_animal_dict(clean_resid_activity_dict_NDNF_newest)
-    plot_cluster_traces_by_animal(means_dict_cluster_0x0_cue_resid,
+   
+    plot_cluster_traces_by_animal_labels(labels,
                                 clean_resid_activity_dict_NDNF_newest,
-                                cells_per_animal_dict,
-                                K=2,
+                                animal_to_color, 
                                 ncol=5, spacing=0.2,
-                                title_prefix="NDNF Cue Raw", ax_list=[axs[0,0], axs[0,1]])
-
-
-
-    # activity_early_array, activity_array_late = get_activity_cut_learn(fixed_activity_dict_NDNF_newest, cp_dict_NDNF)
-    # plot_clustered_data_learn(means_dict_cluster_0x0_raw, activity_early_array, activity_array_late, K=2, title="Raw NDNF Clustered Changepoint")
-
-
-    # labels_cells_dict_all_K_NDNF_0x0_resid_cue = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
-
-
-    # cue_residual_activity_dict_NDNF_newest = plot_mean_resid(residual_activity_dict_NDNF_newest, title="Residuals", ax=axs[0,0], plot=False)
-
-
-
+                                title_prefix="", ax_list=[axs[0,0], axs[0,1]])
+    
 
     activity_early_array, activity_array_late = get_activity_cut_learn(clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
-    plot_clustered_data_learn(means_dict_cluster_0x0_cue_resid, activity_early_array, activity_array_late, K=2, title="Cued Track Residuals NDNF Clustered Changepoint", ax_list=[axs[2,0],axs[2,1]])
+    plot_clustered_data_learn(labels, activity_early_array, activity_array_late, K=2, title="Cued Track Residuals NDNF Clustered Changepoint", ax_list=[axs[2,0],axs[2,1]])
 
 
 
     color_list = ["purple", "red"]
 
 
-    plot_cluster_animal_composition_stacked(means_dict_cluster_0x0_cue_resid, cells_per_animal_dict, K=2,
-                                            title_prefix="NDNF 0x0 Residual Cue", show_percent_labels=True, ax=axs[1,0])
+    print(f"cells_per_animal_dict {cells_per_animal_dict}")
+
+    plot_cluster_animal_composition_stacked_from_index(
+    labels,
+    animal_to_color, 
+    clean_resid_activity_dict_NDNF_newest,
+    K=2,
+    title_prefix="",
+    show_percent_labels=True,
+    ax=axs[1,0])
 
 
-
-    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=False, title="Licks NDNF Cued Track", ax=axs[1,2], color_list=color_list)
-    plot_lick_vel_data_clust(means_dict_cluster_0x0_cue_resid, num_clusters=2, use_vel=True, title="Velocity NDNF Cued Track", ax=axs[1,1], color_list=color_list)
+    plot_lick_vel_data_clust(labels, clean_velocity_dict_NDNF_newest, cells_per_animal_dict, use_vel=True, num_clusters=2, title="Velocity", ax=axs[1,2], color_list=color_list)
+    plot_lick_vel_data_clust(labels, clean_lick_dict_NDNF_newest, cells_per_animal_dict, use_vel=False, num_clusters=2, title="Licks", ax=axs[1,1], color_list=color_list)
 
     which_vectors=1
-
-    labels = np.asarray(labels_dict_raw_new[2])
 
     w1 = sliceTCA_model.vectors[which_vectors][0]
     f1 = sliceTCA_model.vectors[which_vectors][1]
 
-    labels = np.asarray(labels_dict_raw_new[2])
+    print(f"w1.shape {w1.shape} f1.shape {f1.shape}")
+
+
+    w1_subset = w1[:, idx_of_interest]  
+
+    
+    # labels = np.asarray(labels_dict_raw_new[2])
     n_latents_expected = 20
     n_cells_expected = len(labels)  
 
     X = get_cell_features(
-        w1, f1,
+        w1_subset, f1,
         feature_mode="0x0",
         n_cells_expected=n_cells_expected,
         n_latents_expected=n_latents_expected,)
@@ -2495,12 +2989,14 @@ def run(use_fixed_track, data_root):
     uniq = np.unique(labels)
     X_2d = lda_with_orthogonal_axis_2d(X, labels, title_prefix="")
 
+    # X2, w, orth, X_perp = debug_lda_orth_geometry(X, labels, title="My dataset")
+
     for i, k in enumerate(uniq):
         m = labels == k
         axs[0,2].scatter(X_2d[m, 0], X_2d[m, 1], s=40, alpha=0.6, color=color_list[i], label=f"C{k} (n={m.sum()})")
 
     axs[0,2].set_xlabel("LDA Component 1")
-    axs[0,2].set_ylabel("LDA Component 2")
+    axs[0,2].set_ylabel("PC1 of LDA-subtracted residuals")
 
     leg = axs[0,2].legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
     fig.subplots_adjust(right=0.78)
@@ -2513,10 +3009,10 @@ def run(use_fixed_track, data_root):
     animal_average_selectivity_dict_NDNF_1, animals_dict_data_NDNF_1 = get_selectivity_each_trial_cell_type(clean_resid_activity_dict_NDNF_newest, cells_list_1, neg_sel=False, trial_av=True, norm="min_max")
 
 
-    binned_data_NDNF_0 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0, n_bins=20)
-    binned_data_NDNF_1 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1, n_bins=20)
+    binned_data_NDNF_0 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0, n_bins=10)
+    binned_data_NDNF_1 = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1, n_bins=10)
 
-    plot_the_CDF_celltypes(binned_data_NDNF_0, binned_data_NDNF_1, title="Selectivity Distribution", n_bins = 20, ax=axs[2,2])
+    plot_the_CDF_celltypes(binned_data_NDNF_0, binned_data_NDNF_1, title="Selectivity Distribution", n_bins = 10, ax=axs[2,2])
 
 
 
@@ -2533,14 +3029,14 @@ def run(use_fixed_track, data_root):
     print(f"animal_average_selectivity_dict_NDNF_1_middle {animal_average_selectivity_dict_NDNF_1_middle}")
 
 
-    binned_data_NDNF_0_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_early, n_bins=20)
-    binned_data_NDNF_1_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_early, n_bins=20)
+    binned_data_NDNF_0_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_early, n_bins=10)
+    binned_data_NDNF_1_early = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_early, n_bins=10)
 
-    binned_data_NDNF_0_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_late, n_bins=20)
-    binned_data_NDNF_1_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_late, n_bins=20)
+    binned_data_NDNF_0_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_0_late, n_bins=10)
+    binned_data_NDNF_1_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_late, n_bins=10)
 
 
-    plot_the_CDF_early_late(binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="Selectivity Distribution Early Late Learn", n_bins = 20, ax=axs[2,3])
+    plot_the_CDF_early_late(binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="Selectivity Distribution Early Late Learn", n_bins = 10, ax=axs[2,3])
 
 
 
@@ -2556,8 +3052,76 @@ def run(use_fixed_track, data_root):
 
     plot_eml_data(animal_average_selectivity_dict_NDNF_0_early, animal_average_selectivity_dict_NDNF_1_early, animal_average_selectivity_dict_NDNF_0_middle, animal_average_selectivity_dict_NDNF_1_middle, animal_average_selectivity_dict_NDNF_0_late, animal_average_selectivity_dict_NDNF_1_late, ax=axs[0,3], color_list=color_list)
 
+    data, min_val, idx_to_key = get_truncated_to_min_data_array(clean_resid_activity_dict_NDNF_newest)
+    print("First 10 rows in TA correspond to:")
+    for i in range(10):
+        a, c = idx_to_key[i]
+        print(i, a, c, "shape", clean_resid_activity_dict_NDNF_newest[a][c].shape)
 
 
+    early_cp_argmax_list_0, early_cp_argmin_list_0, late_cp_argmax_list_0, late_cp_argmin_list_0, argmax_amp_list_early_0, argmin_amp_list_early_0, argmax_amp_list_late_0, argmin_amp_list_late_0 = get_argmin_argmax_list_learning_celltype(cells_list_0, clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
+    
+    early_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmax_list_1, late_cp_argmin_list_1, argmax_amp_list_early_1, argmin_amp_list_early_1, argmax_amp_list_late_1, argmin_amp_list_late_1 = get_argmin_argmax_list_learning_celltype(cells_list_1, clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
+    
+    plot_butterfly_hist(early_cp_argmax_list_0, late_cp_argmax_list_0, early_cp_argmin_list_0, late_cp_argmin_list_0, ax=axs[3,0], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 0")
+
+    plot_butterfly_hist(early_cp_argmax_list_1, late_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmin_list_1, ax=axs[3,2], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 1")
+
+
+    means_list_early_0, sems_list_early_0 = mean_and_sem(argmax_amp_list_early_0)
+    means_list_late_0, sems_list_late_0 = mean_and_sem(argmax_amp_list_late_0)
+    means_list_early_1, sems_list_early_1 = mean_and_sem(argmax_amp_list_early_1)
+    means_list_late_1, sems_list_late_1 = mean_and_sem(argmax_amp_list_late_1)
+
+    means_list_early_0min, sems_list_early_0min = mean_and_sem(argmin_amp_list_early_0)
+    means_list_late_0min, sems_list_late_0min = mean_and_sem(argmin_amp_list_late_0)
+    means_list_early_1min, sems_list_early_1min = mean_and_sem(argmin_amp_list_early_1)
+    means_list_late_1min, sems_list_late_1min = mean_and_sem(argmin_amp_list_late_1)
+
+    x10_0_e_max, m10_0_e_max, s10_0_e_max = rebin_means_sems(means_list_early_0,  sems_list_early_0)
+    _,         m10_0_l_max, s10_0_l_max   = rebin_means_sems(means_list_late_0,   sems_list_late_0)
+
+    _,         m10_0_e_min, s10_0_e_min   = rebin_means_sems(means_list_early_0min, sems_list_early_0min)
+    _,         m10_0_l_min, s10_0_l_min   = rebin_means_sems(means_list_late_0min,  sems_list_late_0min)
+
+    x10_1_e_max, m10_1_e_max, s10_1_e_max = rebin_means_sems(means_list_early_1,  sems_list_early_1)
+    _,         m10_1_l_max, s10_1_l_max   = rebin_means_sems(means_list_late_1,   sems_list_late_1)
+
+    _,         m10_1_e_min, s10_1_e_min   = rebin_means_sems(means_list_early_1min, sems_list_early_1min)
+    _,         m10_1_l_min, s10_1_l_min   = rebin_means_sems(means_list_late_1min,  sems_list_late_1min)
+
+
+    axs[3,1].errorbar(x10_0_e_max, m10_0_e_max, yerr=s10_0_e_max,
+                    label='Early Max', capsize=3, marker='o')
+    axs[3,1].errorbar(x10_0_e_max, m10_0_l_max, yerr=s10_0_l_max,
+                    label='Late Max', capsize=3, marker='o')
+    axs[3,1].errorbar(x10_0_e_max, m10_0_e_min, yerr=s10_0_e_min,
+                    label='Early Min', capsize=3, marker='o')
+    axs[3,1].errorbar(x10_0_e_max, m10_0_l_min, yerr=s10_0_l_min,
+                    label='Late Min', capsize=3, marker='o')
+    axs[3,1].set_xlabel("Coarse position bin")
+    axs[3,1].set_ylabel("dF/F amplitude")
+    axs[3,1].set_title("Cell Type 0 Max/Min Amplitude")
+    axs[3,1].legend()
+
+   
+    axs[3,3].errorbar(x10_1_e_max, m10_1_e_max, yerr=s10_1_e_max,
+                    label='Early Max', capsize=3, marker='o')
+    axs[3,3].errorbar(x10_1_e_max, m10_1_l_max, yerr=s10_1_l_max,
+                    label='Late Max', capsize=3, marker='o')
+    axs[3,3].errorbar(x10_1_e_max, m10_1_e_min, yerr=s10_1_e_min,
+                    label='Early Min', capsize=3, marker='o')
+    axs[3,3].errorbar(x10_1_e_max, m10_1_l_min, yerr=s10_1_l_min,
+                    label='Late Min', capsize=3, marker='o')
+    axs[3,3].set_xlabel("Coarse position bin")
+    axs[3,3].set_ylabel("dF/F amplitude")
+    axs[3,3].set_title("Cell Type 1 Max/Min Amplitude")
+    axs[3,3].legend() 
+
+
+        
+    
+    
     plt.tight_layout()
 
     plt.show()
@@ -2566,15 +3130,12 @@ def run(use_fixed_track, data_root):
 
 @click.command()
 @click.option('--use_fixed_track/--use_cued_track', default=True, help="Use the 'most expressed' scanning logic.")
-# @click.option('--use_new_data/--use_old_data', default=True, help="Use the Final NDNF data")
+@click.option('--use_first_or_only/--use_mixed_track', default=True, help="Use the Final NDNF data")
+@click.option('--use_all/--use_some', default=True, help="Use the Final NDNF data")
 
-def cli(use_fixed_track):
 
-    data_root = "/Users/michaelfinch/CA1-interneuron-GLM/"
-
-    run(use_fixed_track, data_root)
+def cli(use_fixed_track, use_first_or_only, use_all):
+    run(use_fixed_track, use_first_or_only, use_all, which_celltype="SST")
 
 if __name__ == "__main__":
-
-    
     cli()

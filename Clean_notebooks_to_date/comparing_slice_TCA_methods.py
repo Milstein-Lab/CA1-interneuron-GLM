@@ -112,7 +112,6 @@ def get_labels_all_different_Ks_single(model_20_NDNF_resid, which_vectors: int):
 
 def plot_reconstructions(labels_cells_dict_all_K_NDNF, fixed_activity_dict_NDNF_newest, r_dict_vel, r_dict_licks, prefix="", plot=False):
 
-
     synthetic_mean_array = {}
     means_dict_cluster= {}
     for num_clusters in labels_cells_dict_all_K_NDNF:
@@ -731,8 +730,12 @@ def plot_cluster_traces_by_animal(
             cell_to_animal[cid] = animal
 
     # --- get TA data (cells × pos) ---
-    data = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
-    ta = data.mean(axis=2)                                                   # (cells, pos)
+    data, min_val, idx_to_key = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)
+    ta = data.mean(axis=2)
+
+    cell_idx_to_animal = {i: a for i, (a, c) in enumerate(idx_to_key)}
+    # data = get_truncated_to_min_data_array(fixed_activity_dict_NDNF_newest)  # (cells, pos, trials)
+    # ta = data.mean(axis=2)                                                   # (cells, pos)
     n_cells, n_pos = ta.shape
 
     # --- clusters & subplot layout ---

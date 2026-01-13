@@ -382,6 +382,9 @@ def plot_one_celltype(MSE_an_av_per_latent, MSE_an_sem_per_latent, k_values, col
     ax.legend()
 
 
+
+
+
 def run():
 
     animal_clean_dict_activity_NDNF, animal_vel_dict_NDNF, animal_trials_original, animal_trials_clean, trials_to_remove_local, animal_lick_dict_NDNF = get_animal_clean_dict_activity('/Users/michaelfinch/CA1-interneuron-GLM/datasets/NDNF_E0A1B1_251107.mat', use_final=True)
