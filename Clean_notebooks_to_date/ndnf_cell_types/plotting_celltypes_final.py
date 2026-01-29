@@ -22,7 +22,7 @@ plt.rcParams['axes.titlesize'] = 8       # all titles
 plt.rcParams['axes.labelsize'] = 7       # x and y labels
 plt.rcParams['xtick.labelsize'] = 6      # tick labels
 plt.rcParams['ytick.labelsize'] = 6
-plt.rcParams["legend.fontsize"] = 7
+plt.rcParams["legend.fontsize"] = 6
 plt.rcParams['savefig.dpi'] = 600
 
 
@@ -57,7 +57,7 @@ def get_mean_sem_lists(binned_data):
 
 
 
-def plot_clustered_data_learn(labels_full, activity_early_array, activity_array_late, K=2, title="", ax_list=None):
+def plot_clustered_data_learn(labels_full, activity_early_array, activity_array_late, K=2, title="", ax_list=None, color_list_lists=None):
     # data_good = means_dict_cluster_0x0_raw[K]["labels_loc_dict"]
 
     # fig, axs = plt.subplots(1,len(data_good), figsize=(4*len(data_good), 4))
@@ -66,6 +66,7 @@ def plot_clustered_data_learn(labels_full, activity_early_array, activity_array_
     data_good = np.unique(labels_full)
 
     for i in data_good:
+        color_list = color_list_lists[i]
         axs = ax_list[i]
         # labels = data_good[i]
         labels = np.where(labels_full==i)[0]
@@ -80,11 +81,11 @@ def plot_clustered_data_learn(labels_full, activity_early_array, activity_array_
         sem_sliced_late = sem(sliced_late, axis=0)
 
         # sliced_data_late_dict[i] = sliced_late
-        axs.plot(mean_sliced_early, label='Early')
-        axs.fill_between(range(len(mean_sliced_early)), mean_sliced_early-sem_sliced_early, mean_sliced_early+sem_sliced_early, alpha=0.2)
+        axs.plot(mean_sliced_early, label='Early', color=color_list[0])
+        axs.fill_between(range(len(mean_sliced_early)), mean_sliced_early-sem_sliced_early, mean_sliced_early+sem_sliced_early, alpha=0.2, color=color_list[0])
 
-        axs.plot(mean_sliced_late, label="Late")
-        axs.fill_between(range(len(mean_sliced_late)), mean_sliced_late-sem_sliced_late, mean_sliced_late+sem_sliced_late, alpha=0.2)
+        axs.plot(mean_sliced_late, label="Late", color=color_list[1])
+        axs.fill_between(range(len(mean_sliced_late)), mean_sliced_late-sem_sliced_late, mean_sliced_late+sem_sliced_late, alpha=0.2, color=color_list[1])
         axs.set_title(f"Cluster {i} n={n}")
         axs.set_ylabel("Z-Scored DF/F")
         axs.set_xlabel("Position bins")
@@ -2224,13 +2225,11 @@ def plot_the_CDF_early_late(binned_data_0_early, binned_data_1_early, binned_dat
 
     percentiles = np.linspace(100 / (2 * n_bins), 100 - (100 / (2 * n_bins)), n_bins)  # e.g., 2.5, 7.5, ..., 97.5
 
-    # Plot: horizontal bars (x=selectivity, y=percentile)
-    # plt.figure(figsize=(7, 6))
 
-    ax.errorbar(mean_0_early, percentiles, xerr=sem_0_early, fmt='o-', label='Cell Type 0 Early', color='purple', capsize=3)
-    ax.errorbar(mean_0_late, percentiles, xerr=sem_0_late, fmt='o-', label='Cell Type 0 Late', color='magenta', capsize=3)
-    ax.errorbar(mean_1_early, percentiles, xerr=sem_1_early, fmt='o-', label='Cell Type 1 Early', color='red', capsize=3)
-    ax.errorbar(mean_1_late, percentiles, xerr=sem_1_late, fmt='o-', label='Cell Type 1 Late', color='orange', capsize=3)
+    ax.errorbar(mean_0_early, percentiles, xerr=sem_0_early, fmt='o-', label='Cell Type 0 Early', color='orchid', capsize=3)
+    ax.errorbar(mean_0_late, percentiles, xerr=sem_0_late, fmt='o-', label='Cell Type 0 Late', color='purple', capsize=3)
+    ax.errorbar(mean_1_early, percentiles, xerr=sem_1_early, fmt='o-', label='Cell Type 1 Early', color='orange', capsize=3)
+    ax.errorbar(mean_1_late, percentiles, xerr=sem_1_late, fmt='o-', label='Cell Type 1 Late', color='Crimson', capsize=3)
 
     ax.set_ylabel("Percentile of Cells")
     ax.set_xlabel("Selectivity")
@@ -2356,77 +2355,327 @@ def debug_lda_orth_geometry(X, y, title=""):
     return X2, w, orth, X_perp
 
 
+# def plot_butterfly_hist(
+#     argmax_list_early_0, argmax_list_late_0,
+#     argmin_list_early_0, argmin_list_late_0,
+#     ax=None, colors_list=None, title=None):
+
+#     bins = np.arange(0, 11)  # 50 position bins
+
+#     # ---- ARGMAX histograms (top) ----
+#     ax.hist(np.array(argmax_list_early_0),
+#             bins=bins, alpha=0.4,
+#             color=colors_list[0])
+
+#     ax.hist(np.array(argmax_list_late_0),
+#             bins=bins, alpha=0.4,
+#             color=colors_list[1])
+
+#     # ---- ARGMIN histograms (bottom, mirrored) ----
+#     weights_early_min = -np.ones_like(argmin_list_early_0, dtype=float)
+#     weights_late_min  = -np.ones_like(argmin_list_late_0, dtype=float)
+
+#     ax.hist(np.array(argmin_list_early_0),
+#             bins=bins, alpha=0.4, weights=weights_early_min,
+#             color=colors_list[2])
+
+#     ax.hist(np.array(argmin_list_late_0),
+#             bins=bins, alpha=0.4, weights=weights_late_min,
+#             color=colors_list[3])
+
+#     # Zero line
+#     ax.axhline(0, color="k", linewidth=1)
+
+#     # Axis labels & title
+#     ax.set_xlabel("Position bin")
+#     ax.set_ylabel("Cluster Count")
+#     ax.set_title(f"{title} Cluster Count per Pos Bin")
+
+#     # ---- Symmetric y-limits and custom ticks (25 → 0 → 25 style) ----
+#     y_min, y_max = ax.get_ylim()
+#     max_val = max(abs(y_min), abs(y_max))
+#     ax.set_ylim(-max_val, max_val)
+
+#     # Hard-code symmetric ticks (e.g., -25..0..25, labeled as 25..0..25)
+#     n_ticks = 5  # per side
+#     pos_ticks = np.linspace(0, max_val, n_ticks+1)     # 0..26
+#     neg_ticks = -pos_ticks[1:][::-1]              # -26..-small
+#     ticks = np.concatenate([neg_ticks, [0.0], pos_ticks[1:]])
+#     tick_labels = [f"{int(abs(t))}" for t in ticks]
+
+#     ax.set_yticks(ticks)
+#     ax.set_yticklabels(tick_labels)
+
+#     # ---- Separate legends: upper right for Max, lower right for Min ----
+#     # Proxy handles for legend (so we don't depend on hist's internal patches)
+#     handles_max = [
+#         Line2D([0], [0], color=colors_list[0], lw=3, label="Max Early"),
+#         Line2D([0], [0], color=colors_list[1], lw=3, label="Max Late"),
+#     ]
+#     legend_max = ax.legend(handles=handles_max,
+#                         loc="upper right",
+#                         title="Max Loc")
+#     ax.add_artist(legend_max)  # keep this one when adding second legend
+
+#     handles_min = [
+#         Line2D([0], [0], color=colors_list[2], lw=3, linestyle="--", label="Min Early"),
+#         Line2D([0], [0], color=colors_list[3], lw=3, linestyle="--", label="Min Late"),
+#     ]
+#     legend_min = ax.legend(handles=handles_min,
+#                         loc="lower right",
+#                         title="Min Loc")
+
+#     return ax
+
+
+
+import numpy as np
+from matplotlib.lines import Line2D
+
+# def plot_butterfly_hist(
+#     argmax_list_early, argmax_list_late,
+#     argmin_list_early, argmin_list_late,
+#     ax=None,
+#     colors_list=None,
+#     title=None,
+#     bins=None,          # either int (#bins) or array-like edges
+#     n_bins=None,        # convenience: if bins is None, use this
+#     mirror_weight=-1.0, # keep negative to mirror
+#     alpha=0.4,
+#     legend=True,
+# ):
+#     """
+#     Butterfly histogram:
+#       - argmax lists plotted upward
+#       - argmin lists plotted downward (mirrored)
+
+#     Binning:
+#       - If `bins` is an int: that many equal-width bins over the data range (matplotlib behavior)
+#       - If `bins` is array-like: treated as bin edges
+#       - If `bins` is None:
+#           - If n_bins is provided: uses integer edges 0..n_bins (bin indices)
+#           - Else: defaults to integer edges 0..(max_bin_seen+1)
+#     """
+
+#     if ax is None:
+#         import matplotlib.pyplot as plt
+#         fig, ax = plt.subplots()
+
+#     if colors_list is None:
+#         colors_list = ["C0", "C1", "C2", "C3"]
+
+#     # ---- Determine bins ----
+#     if bins is None:
+#         if n_bins is None:
+#             # infer integer bin edges from max value in any list
+#             all_vals = np.concatenate([
+#                 np.asarray(argmax_list_early, dtype=float).ravel(),
+#                 np.asarray(argmax_list_late,  dtype=float).ravel(),
+#                 np.asarray(argmin_list_early, dtype=float).ravel(),
+#                 np.asarray(argmin_list_late,  dtype=float).ravel(),
+#             ])
+#             # handle empty input safely
+#             if all_vals.size == 0:
+#                 inferred_max = 0
+#             else:
+#                 inferred_max = int(np.nanmax(all_vals))
+#             bins = np.arange(0, inferred_max + 2)  # edges [0, 1, ..., max+1]
+#         else:
+#             bins = np.arange(0, int(n_bins) + 1)   # edges [0..n_bins]
+#     else:
+#         # allow `bins` to be an int or edges array
+#         if isinstance(bins, (int, np.integer)):
+#             bins = int(bins)
+
+#     # ---- ARGMAX histograms (top) ----
+#     ax.hist(np.asarray(argmax_list_early),
+#             bins=bins, alpha=alpha,
+#             color=colors_list[0])
+
+#     ax.hist(np.asarray(argmax_list_late),
+#             bins=bins, alpha=alpha,
+#             color=colors_list[1])
+
+#     # ---- ARGMIN histograms (bottom, mirrored) ----
+#     weights_early_min = mirror_weight * np.ones(len(argmin_list_early), dtype=float)
+#     weights_late_min  = mirror_weight * np.ones(len(argmin_list_late),  dtype=float)
+
+#     ax.hist(np.asarray(argmin_list_early),
+#             bins=bins, alpha=alpha, weights=weights_early_min,
+#             color=colors_list[2])
+
+#     ax.hist(np.asarray(argmin_list_late),
+#             bins=bins, alpha=alpha, weights=weights_late_min,
+#             color=colors_list[3])
+
+#     # Zero line
+#     ax.axhline(0, color="k", linewidth=1)
+
+#     # Labels & title
+#     ax.set_xlabel("Position bin")
+#     ax.set_ylabel("Cluster Count")
+#     if title is not None:
+#         ax.set_title(f"{title} Cluster Count per Pos Bin")
+
+#     # ---- Symmetric y-limits and custom ticks ----
+#     y_min, y_max = ax.get_ylim()
+#     max_val = max(abs(y_min), abs(y_max))
+#     if max_val == 0:
+#         max_val = 1
+#     ax.set_ylim(-max_val, max_val)
+
+#     # choose a reasonable number of ticks from the current scale
+#     n_ticks = 5
+#     pos_ticks = np.linspace(0, max_val, n_ticks + 1)
+#     neg_ticks = -pos_ticks[1:][::-1]
+#     ticks = np.concatenate([neg_ticks, [0.0], pos_ticks[1:]])
+#     ax.set_yticks(ticks)
+#     ax.set_yticklabels([f"{int(abs(t))}" for t in ticks])
+
+#     # ---- Separate legends ----
+#     if legend:
+#         handles_max = [
+#             Line2D([0], [0], color=colors_list[0], lw=3, label="Max Early"),
+#             Line2D([0], [0], color=colors_list[1], lw=3, label="Max Late"),
+#         ]
+#         legend_max = ax.legend(handles=handles_max,
+#                                loc="upper right",
+#                                title="Max Loc")
+#         ax.add_artist(legend_max)
+
+#         handles_min = [
+#             Line2D([0], [0], color=colors_list[2], lw=3, linestyle="--", label="Min Early"),
+#             Line2D([0], [0], color=colors_list[3], lw=3, linestyle="--", label="Min Late"),
+#         ]
+#         ax.legend(handles=handles_min,
+#                   loc="lower right",
+#                   title="Min Loc")
+
+#     return ax
+
+import numpy as np
+from matplotlib.lines import Line2D
+
+def _remap_bin_indices(vals, old_n_bins, new_n_bins):
+    """Map integer bin indices in [0, old_n_bins-1] -> [0, new_n_bins-1]."""
+    v = np.asarray(vals, dtype=float)
+    if v.size == 0:
+        return v.astype(int)
+
+    # Keep only finite values (optional)
+    mask = np.isfinite(v)
+    v2 = v[mask]
+
+    # Clip to valid old range (optional but safer)
+    v2 = np.clip(v2, 0, old_n_bins - 1)
+
+    mapped = np.floor(v2 * new_n_bins / old_n_bins).astype(int)
+    mapped = np.clip(mapped, 0, new_n_bins - 1)
+
+    out = np.full(v.shape, np.nan)
+    out[mask] = mapped
+    return out[mask].astype(int)  # return just finite mapped ints
+
+import numpy as np
+from matplotlib.lines import Line2D
+
 def plot_butterfly_hist(
-    argmax_list_early_0, argmax_list_late_0,
-    argmin_list_early_0, argmin_list_late_0,
-    ax=None, colors_list=None, title=None):
+    argmax_list_early, argmax_list_late,
+    argmin_list_early, argmin_list_late,
+    ax=None,
+    colors_list=None,
+    title=None,
+    n_bins=None,
+    old_n_bins=None,
+    remap=False,
+    mirror_weight=-1.0,
+    alpha=1.0,              # alpha for lines (usually 1)
+    track_len_cm=180.0,     # for xtick labels
+    n_xticks=6,             # how many tick labels across (incl ends)
+    lw=1.0,
+):
+    if ax is None:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
 
-    bins = np.arange(0, 51)  # 50 position bins
+    if colors_list is None:
+        colors_list = ["C0", "C1", "C2", "C3"]
 
-    # ---- ARGMAX histograms (top) ----
-    ax.hist(np.array(argmax_list_early_0),
-            bins=bins, alpha=0.4,
-            color=colors_list[0])
+    if n_bins is None:
+        raise ValueError("Pass n_bins (e.g., 20)")
 
-    ax.hist(np.array(argmax_list_late_0),
-            bins=bins, alpha=0.4,
-            color=colors_list[1])
+    if remap:
+        if old_n_bins is None:
+            raise ValueError("To remap, pass old_n_bins (e.g., 50)")
+        argmax_list_early = _remap_bin_indices(argmax_list_early, old_n_bins, n_bins)
+        argmax_list_late  = _remap_bin_indices(argmax_list_late,  old_n_bins, n_bins)
+        argmin_list_early = _remap_bin_indices(argmin_list_early, old_n_bins, n_bins)
+        argmin_list_late  = _remap_bin_indices(argmin_list_late,  old_n_bins, n_bins)
 
-    # ---- ARGMIN histograms (bottom, mirrored) ----
-    weights_early_min = -np.ones_like(argmin_list_early_0, dtype=float)
-    weights_late_min  = -np.ones_like(argmin_list_late_0, dtype=float)
+    # histogram bin edges in "bin index units"
+    bins = np.arange(0, n_bins + 1)
 
-    ax.hist(np.array(argmin_list_early_0),
-            bins=bins, alpha=0.4, weights=weights_early_min,
-            color=colors_list[2])
+    # ---- Outline-only hists ----
+    ax.hist(np.asarray(argmax_list_early), bins=bins, histtype="step",
+            linewidth=lw, alpha=alpha, color=colors_list[0])
+    ax.hist(np.asarray(argmax_list_late),  bins=bins, histtype="step",
+            linewidth=lw, alpha=alpha, color=colors_list[1])
 
-    ax.hist(np.array(argmin_list_late_0),
-            bins=bins, alpha=0.4, weights=weights_late_min,
-            color=colors_list[3])
+    weights_early_min = mirror_weight * np.ones(len(argmin_list_early), dtype=float)
+    weights_late_min  = mirror_weight * np.ones(len(argmin_list_late),  dtype=float)
+
+    ax.hist(np.asarray(argmin_list_early), bins=bins, histtype="step",
+            linewidth=lw, alpha=alpha, color=colors_list[2], linestyle="--",
+            weights=weights_early_min)
+    ax.hist(np.asarray(argmin_list_late),  bins=bins, histtype="step",
+            linewidth=lw, alpha=alpha, color=colors_list[3], linestyle="--",
+            weights=weights_late_min)
 
     # Zero line
     ax.axhline(0, color="k", linewidth=1)
 
-    # Axis labels & title
-    ax.set_xlabel("Position bin")
-    ax.set_ylabel("Cluster Count")
-    ax.set_title(f"{title} Cluster Count per Pos Bin")
+    # ---- X ticks aligned to bin edges, labeled in cm ----
+    # positions are in bin-index units [0..n_bins]
+    tick_pos = np.linspace(0, n_bins, n_xticks)
+    tick_lab = np.linspace(0, track_len_cm, n_xticks)
+    ax.set_xlim(0, n_bins)
+    ax.set_xticks(tick_pos)
+    ax.set_xticklabels([f"{v:.0f}" for v in tick_lab])
 
-    # ---- Symmetric y-limits and custom ticks (25 → 0 → 25 style) ----
+    ax.set_xlabel("Position (cm)")
+    ax.set_ylabel("Cluster Count")
+    if title is not None:
+        ax.set_title(f"{title} Peak / Trough Loc")
+
+    # symmetric y
     y_min, y_max = ax.get_ylim()
-    max_val = max(abs(y_min), abs(y_max))
+    max_val = max(abs(y_min), abs(y_max)) or 1
     ax.set_ylim(-max_val, max_val)
 
-    # Hard-code symmetric ticks (e.g., -25..0..25, labeled as 25..0..25)
-    n_ticks = 5  # per side
-    pos_ticks = np.linspace(0, max_val, n_ticks+1)     # 0..26
-    neg_ticks = -pos_ticks[1:][::-1]              # -26..-small
-    ticks = np.concatenate([neg_ticks, [0.0], pos_ticks[1:]])
-    tick_labels = [f"{int(abs(t))}" for t in ticks]
-
+    # y tick labels as absolute values
+    n_ticks = 5
+    pos_ticks = np.linspace(0, max_val, n_ticks + 1)
+    ticks = np.concatenate([-pos_ticks[1:][::-1], [0.0], pos_ticks[1:]])
     ax.set_yticks(ticks)
-    ax.set_yticklabels(tick_labels)
+    ax.set_yticklabels([f"{int(abs(t))}" for t in ticks])
 
-    # ---- Separate legends: upper right for Max, lower right for Min ----
-    # Proxy handles for legend (so we don't depend on hist's internal patches)
+    # legends (proxy handles)
     handles_max = [
-        Line2D([0], [0], color=colors_list[0], lw=3, label="Max Early"),
-        Line2D([0], [0], color=colors_list[1], lw=3, label="Max Late"),
+        Line2D([0], [0], color=colors_list[0], lw=lw, label="Early Max Loc"),
+        Line2D([0], [0], color=colors_list[1], lw=lw, label="Late Max Loc"),
     ]
-    legend_max = ax.legend(handles=handles_max,
-                        loc="upper right",
-                        title="Max Loc")
-    ax.add_artist(legend_max)  # keep this one when adding second legend
+    legend_max = ax.legend(handles=handles_max, loc="upper right") #, title="Max Loc")
+    ax.add_artist(legend_max)
 
     handles_min = [
-        Line2D([0], [0], color=colors_list[2], lw=3, linestyle="--", label="Min Early"),
-        Line2D([0], [0], color=colors_list[3], lw=3, linestyle="--", label="Min Late"),
+        Line2D([0], [0], color=colors_list[2], lw=lw, linestyle="--", label="Early Min Loc"),
+        Line2D([0], [0], color=colors_list[3], lw=lw, linestyle="--", label="Late Min Loc"),
     ]
-    legend_min = ax.legend(handles=handles_min,
-                        loc="lower right",
-                        title="Min Loc")
+    ax.legend(handles=handles_min, loc="lower right") # title="Min Loc")
 
     return ax
+
+
 
 
 def get_argmin_argmax_list_learning_celltype(labels, residual_activity_dict_EC, cp_dict_EC):
@@ -2934,11 +3183,20 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     
 
     activity_early_array, activity_array_late = get_activity_cut_learn(clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
-    plot_clustered_data_learn(labels, activity_early_array, activity_array_late, K=2, title="Cued Track Residuals NDNF Clustered Changepoint", ax_list=[axs[2,0],axs[2,1]])
+
+    color_list0 = ["orchid", "purple"]
+    color_list1 = ["orange", "Crimson"]
+
+    color_list_lists = [color_list0, color_list1]
+
+    plot_clustered_data_learn(labels, activity_early_array, activity_array_late, K=2, title="Cued Track Residuals NDNF Clustered Changepoint", ax_list=[axs[2,0],axs[2,1]], color_list_lists=color_list_lists)
 
 
 
     color_list = ["purple", "red"]
+
+    # color_list = ["orchid", "purple"]
+
 
 
     print(f"cells_per_animal_dict {cells_per_animal_dict}")
@@ -3063,10 +3321,11 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     
     early_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmax_list_1, late_cp_argmin_list_1, argmax_amp_list_early_1, argmin_amp_list_early_1, argmax_amp_list_late_1, argmin_amp_list_late_1 = get_argmin_argmax_list_learning_celltype(cells_list_1, clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
     
-    plot_butterfly_hist(early_cp_argmax_list_0, late_cp_argmax_list_0, early_cp_argmin_list_0, late_cp_argmin_list_0, ax=axs[3,0], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 0")
+    plot_butterfly_hist(early_cp_argmax_list_0, late_cp_argmax_list_0, early_cp_argmin_list_0, late_cp_argmin_list_0, ax=axs[3,0], n_bins=10, old_n_bins=50, remap=True, colors_list = ["orchid", "purple", "orchid", "purple"], title="Cell Type 0")
 
-    plot_butterfly_hist(early_cp_argmax_list_1, late_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmin_list_1, ax=axs[3,2], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 1")
+    plot_butterfly_hist(early_cp_argmax_list_1, late_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmin_list_1, ax=axs[3,2], n_bins=10, old_n_bins=50, remap=True, colors_list = ["orange", "red", "orange", "red"], title="Cell Type 1")
 
+    bins_per_group=5
 
     means_list_early_0, sems_list_early_0 = mean_and_sem(argmax_amp_list_early_0)
     means_list_late_0, sems_list_late_0 = mean_and_sem(argmax_amp_list_late_0)
@@ -3078,45 +3337,84 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     means_list_early_1min, sems_list_early_1min = mean_and_sem(argmin_amp_list_early_1)
     means_list_late_1min, sems_list_late_1min = mean_and_sem(argmin_amp_list_late_1)
 
-    x10_0_e_max, m10_0_e_max, s10_0_e_max = rebin_means_sems(means_list_early_0,  sems_list_early_0)
-    _,         m10_0_l_max, s10_0_l_max   = rebin_means_sems(means_list_late_0,   sems_list_late_0)
+    x10_0_e_max, m10_0_e_max, s10_0_e_max = rebin_means_sems(means_list_early_0,  sems_list_early_0, bins_per_group=bins_per_group)
+    _,         m10_0_l_max, s10_0_l_max   = rebin_means_sems(means_list_late_0,   sems_list_late_0, bins_per_group=bins_per_group)
 
-    _,         m10_0_e_min, s10_0_e_min   = rebin_means_sems(means_list_early_0min, sems_list_early_0min)
-    _,         m10_0_l_min, s10_0_l_min   = rebin_means_sems(means_list_late_0min,  sems_list_late_0min)
+    _,         m10_0_e_min, s10_0_e_min   = rebin_means_sems(means_list_early_0min, sems_list_early_0min, bins_per_group=bins_per_group)
+    _,         m10_0_l_min, s10_0_l_min   = rebin_means_sems(means_list_late_0min,  sems_list_late_0min, bins_per_group=bins_per_group)
 
-    x10_1_e_max, m10_1_e_max, s10_1_e_max = rebin_means_sems(means_list_early_1,  sems_list_early_1)
-    _,         m10_1_l_max, s10_1_l_max   = rebin_means_sems(means_list_late_1,   sems_list_late_1)
+    x10_1_e_max, m10_1_e_max, s10_1_e_max = rebin_means_sems(means_list_early_1,  sems_list_early_1, bins_per_group=bins_per_group)
+    _,         m10_1_l_max, s10_1_l_max   = rebin_means_sems(means_list_late_1,   sems_list_late_1, bins_per_group=bins_per_group)
 
-    _,         m10_1_e_min, s10_1_e_min   = rebin_means_sems(means_list_early_1min, sems_list_early_1min)
-    _,         m10_1_l_min, s10_1_l_min   = rebin_means_sems(means_list_late_1min,  sems_list_late_1min)
+    _,         m10_1_e_min, s10_1_e_min   = rebin_means_sems(means_list_early_1min, sems_list_early_1min, bins_per_group=bins_per_group)
+    _,         m10_1_l_min, s10_1_l_min   = rebin_means_sems(means_list_late_1min,  sems_list_late_1min, bins_per_group=bins_per_group)
 
 
-    axs[3,1].errorbar(x10_0_e_max, m10_0_e_max, yerr=s10_0_e_max,
-                    label='Early Max', capsize=3, marker='o')
-    axs[3,1].errorbar(x10_0_e_max, m10_0_l_max, yerr=s10_0_l_max,
-                    label='Late Max', capsize=3, marker='o')
-    axs[3,1].errorbar(x10_0_e_max, m10_0_e_min, yerr=s10_0_e_min,
-                    label='Early Min', capsize=3, marker='o')
-    axs[3,1].errorbar(x10_0_e_max, m10_0_l_min, yerr=s10_0_l_min,
-                    label='Late Min', capsize=3, marker='o')
-    axs[3,1].set_xlabel("Coarse position bin")
+    n = len(m10_0_e_max)
+
+    # If these are 10 coarse bins spanning the full 180 cm, use bin CENTERS:
+    x = (np.arange(n) + 0.5) * (180.0 / n)
+
+    
+    # axs[3,1].errorbar(x, m10_0_e_max, yerr=s10_0_e_max, label='Early Max', capsize=3, marker='o', color="orchid")
+    
+    # axs[3,1].errorbar(x, m10_0_l_max, yerr=s10_0_l_max, label='Late Max', capsize=3, marker='o', color="purple")
+    
+    # axs[3,1].errorbar(x, m10_0_e_min, yerr=s10_0_e_min,label='Early Min', capsize=3, marker='o', color="orchid")
+    
+    # axs[3,1].errorbar(x, m10_0_l_min, yerr=s10_0_l_min,label='Late Min', capsize=3, marker='o', color="purple")
+    
+    # axs[3,1].set_xlabel("Position (cm)")
+    # x = np.linspace(0, 180, 10)
+    # axs[3,1].set_ylabel("dF/F amplitude")
+    # axs[3,1].set_title("Cell Type 0 Max/Min Amplitude")
+    # axs[3,1].set_xticks(range(len(x)), x)
+    # axs[3,1].legend()
+
+    K = len(m10_0_e_max)              # number of coarse bins you ended up with
+    track_len = 180.0
+    edges = np.linspace(0, track_len, K + 1)
+    centers = 0.5 * (edges[:-1] + edges[1:])   # e.g. [18,54,90,126,162] if K=5
+
+    axs[3,1].errorbar(centers, m10_0_e_max, yerr=s10_0_e_max, label='Early Max Amp', capsize=3, marker='o', color="orchid")
+    axs[3,1].errorbar(centers, m10_0_l_max, yerr=s10_0_l_max, label='Late Max Amp',  capsize=3, marker='o', color="purple")
+    axs[3,1].errorbar(centers, m10_0_e_min, yerr=s10_0_e_min, label='Early Min Amp', capsize=3, marker='o', color="orchid")
+    axs[3,1].errorbar(centers, m10_0_l_min, yerr=s10_0_l_min, label='Late Min Amp',  capsize=3, marker='o', color="purple")
+
+    axs[3,1].set_xlim(0, track_len)
+
+    # Optional: show coarse bin EDGES as ticks (more “truthful” for rebinned data)
+    axs[3,1].set_xticks(edges)
+    axs[3,1].set_xticklabels([f"{t:.0f}" for t in edges])
+
+    axs[3,1].set_xlabel("Position (cm)")
     axs[3,1].set_ylabel("dF/F amplitude")
     axs[3,1].set_title("Cell Type 0 Max/Min Amplitude")
     axs[3,1].legend()
 
+
    
-    axs[3,3].errorbar(x10_1_e_max, m10_1_e_max, yerr=s10_1_e_max,
-                    label='Early Max', capsize=3, marker='o')
-    axs[3,3].errorbar(x10_1_e_max, m10_1_l_max, yerr=s10_1_l_max,
-                    label='Late Max', capsize=3, marker='o')
-    axs[3,3].errorbar(x10_1_e_max, m10_1_e_min, yerr=s10_1_e_min,
-                    label='Early Min', capsize=3, marker='o')
-    axs[3,3].errorbar(x10_1_e_max, m10_1_l_min, yerr=s10_1_l_min,
-                    label='Late Min', capsize=3, marker='o')
-    axs[3,3].set_xlabel("Coarse position bin")
+    axs[3,3].errorbar(centers, m10_1_e_max, yerr=s10_1_e_max,label='Early Max Amp', capsize=3, marker='o', color="orange")
+    axs[3,3].errorbar(centers, m10_1_l_max, yerr=s10_1_l_max,label='Late Max Amp', capsize=3, marker='o', color="red")
+    axs[3,3].errorbar(centers, m10_1_e_min, yerr=s10_1_e_min,label='Early Min Amp', capsize=3, marker='o', color="orange")
+    axs[3,3].errorbar(centers, m10_1_l_min, yerr=s10_1_l_min,label='Late Min Amp', capsize=3, marker='o', color="red")
+
+    # axs[3,3].set_xlabel("Coarse position bin")
+    # axs[3,3].set_ylabel("dF/F amplitude")
+    # axs[3,3].set_title("Cell Type 1 Max/Min Amplitude")
+    # axs[3,3].legend() 
+
+    axs[3,3].set_xlim(0, track_len)
+
+    # Optional: show coarse bin EDGES as ticks (more “truthful” for rebinned data)
+    axs[3,3].set_xticks(edges)
+    axs[3,3].set_xticklabels([f"{t:.0f}" for t in edges])
+
+    axs[3,3].set_xlabel("Position (cm)")
     axs[3,3].set_ylabel("dF/F amplitude")
     axs[3,3].set_title("Cell Type 1 Max/Min Amplitude")
-    axs[3,3].legend() 
+    axs[3,3].legend()
+
 
 
         
@@ -3135,7 +3433,7 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
 
 
 def cli(use_fixed_track, use_first_or_only, use_all):
-    run(use_fixed_track, use_first_or_only, use_all, which_celltype="SST")
+    run(use_fixed_track, use_first_or_only, use_all, which_celltype="NDNF")
 
 if __name__ == "__main__":
     cli()

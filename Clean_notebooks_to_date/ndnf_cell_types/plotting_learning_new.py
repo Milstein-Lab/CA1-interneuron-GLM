@@ -163,7 +163,7 @@ def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict, num_cluster
             cell_model = NDNF_fixed_model_dict[animal][cell]
 
 
-            internals_dict = get_animal_model_reconstruction_dict_mod(cell_model, cell_data_3d, max_clusters=num_clusters, display=False, reassign_small_clusters=reassign_clusters, x00=x00, use_umap=umap, use_breakpoints=contiguous)
+            internals_dict = get_animal_model_reconstruction_dict_mod(cell_model, cell_data_3d, max_clusters=num_clusters, display=False,  x00=x00, use_umap=umap, use_breakpoints=contiguous) #reassign_small_clusters=reassign_clusters,
 
             internals_per_animal_dict_EC_animal_x00_regkmean_cell[cell] = internals_dict
         
@@ -171,8 +171,45 @@ def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict, num_cluster
 
     return internals_per_animal_dict_EC_animal_x00_regkmean
 
+from sklearn.preprocessing import StandardScaler
+# from sklearn.cluster import KMeans
+# import numpy as np
 
-def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False):
+def kmeans_cosine_labels(model_input, n_clusters, random_state=0):
+    """
+    Spherical k-means approximation:
+      1) z-score each feature (latent dim)
+      2) L2-normalize each trial vector
+      3) run standard KMeans on normalized vectors
+    This makes clusters depend on direction (sign pattern) more than magnitude.
+    """
+    Xz = StandardScaler().fit_transform(model_input)
+    Xn = Xz / (np.linalg.norm(Xz, axis=1, keepdims=True) + 1e-8)
+    labels = KMeans(n_clusters=n_clusters, random_state=random_state, n_init="auto").fit_predict(Xn)
+    return labels, Xn
+
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+import numpy as np
+
+def kmeans_sign_aug_labels(model_input, n_clusters, sign_weight=6.0, random_state=0):
+    """
+    1) z-score magnitudes
+    2) append sign bits {-1,+1} as extra features
+    sign_weight controls how strongly sign matters.
+    """
+    Xz = StandardScaler().fit_transform(model_input)
+    S = np.sign(model_input)
+    S[S == 0] = 1  # treat exact zeros as + (or leave 0 if you prefer)
+
+    X_aug = np.concatenate([Xz, sign_weight * S], axis=1)
+    labels = KMeans(n_clusters=n_clusters, random_state=random_state, n_init="auto").fit_predict(X_aug)
+    return labels, X_aug
+
+
+
+def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, max_clusters=12, display=False, x00=True, use_umap=False, use_breakpoints=False):
     import warnings
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
@@ -180,9 +217,62 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
     per_cell_internals_dict = {}
     reconstruction_full_animal = animal_model.construct().numpy(force=True)
 
+    print(f"tensor_for_animal.shape {tensor_for_animal.shape}")
+
     if x00:
-        w1 = animal_model.vectors[0][0].detach().numpy()
-        X = np.abs(w1.T)
+        # w1 = animal_model.vectors[0][0].detach().numpy()
+        # lat = animal_model.vectors[0][1].detach().numpy().sum(axis=1)
+        # print(f"lat.shape {lat.shape}")
+        # X = np.abs(w1.T)
+        # X = w1.T
+        w1 = animal_model.vectors[0][0].detach().numpy()                # (R, T)
+        lat = animal_model.vectors[0][1].detach().numpy().sum(axis=1)   # (R, X)
+
+        w1_fixed = w1.copy()
+        lat_fixed = lat.copy()
+
+        for r in range(lat_fixed.shape[0]):
+            # choose a convention: factor should have positive peak magnitude
+            peak_idx = np.argmax(np.abs(lat_fixed[r]))
+            if lat_fixed[r, peak_idx] < 0:
+                lat_fixed[r] *= -1
+                w1_fixed[r] *= -1
+
+        # X = w1_fixed.T   # (T, R) now “positive weight” has a consistent meaning
+        X = w1.T   # (T, R) now “positive weight” has a consistent meaning
+        # X = reconstruction_full_animal.sum(axis=1)
+
+
+
+
+
+        # fig, axs = plt.subplots(1,3)
+        # listy = [19,4, 14]
+        # for i in listy:
+        #     axs[0].plot(w1[i,:66], label=i)
+        #     if i==14 or i==4 or i==19:
+        #         axs[1].plot(lat[i,:], label=i)
+        # axs[1].set_title("Plotting Individual Latent Factors")
+        # axs[1].set_ylabel("Activity")
+        # axs[1].legend()
+
+        # animal_array = tensor_for_animal.detach().numpy().sum(axis=1)
+        # axs[2].plot(animal_array[44,:])
+        # axs[2].set_title("Trial 44 Activity")
+        # axs[2].set_ylabel("Z-Scored DF/F")
+        # axs[2].set_xlabel("Position Bins")
+        # # fig.colorbar(im, ax=axs[2], label="Z-Scored DF/F")
+
+
+        # axs[0].set_title("Plotting Individual Latent Weights")
+        # axs[0].set_ylabel("Weight")
+        # axs[0].legend()
+
+        # plt.tight_layout()
+        # plt.show()
+        # # print(f"w1.shape {w1.shape}")
+        # # plt.plot(w1.T)
+        # # plt.show()
         if use_umap:
             import umap
             umap_model = umap.UMAP(n_components=3, random_state=0)
@@ -195,6 +285,11 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
             import umap
             umap_model = umap.UMAP(n_components=3, random_state=0)
             X_umap = umap_model.fit_transform(f1)
+
+    print("reconstruction_full_animal shape:", reconstruction_full_animal.shape)
+    print("tensor_for_animal shape:", tensor_for_animal.shape)
+    print("X shape (used for clustering):", (X_umap if use_umap else (X if x00 else f1)).shape)
+
 
     cluster_labels_dict = {}
     cluster_pca_dict = {}
@@ -225,11 +320,36 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
             X_pca = PCA(n_components=3).fit_transform(model_input)
 
         else:
-            kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
-            model_input = X_umap if use_umap else (X if x00 else f1)
-            labels = kmeans.fit_predict(model_input)
 
-            centroids = kmeans.cluster_centers_
+            model_input = X_umap if use_umap else (X if x00 else f1)
+
+            min_size = 5
+            n_trials = model_input.shape[0]
+            if clusters_chosen > n_trials // min_size:
+                continue
+
+            labels, model_input_used = kmeans_sign_aug_labels(model_input, clusters_chosen, sign_weight=20, random_state=0)
+            centroids = np.array([
+        model_input_used[labels == k].mean(axis=0)
+        for k in range(clusters_chosen)
+    ])
+
+            # model_input = X_umap if use_umap else (X if x00 else f1)
+
+            # labels, model_input_used = kmeans_cosine_labels(model_input, clusters_chosen, random_state=0)
+
+            # # if you want centroids in the same space used for clustering:
+            # kmeans = KMeans(n_clusters=clusters_chosen, random_state=0, n_init="auto").fit(model_input_used)
+            # labels = kmeans.labels_
+            # centroids = kmeans.cluster_centers_
+
+
+
+            # kmeans = KMeans(n_clusters=clusters_chosen, random_state=0)
+            # model_input = X_umap if use_umap else (X if x00 else f1)
+            # labels = kmeans.fit_predict(model_input)
+
+            # centroids = kmeans.cluster_centers_
             if use_umap:
                 X_pca = PCA(n_components=3).fit_transform(X_umap)
             else:
@@ -254,6 +374,12 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
         reconstructed_cell = reconstruction_full_animal[:, cell, :]
         real_cell_activity = tensor_for_animal[:, cell, :].detach().numpy()
 
+        n_labels = cluster_labels_dict[1].shape[0]  # number of points being clustered
+
+        print("real_cell_activity shape:", real_cell_activity.shape)
+        print("reconstructed_cell shape:", reconstructed_cell.shape)
+        print("n_labels:", n_labels)
+
         for clusters_chosen in range(1, max_clusters):
             labels = cluster_labels_dict[clusters_chosen].copy()
             centroids = cluster_centroids_dict[clusters_chosen]
@@ -266,25 +392,25 @@ def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, ma
                 count = np.sum(labels == cluster_id)
                 print(f"  Cluster {cluster_id}: {count} trials")
 
-            if reassign_small_clusters:
-                if use_umap:
-                    model_input = X_umap
-                    centroid_space = np.array([
-                        model_input[labels == i].mean(axis=0)
-                        for i in range(clusters_chosen)])
-                else:
-                    model_input = X if x00 else f1
-                    centroid_space = centroids
-                for cluster_id in range(clusters_chosen):
-                    trial_indices = np.where(labels == cluster_id)[0]
-                    if len(trial_indices) < 2:
-                        print(f"  Reassigning cluster {cluster_id} (size={len(trial_indices)})...")
-                        for idx in trial_indices:
-                            trial = model_input[idx]
-                            dists = cdist([trial], centroid_space)[0]
-                            dists[cluster_id] = np.inf
-                            new_cluster = np.argmin(dists)
-                            labels[idx] = new_cluster
+            # if reassign_small_clusters:
+            #     if use_umap:
+            #         model_input = X_umap
+            #         centroid_space = np.array([
+            #             model_input[labels == i].mean(axis=0)
+            #             for i in range(clusters_chosen)])
+            #     else:
+            #         model_input = X if x00 else f1
+            #         centroid_space = centroids
+            #     for cluster_id in range(clusters_chosen):
+            #         trial_indices = np.where(labels == cluster_id)[0]
+            #         if len(trial_indices) < 4:
+            #             print(f"  Reassigning cluster {cluster_id} (size={len(trial_indices)})...")
+            #             for idx in trial_indices:
+            #                 trial = model_input[idx]
+            #                 dists = cdist([trial], centroid_space)[0]
+            #                 dists[cluster_id] = np.inf
+            #                 new_cluster = np.argmin(dists)
+            #                 labels[idx] = new_cluster
 
             print("After reassignment:")
             for cluster_id in range(clusters_chosen):
@@ -1540,9 +1666,7 @@ def find_elbow(K, mse):
     return K[elbow_idx], distances
 
 
-def trial_types_for_given_k(some_things_dict, k=None, title=None, ymin_act=None, ymax_act=None, ymin_percent=None, ymax_percent=None):
-
-
+def trial_types_for_given_k(some_things_dict, k=None, title=None, ymin_act=None, ymax_act=None, ymin_percent=None, ymax_percent=None, color_list=None, overall_color=None):
 
     overall_activity_list_all = some_things_dict["overall_activity_list_all"]
     overall_activity_list_all_array = np.array(overall_activity_list_all)
@@ -1570,7 +1694,7 @@ def trial_types_for_given_k(some_things_dict, k=None, title=None, ymin_act=None,
 
     for h in range(1,11):
 
-        kmeans = KMeans(n_clusters=h, random_state=42, n_init='auto')
+        kmeans = KMeans(n_clusters=h, random_state=45, n_init=100)
 
         labels = kmeans.fit_predict(overall_activity_list_all_array)
 
@@ -1595,9 +1719,10 @@ def trial_types_for_given_k(some_things_dict, k=None, title=None, ymin_act=None,
 
     elbow_k, distances = find_elbow(K, mse_array)
 
-    axs[2, 0].plot(K, mse_array, '-o')
-    axs[2, 0].set_title(f"Elbow Number of Clusters")
-    axs[2, 0].axvline(elbow_k+1, color='r', linestyle='--', label=f'Elbow K={elbow_k+1}')
+    axs[2, 0].plot(K, mse_array, '-o', color=overall_color)
+    axs[2, 0].set_xlabel("Number of Clusters")
+    axs[2, 0].axvline(k, color='r', linestyle='--', label=f'Elbow K={k}')
+    axs[2, 0].set_ylabel("MSE")
     axs[2, 0].legend()
 
 
@@ -1664,18 +1789,23 @@ def trial_types_for_given_k(some_things_dict, k=None, title=None, ymin_act=None,
 
         empty_array[labels_for_cluster,:] = mean_activity_in_cluster
 
-        axs[0,i+1].plot(mean_activity_in_cluster)
-        axs[0,i+1].fill_between(range(len(mean_activity_in_cluster)), mean_activity_in_cluster-sem_activity_in_cluster, mean_activity_in_cluster+sem_activity_in_cluster, alpha=0.2)
+        axs[0,i+1].plot(mean_activity_in_cluster, color=overall_color, linewidth=3)
+        good_data = overall_activity_list_all_array[labels_for_cluster,:]
+        # for u in range(good_data.shape[0]):
+        #     axs[0,i+1].plot(good_data[u,:], color='b', alpha=0.05)
+        # axs[0,i+1].fill_between(range(len(mean_activity_in_cluster)), mean_activity_in_cluster-sem_activity_in_cluster, mean_activity_in_cluster+sem_activity_in_cluster, alpha=0.2, color=overall_color)
+        for l in labels_for_cluster:
+            axs[0,i+1].plot(overall_activity_list_all_array[l,:], color='grey', alpha=0.05)
         axs[0,i+1].set_title(f"Cluster Number {i} \n {len(unique_cells)}/{n_cells} Cells = {(len(unique_cells)/n_cells)*100:.2f}%")
         axs[0,i+1].set_ylabel(f"Z-Scored DF/F")
         axs[0,i+1].set_xlabel(f"Position Bins")
         axs[0,i+1].set_ylim(ymin_act, ymax_act)
         
 
-        axs[1,i+1].plot(mean_activity_in_cluster_early, label="Early")
-        axs[1,i+1].plot(mean_activity_in_cluster_late, label="Late")
-        axs[1,i+1].fill_between(range(len(mean_activity_in_cluster_early)), mean_activity_in_cluster_early+sem_activity_in_cluster_early, mean_activity_in_cluster_early-sem_activity_in_cluster_early, alpha=0.2)
-        axs[1,i+1].fill_between(range(len(mean_activity_in_cluster_late)), mean_activity_in_cluster_late+sem_activity_in_cluster_late, mean_activity_in_cluster_late-sem_activity_in_cluster_late, alpha=0.2)
+        axs[1,i+1].plot(mean_activity_in_cluster_early, label="Early", color=color_list[0])
+        axs[1,i+1].plot(mean_activity_in_cluster_late, label="Late", color=color_list[1])
+        axs[1,i+1].fill_between(range(len(mean_activity_in_cluster_early)), mean_activity_in_cluster_early+sem_activity_in_cluster_early, mean_activity_in_cluster_early-sem_activity_in_cluster_early, alpha=0.2, color=color_list[0])
+        axs[1,i+1].fill_between(range(len(mean_activity_in_cluster_late)), mean_activity_in_cluster_late+sem_activity_in_cluster_late, mean_activity_in_cluster_late-sem_activity_in_cluster_late, alpha=0.2, color=color_list[1])
         axs[1,i+1].set_ylabel(f"Z-Scored DF/F")
         axs[1,i+1].set_xlabel(f"Position Bins")
         axs[1,i+1].legend()
@@ -1689,12 +1819,23 @@ def trial_types_for_given_k(some_things_dict, k=None, title=None, ymin_act=None,
         
         sems_list = [sem_expression_in_cluster_early, sem_expression_in_cluster_late]
 
-        axs[2,i+1].plot(x, means_list, marker='o')
-        axs[2, i+1].errorbar(x, means_list, yerr=sems_list, fmt='o')
-        axs[2,i+1].set_title(f"Early vs Late p={p:.3f}")
-        axs[2,i+1].set_xticks(x, ["Early", "Late"])
-        axs[2,i+1].set_ylim(ymin_percent, ymax_percent)
+        # axs[2,i+1].plot(x, means_list, marker='o')
+        # axs[2, i+1].errorbar(x, means_list, yerr=sems_list, fmt='o')
+        # axs[2,i+1].set_title(f"Early vs Late p={p:.3f}")
+        # axs[2,i+1].set_xticks(x, ["Early", "Late"])
+        # axs[2,i+1].set_ylim(ymin_percent, ymax_percent)
 
+        axs[2, i+1].plot(x, means_list, color='black', zorder=1)
+
+        for j in range(len(x)):
+            axs[2, i+1].errorbar(x[j], means_list[j], yerr=sems_list[j], 
+                                fmt='o', color=color_list[j], zorder=2)
+
+        axs[2, i+1].set_title(f"Early vs Late p={p:.3f}")
+        axs[2, i+1].set_xticks(x)
+        axs[2, i+1].set_xticklabels(["Early", "Late"])
+        axs[2, i+1].set_ylim(ymin_percent, ymax_percent)
+        axs[2, i+1].set_ylabel("Expression Prob. in Learn Chunk")
 
     axs[1, 0].imshow(empty_array, aspect='auto')
     axs[1, 0].set_ylabel("Cluster ID")
@@ -2023,6 +2164,9 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
 
                 
     elif which_celltype=="EC":
+
+        color_list = ['lightgreen', 'forestgreen']
+
         filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/EC_GLM.mat'
 
         animal_clean_dict_activity, clean_velocity_dict_NDNF_newest, animal_trials_original, animal_trials_clean, trials_to_remove_local, clean_lick_dict_NDNF_newest = get_animal_clean_dict_activity(filepath, use_final=False)
@@ -2054,6 +2198,8 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
 
 
     elif which_celltype=="SST":
+
+        color_list = ['cyan', 'blue']
 
         filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/SSTindivsomata_GLM.mat'
 
@@ -2113,16 +2259,76 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
     reassigned_dict_cell_tca = preprocess_animal(NDNF_model_dict_clean, clean_resid_activity_dict_NDNF_newest, num_clusters=8, reassign_clusters=True, x00=True, umap=False, contiguous=False, ranks=20)
 
     contig_dict_all_cell_tca = preprocess_animal(NDNF_model_dict_clean, clean_resid_activity_dict_NDNF_newest, num_clusters=5, reassign_clusters=False, x00=True, umap=False, contiguous=True, ranks=20)
-
-
-    print(f"contig_dict_all_cell_tca.keys() {contig_dict_all_cell_tca.keys()}")
     
 
     contig_dict = reshape_contig_dict(contig_dict_all_cell_tca, NDNF_model_dict_clean)
 
+
     reassigned_dict = reshape_contig_dict(reassigned_dict_cell_tca, NDNF_model_dict_clean)
+    
+    save_path = "/Users/michaelfinch/CA1_interneuron_model/misc/reassigned_dict_EC.pkl"
+    with open(save_path, 'wb') as f:
+        pickle.dump(reassigned_dict, f)
+
+    # save_path = "/Users/michaelfinch/CA1_interneuron_model/misc/reassigned_dict.pkl"
+    # with open(save_path, 'rb') as f:
+    #     reassigned_dict = pickle.load(f)
+
+    save_path = "/Users/michaelfinch/CA1_interneuron_model/misc/contig_dict_EC.pkl"
+    with open(save_path, 'wb') as f:
+        pickle.dump(contig_dict, f)
+
+    # save_path = "/Users/michaelfinch/CA1_interneuron_model/misc/contig_dict.pkl"
+    # with open(save_path, 'rb') as f:
+    #     contig_dict = pickle.load(f)
 
     cp_dict_NDNF = get_cp_dict(contig_dict)
+
+    save_path = f"/Users/michaelfinch/CA1_interneuron_model/misc/cp_dict_{which_celltype}.pkl"
+    with open(save_path, 'wb') as f:
+        pickle.dump(cp_dict_NDNF, f)
+
+    difference_list = []
+
+    activity_early_list = []
+    activity_late_list = []
+
+    for animal in clean_resid_activity_dict_NDNF_newest:
+        for cell in clean_resid_activity_dict_NDNF_newest[animal]:
+            cp_early = cp_dict_NDNF[animal][cell][0]
+            cp_late = cp_dict_NDNF[animal][cell][1]
+
+            data = clean_resid_activity_dict_NDNF_newest[animal][cell]
+            data_early = np.mean(data[:, :cp_early], axis=1)
+            data_late = np.mean(data[:, cp_late:], axis=1)
+
+            activity_early_list.append(data_early)
+            activity_late_list.append(data_late)
+
+            difference = data_late - data_early
+
+            difference_list.append(difference)
+
+
+    difference_array = np.array(difference_list)
+    mean_difference_array = np.mean(difference_array, axis=0)
+    sem_difference_array = sem(difference_array, axis=0)
+
+    activity_early_array = np.array(activity_early_list)
+    activity_late_array = np.array(activity_late_list)
+
+    mean_early = np.mean(activity_early_array, axis=0)
+    sem_early = sem(activity_early_array, axis=0)
+
+    mean_late = np.mean(activity_late_array, axis=0)
+    sem_late = sem(activity_late_array, axis=0)
+
+
+
+
+   
+
+
 
 
     fixed_TT_data = {}
@@ -2150,10 +2356,92 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
         print(f"animal {animal} ttd {trial_type_data[animal]['cell_2'][0]}")
 
 
+    cell_of_interest = 195
 
-
+    num_clusters = 4
 
     TT_list, NDNF_activity_list, cp_list_NDNF = get_lists_out_of_dicts(fixed_TT_data, clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
+
+    print(f"TT_list[0].keys() {TT_list[0].keys()}")
+
+    mean_early_list = []
+    mean_late_list = []
+
+    for i in range(len(NDNF_activity_list)):
+        cell_data = NDNF_activity_list[i]
+        cp_early = cp_list_NDNF[i][0]
+        cp_late = cp_list_NDNF[i][1]
+
+        mean_early_list.append(np.mean(cell_data[:,:cp_early], axis=1))
+        mean_late_list.append(np.mean(cell_data[:,cp_late:], axis=1))
+
+    mean_early_array = np.array(mean_early_list)
+    mean_late_array = np.array(mean_late_list)
+
+    mean_mean_early_array = np.mean(mean_early_array, axis=0)
+    mean_mean_late_array = np.mean(mean_late_array, axis=0)
+
+    sem_mean_early_array = sem(mean_early_array, axis=0)
+    sem_mean_late_array = sem(mean_late_array, axis=0)
+
+    plt.figure()
+
+    color_list = ['orange', 'red']
+
+    plt.plot(mean_mean_early_array, color=color_list[0], label="Early")
+    plt.fill_between(range(len(mean_mean_early_array)), mean_mean_early_array-sem_mean_early_array, mean_mean_early_array+sem_mean_early_array, color=color_list[0], alpha=0.2)
+    
+    plt.plot(mean_mean_late_array, color=color_list[1], label="Late")
+    plt.fill_between(range(len(mean_mean_late_array)), mean_mean_late_array-sem_mean_late_array, mean_mean_late_array+sem_mean_late_array, color=color_list[1], alpha=0.2)
+
+    plt.tick_params(axis='both', which='major', labelsize=10)
+    plt.ylim(-0.5, 0.5)
+    plt.tight_layout()
+    plt.legend(fontsize=10)
+    plt.ylabel("Z-Scored DF/F", fontsize=11)
+    plt.xlabel("Position Bins", fontsize=11)
+    plt.figure()
+    
+
+
+
+
+# ################# ################################################################ test plotting
+
+    # fig, axs = plt.subplots(4, num_clusters+1, figsize=(12,4))
+
+    # activity = TT_list[cell_of_interest]['TCA_reconstructions_dict'][f'clusters_chosen_{num_clusters}'].T #NDNF_activity_list[cell_of_interest]
+    # print(f"activity.shape {activity.shape}")
+
+    # axs[0,0].imshow(activity.T, aspect='auto')
+    # labels = TT_list[cell_of_interest]['labels_dict'][f'clusters_chosen_{num_clusters}']
+    # unique_labels = np.unique(labels)
+    
+    # for i in unique_labels:
+    #     reco = TT_list[cell_of_interest]['Recon_by_cluster_av_dict'][f'clusters_chosen_{i+1}']
+    #     labels_cluster = np.where(labels==i)[0]
+    #     print(f"TT_list[cell_of_interest].keys() {TT_list[cell_of_interest].keys()}")
+    #     axs[0,1].imshow(reco, aspect='auto')
+
+    #     # activity_for_label = activity[:,labels_cluster]
+
+        
+    #     # clusters = TT_list[cell_of_interest]['Recon_by_cluster_av_dict'][f'clusters_chosen_{i+1}']
+    #     # for j in range(len(clusters)):
+    #     #     axs[1,i].plot(clusters[j], label='mean activity cluster j')
+
+        
+    #     cluster_activity = activity[:, labels_cluster]
+    #     mean_cluster_activity = np.mean(cluster_activity, axis=1)
+    #     axs[1,i].imshow(cluster_activity.T, aspect='auto')
+    #     axs[2,i].plot(mean_cluster_activity)
+    #     axs[2,i].set_ylim(-1, 1)
+
+    # plt.tight_layout()
+    # plt.show()
+
+
+####################### #################################################################
 
     important_dict = {"TT_list":TT_list,
                       "NDNF_activity_list":NDNF_activity_list,
@@ -2309,10 +2597,19 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
                 activity_early_list = []
                 activity_late_list = []
 
+                # fig, axs = plt.subplots(1,len(ta_activity_dict_for_cluster[cell]))
+
                 for cluster in ta_activity_dict_for_cluster[cell]:
                     cluster_expression = ta_activity_dict_for_cluster[cell][cluster]["cluster_expression"]
                     expression_list.append(cluster_expression)
                     activity_list.append(ta_activity_dict_for_cluster[cell][cluster]["overall_activity"])
+
+                    # axs[cluster].plot(ta_activity_dict_for_cluster[cell][cluster]["overall_activity"])
+                    # axs[cluster].set_title(f"Cluster {cluster} T.A. Actvity \n Cluster Expression Prob.={ta_activity_dict_for_cluster[cell][cluster]['cluster_expression']:.2f}")
+                    # axs[cluster].set_ylabel(f"Z-Scored DF/F")
+                    # axs[cluster].set_xlabel(f"Position Bins")
+                    # axs[cluster].set_ylim(-0.75, 3)
+                    
 
                     overall_activity_list_all.append(ta_activity_dict_for_cluster[cell][cluster]["overall_activity"])
 
@@ -2353,6 +2650,8 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
                     max_amp_list_late.append(max_amp_late)
                     min_amp_list_late.append(min_amp_late)
 
+                # plt.tight_layout()
+                # plt.show()
 
                 expression_list_early_pop_maxs.append(np.max(expression_list_early))
                 expression_list_early_pop_mins.append(np.min(expression_list_early))
@@ -2384,6 +2683,8 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
 
                 overall_activity_list_most.append(activity_most)
                 overall_activity_list_least.append(activity_least)
+
+
 
         most_expressed_expression_amount_array = np.array(most_expressed_expression_amount_list)
         least_expressed_expression_amount_array = np.array(least_expressed_expression_amount_list)
@@ -2438,372 +2739,483 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
 
 
         return everything_dict
-
-    
-    
-    everything_dict0 = get_activity_most_least_celltype(ta_activity_dict_for_cluster, to_include=cells_group_0)
-    everything_dict1 = get_activity_most_least_celltype(ta_activity_dict_for_cluster, to_include=cells_group_1)
-
-
-    argmax_list_early_0 = everything_dict0["argmax_array_early"]
-    argmin_list_early_0 = everything_dict0["argmin_array_early"]
-    argmax_amp_list_early_0 = everything_dict0["max_amp_array_early"]
-    argmin_amp_list_early_0 = everything_dict0["min_amp_array_early"]
-    argmax_list_late_0 = everything_dict0["argmax_array_late"]
-    argmin_list_late_0 = everything_dict0["argmin_array_late"]
-    argmax_amp_list_late_0 = everything_dict0["max_amp_array_late"]
-    argmin_amp_list_late_0 = everything_dict0["min_amp_array_late"]
-
-
-    argmax_list_early_1 = everything_dict1["argmax_array_early"]
-    argmin_list_early_1 = everything_dict1["argmin_array_early"]
-    argmax_amp_list_early_1 = everything_dict1["max_amp_array_early"]
-    argmin_amp_list_early_1 = everything_dict1["min_amp_array_early"]
-    argmax_list_late_1 = everything_dict1["argmax_array_late"]
-    argmin_list_late_1 = everything_dict1["argmin_array_late"]
-    argmax_amp_list_late_1 = everything_dict1["max_amp_array_late"]
-    argmin_amp_list_late_1 = everything_dict1["min_amp_array_late"]
-
-
-    plot_butterfly_hist(argmax_list_early_0, argmax_list_late_0, argmin_list_early_0, argmin_list_late_0, ax=axs[0,3], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 0")
-    plot_butterfly_hist(argmax_list_early_1, argmax_list_late_1, argmin_list_early_1, argmin_list_late_1, ax=axs[2,3], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 1")
-
-
-
-    colors_dict = {"Most_0":"orange",
-                   "Least_0":"magenta",
-                   "Most_1":"purple",
-                   "Least_1":"red"}
-
-    axs_list = [
-        axs[0,0], axs[0,1],
-        axs[1,0], axs[1,1],
-        axs[2,0], axs[2,1],
-        axs[3,0], axs[3,1],]
-    
-    plot_no_learn_data(everything_dict0, everything_dict1, color_dict=colors_dict, axs_list=axs_list)
     
 
+    if which_celltype == "EC":
 
-    def eval_proportion_two_groups_new(everything_dict0, everything_dict1, axs_expression_list, colors_dict, ymin_most=0.5, ymax_most=0.8, ymin_least=0.0, ymax_least=0.55):
-        expression_array_early_pop_maxs0 = everything_dict0["expression_array_early_pop_maxs"]
-        expression_array_early_pop_mins0 = everything_dict0["expression_array_early_pop_mins"]
-        expression_array_late_pop_maxs0 = everything_dict0["expression_array_late_pop_maxs"]
-        expression_array_late_pop_mins0 = everything_dict0["expression_array_late_pop_mins"]
+        everything_dict0 = get_activity_most_least_celltype(ta_activity_dict_for_cluster, to_include=range(len(ta_activity_dict_for_cluster)))
 
-        print(f"expression_array_early_pop_maxs0[0] {expression_array_early_pop_maxs0[0]}")
+        argmax_list_early_0 = everything_dict0["argmax_array_early"]
+        argmin_list_early_0 = everything_dict0["argmin_array_early"]
+        argmax_amp_list_early_0 = everything_dict0["max_amp_array_early"]
+        argmin_amp_list_early_0 = everything_dict0["min_amp_array_early"]
+        argmax_list_late_0 = everything_dict0["argmax_array_late"]
+        argmin_list_late_0 = everything_dict0["argmin_array_late"]
+        argmax_amp_list_late_0 = everything_dict0["max_amp_array_late"]
+        argmin_amp_list_late_0 = everything_dict0["min_amp_array_late"]
 
-        mean_expression_array_early_pop_maxs0 = np.mean(expression_array_early_pop_maxs0)
-        mean_expression_array_early_pop_mins0 = np.mean(expression_array_early_pop_mins0)
-        mean_expression_array_late_pop_maxs0 = np.mean(expression_array_late_pop_maxs0)
-        mean_expression_array_late_pop_mins0 = np.mean(expression_array_late_pop_mins0)
-
-        sem_expression_array_early_pop_maxs0 = sem(expression_array_early_pop_maxs0)
-        sem_expression_array_early_pop_mins0 = sem(expression_array_early_pop_mins0)
-        sem_expression_array_late_pop_maxs0 = sem(expression_array_late_pop_maxs0)
-        sem_expression_array_late_pop_mins0 = sem(expression_array_late_pop_mins0)
+        some_things_dict0 = {"overall_activity_list_all":everything_dict0["overall_activity_list_all"],
+                        "cells_for_cluster_list":everything_dict0["cells_for_cluster_list"],
+                        "expression_list_early_overall" :everything_dict0["expression_list_early_overall"],
+                            "expression_list_late_overall" :everything_dict0["expression_list_late_overall"],
+                            "activity_list_early_overall" :everything_dict0["activity_list_early_overall"],
+                            "activity_list_late_overall" :everything_dict0["activity_list_late_overall"],
+                        
+                        }
+        
+        color_list = ["lightgreen", "green"]
         
 
-        expression_array_early_pop_maxs1 = everything_dict1["expression_array_early_pop_maxs"]
-        expression_array_early_pop_mins1 = everything_dict1["expression_array_early_pop_mins"]
-        expression_array_late_pop_maxs1 = everything_dict1["expression_array_late_pop_maxs"]
-        expression_array_late_pop_mins1 = everything_dict1["expression_array_late_pop_mins"]
+        mse_list0 = trial_types_for_given_k(some_things_dict0, k=5, title="Cell Type 0", ymin_act=-1., ymax_act=2, ymin_percent=0, ymax_percent=0.425, color_list=color_list, overall_color='forestgreen')
+
+    elif which_celltype == "SST":
+
+        everything_dict0 = get_activity_most_least_celltype(ta_activity_dict_for_cluster, to_include=range(len(ta_activity_dict_for_cluster)))
+
+        argmax_list_early_0 = everything_dict0["argmax_array_early"]
+        argmin_list_early_0 = everything_dict0["argmin_array_early"]
+        argmax_amp_list_early_0 = everything_dict0["max_amp_array_early"]
+        argmin_amp_list_early_0 = everything_dict0["min_amp_array_early"]
+        argmax_list_late_0 = everything_dict0["argmax_array_late"]
+        argmin_list_late_0 = everything_dict0["argmin_array_late"]
+        argmax_amp_list_late_0 = everything_dict0["max_amp_array_late"]
+        argmin_amp_list_late_0 = everything_dict0["min_amp_array_late"]
+
+        some_things_dict0 = {"overall_activity_list_all":everything_dict0["overall_activity_list_all"],
+                        "cells_for_cluster_list":everything_dict0["cells_for_cluster_list"],
+                        "expression_list_early_overall" :everything_dict0["expression_list_early_overall"],
+                            "expression_list_late_overall" :everything_dict0["expression_list_late_overall"],
+                            "activity_list_early_overall" :everything_dict0["activity_list_early_overall"],
+                            "activity_list_late_overall" :everything_dict0["activity_list_late_overall"],
+                        
+                        }
+        
+        color_list = ["cyan", "b"]
+        
+
+        mse_list0 = trial_types_for_given_k(some_things_dict0, k=3, title="Cell Type 0", ymin_act=-1., ymax_act=2, ymin_percent=0, ymax_percent=0.425, color_list=color_list, overall_color='royalblue')
+
+        # color_list = ["orange", "Crimson"]
+        # mse_list1 = trial_types_for_given_k(some_things_dict1, k=3, title="Cell Type 1", ymin_act=-1.0, ymax_act=7.0, ymin_percent=-0.025, ymax_percent=0.45, color_list=color_list, overall_color='r')
+        
+        # fig, axs = plt.subplots(1,2, sharey=True)
+
+        # axs[0].plot(mean_early, label="Early", color="cyan")
+        # axs[0].fill_between(range(len(mean_early)), mean_early-sem_early, mean_early+sem_early, alpha=0.2, color='cyan')
+
+        # axs[0].plot(mean_late, label="Late", color='b')
+        # axs[0].fill_between(range(len(mean_late)), mean_late-sem_late, mean_late+sem_late, alpha=0.2, color='b')
+        # axs[0].set_ylabel("Z-Scored DF/F")
+        # axs[0].set_xlabel("Position Bins")
+        # axs[1].set_xlabel("Position Bins")
+
+        # axs[1].set_title("Late - Early Activity per Cell")
+        # axs[0].set_title("Average Activity Early vs Late")
+
+        # # axs[0].set_ylim(np.min(overall_min), np.max(overall_max))
+
+        # axs[0].legend()
+
+        # axs[1].plot(mean_difference_array)
+        # axs[1].fill_between(range(len(mean_difference_array)), mean_difference_array-sem_difference_array, mean_difference_array+sem_difference_array, alpha=0.2)
+        # plt.tight_layout()
+        # plt.show()
 
 
-        mean_expression_array_early_pop_maxs1 = np.mean(expression_array_early_pop_maxs1)
-        mean_expression_array_early_pop_mins1 = np.mean(expression_array_early_pop_mins1)
-        mean_expression_array_late_pop_maxs1 = np.mean(expression_array_late_pop_maxs1)
-        mean_expression_array_late_pop_mins1 = np.mean(expression_array_late_pop_mins1)
 
-        sem_expression_array_early_pop_maxs1 = sem(expression_array_early_pop_maxs1)
-        sem_expression_array_early_pop_mins1 = sem(expression_array_early_pop_mins1)
-        sem_expression_array_late_pop_maxs1 = sem(expression_array_late_pop_maxs1)
-        sem_expression_array_late_pop_mins1 = sem(expression_array_late_pop_mins1)
+    else:
+    
+        everything_dict0 = get_activity_most_least_celltype(ta_activity_dict_for_cluster, to_include=cells_group_0)
+        everything_dict1 = get_activity_most_least_celltype(ta_activity_dict_for_cluster, to_include=cells_group_1)
 
 
-        x_early = 0.1
-        x_late  = 0.9
+        argmax_list_early_0 = everything_dict0["argmax_array_early"]
+        argmin_list_early_0 = everything_dict0["argmin_array_early"]
+        argmax_amp_list_early_0 = everything_dict0["max_amp_array_early"]
+        argmin_amp_list_early_0 = everything_dict0["min_amp_array_early"]
+        argmax_list_late_0 = everything_dict0["argmax_array_late"]
+        argmin_list_late_0 = everything_dict0["argmin_array_late"]
+        argmax_amp_list_late_0 = everything_dict0["max_amp_array_late"]
+        argmin_amp_list_late_0 = everything_dict0["min_amp_array_late"]
 
-        _, p0_most = ttest_rel(expression_array_early_pop_maxs0, expression_array_late_pop_maxs0)
-        _, p1_most = ttest_rel(expression_array_early_pop_maxs1, expression_array_late_pop_maxs1)
+
+        argmax_list_early_1 = everything_dict1["argmax_array_early"]
+        argmin_list_early_1 = everything_dict1["argmin_array_early"]
+        argmax_amp_list_early_1 = everything_dict1["max_amp_array_early"]
+        argmin_amp_list_early_1 = everything_dict1["min_amp_array_early"]
+        argmax_list_late_1 = everything_dict1["argmax_array_late"]
+        argmin_list_late_1 = everything_dict1["argmin_array_late"]
+        argmax_amp_list_late_1 = everything_dict1["max_amp_array_late"]
+        argmin_amp_list_late_1 = everything_dict1["min_amp_array_late"]
 
 
-        ax0 = axs_expression_list[0]
-        ax1 = axs_expression_list[1]
+        plot_butterfly_hist(argmax_list_early_0, argmax_list_late_0, argmin_list_early_0, argmin_list_late_0, ax=axs[0,3], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 0")
+        plot_butterfly_hist(argmax_list_early_1, argmax_list_late_1, argmin_list_early_1, argmin_list_late_1, ax=axs[2,3], colors_list = ["blue", "orange", "green", "red"], title="Cell Type 1")
+
 
 
         colors_dict = {"Most_0":"orange",
-                "Least_0":"magenta",
-                "Most_1":"purple",
-                "Least_1":"red"}
-        
-        group_labels = ["Most Expressed Cell Type 0", "Most Expressed Cell Type 1", "Least Expressed Cell Type 0", "Least Expressed Cell Type 1"]
+                    "Least_0":"magenta",
+                    "Most_1":"purple",
+                    "Least_1":"red"}
 
+        axs_list = [
+            axs[0,0], axs[0,1],
+            axs[1,0], axs[1,1],
+            axs[2,0], axs[2,1],
+            axs[3,0], axs[3,1],]
+        
+        plot_no_learn_data(everything_dict0, everything_dict1, color_dict=colors_dict, axs_list=axs_list)
+        
+
+
+        def eval_proportion_two_groups_new(everything_dict0, everything_dict1, axs_expression_list, colors_dict, ymin_most=0.5, ymax_most=0.8, ymin_least=0.0, ymax_least=0.55):
+            expression_array_early_pop_maxs0 = everything_dict0["expression_array_early_pop_maxs"]
+            expression_array_early_pop_mins0 = everything_dict0["expression_array_early_pop_mins"]
+            expression_array_late_pop_maxs0 = everything_dict0["expression_array_late_pop_maxs"]
+            expression_array_late_pop_mins0 = everything_dict0["expression_array_late_pop_mins"]
+
+            print(f"expression_array_early_pop_maxs0[0] {expression_array_early_pop_maxs0[0]}")
+
+            mean_expression_array_early_pop_maxs0 = np.mean(expression_array_early_pop_maxs0)
+            mean_expression_array_early_pop_mins0 = np.mean(expression_array_early_pop_mins0)
+            mean_expression_array_late_pop_maxs0 = np.mean(expression_array_late_pop_maxs0)
+            mean_expression_array_late_pop_mins0 = np.mean(expression_array_late_pop_mins0)
+
+            sem_expression_array_early_pop_maxs0 = sem(expression_array_early_pop_maxs0)
+            sem_expression_array_early_pop_mins0 = sem(expression_array_early_pop_mins0)
+            sem_expression_array_late_pop_maxs0 = sem(expression_array_late_pop_maxs0)
+            sem_expression_array_late_pop_mins0 = sem(expression_array_late_pop_mins0)
             
-        ax0.plot([x_early, x_late],[mean_expression_array_early_pop_maxs0, mean_expression_array_late_pop_maxs0],
-            color=colors_dict["Most_0"],
-            marker='o',
-            linewidth=2,
-            label=f"{group_labels[0]} (p={p0_most:.3f})"
-        )
-        ax0.errorbar(
-            x_early, mean_expression_array_early_pop_maxs0, yerr=sem_expression_array_early_pop_maxs0,
-            fmt='none', ecolor=colors_dict["Most_0"], elinewidth=1.5, capsize=4, linestyle='--')
+
+            expression_array_early_pop_maxs1 = everything_dict1["expression_array_early_pop_maxs"]
+            expression_array_early_pop_mins1 = everything_dict1["expression_array_early_pop_mins"]
+            expression_array_late_pop_maxs1 = everything_dict1["expression_array_late_pop_maxs"]
+            expression_array_late_pop_mins1 = everything_dict1["expression_array_late_pop_mins"]
+
+
+            mean_expression_array_early_pop_maxs1 = np.mean(expression_array_early_pop_maxs1)
+            mean_expression_array_early_pop_mins1 = np.mean(expression_array_early_pop_mins1)
+            mean_expression_array_late_pop_maxs1 = np.mean(expression_array_late_pop_maxs1)
+            mean_expression_array_late_pop_mins1 = np.mean(expression_array_late_pop_mins1)
+
+            sem_expression_array_early_pop_maxs1 = sem(expression_array_early_pop_maxs1)
+            sem_expression_array_early_pop_mins1 = sem(expression_array_early_pop_mins1)
+            sem_expression_array_late_pop_maxs1 = sem(expression_array_late_pop_maxs1)
+            sem_expression_array_late_pop_mins1 = sem(expression_array_late_pop_mins1)
+
+
+            x_early = 0.1
+            x_late  = 0.9
+
+            _, p0_most = ttest_rel(expression_array_early_pop_maxs0, expression_array_late_pop_maxs0)
+            _, p1_most = ttest_rel(expression_array_early_pop_maxs1, expression_array_late_pop_maxs1)
+
+
+            ax0 = axs_expression_list[0]
+            ax1 = axs_expression_list[1]
+
+
+            colors_dict = {"Most_0":"orange",
+                    "Least_0":"magenta",
+                    "Most_1":"purple",
+                    "Least_1":"red"}
+            
+            group_labels = ["Most Expressed Cell Type 0", "Most Expressed Cell Type 1", "Least Expressed Cell Type 0", "Least Expressed Cell Type 1"]
+
+                
+            ax0.plot([x_early, x_late],[mean_expression_array_early_pop_maxs0, mean_expression_array_late_pop_maxs0],
+                color=colors_dict["Most_0"],
+                marker='o',
+                linewidth=2,
+                label=f"{group_labels[0]} (p={p0_most:.3f})"
+            )
+            ax0.errorbar(
+                x_early, mean_expression_array_early_pop_maxs0, yerr=sem_expression_array_early_pop_maxs0,
+                fmt='none', ecolor=colors_dict["Most_0"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+            ax0.errorbar(
+                x_late, mean_expression_array_late_pop_maxs0, yerr=sem_expression_array_late_pop_maxs0,
+                fmt='none', ecolor=colors_dict["Most_0"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+
+            ax0.plot([x_early, x_late],[mean_expression_array_early_pop_maxs1, mean_expression_array_late_pop_maxs1],
+                color=colors_dict["Most_1"],
+                marker='o',
+                linewidth=2,
+                label=f"{group_labels[1]} (p={p1_most:.3f})"
+            )
+            ax0.errorbar(
+                x_early, mean_expression_array_early_pop_maxs1, yerr=sem_expression_array_early_pop_maxs1,
+                fmt='none', ecolor=colors_dict["Most_1"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+            ax0.errorbar(
+                x_late, mean_expression_array_late_pop_maxs1, yerr=sem_expression_array_late_pop_maxs1,
+                fmt='none', ecolor=colors_dict["Most_1"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+
+
+            _, p0_least = ttest_rel(expression_array_early_pop_mins0, expression_array_late_pop_mins0)
+            _, p1_least = ttest_rel(expression_array_early_pop_mins1, expression_array_late_pop_mins1)
+
+            ax1.plot([x_early, x_late],[mean_expression_array_early_pop_mins0, mean_expression_array_late_pop_mins0],
+                color=colors_dict["Least_0"],
+                marker='o',
+                linewidth=2,
+                label=f"{group_labels[2]} (p={p0_least:.3f})"
+            )
+            ax1.errorbar(
+                x_early, mean_expression_array_early_pop_mins0, yerr=sem_expression_array_early_pop_mins0,
+                fmt='none', ecolor=colors_dict["Least_0"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+            ax1.errorbar(
+                x_late, mean_expression_array_late_pop_mins0, yerr=sem_expression_array_late_pop_mins0,
+                fmt='none', ecolor=colors_dict["Least_0"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+
+            ax1.plot([x_early, x_late],[mean_expression_array_early_pop_mins1, mean_expression_array_late_pop_mins1],
+                color=colors_dict["Least_1"],
+                marker='o',
+                linewidth=2,
+                label=f"{group_labels[3]} (p={p1_least:.3f})"
+            )
+            ax1.errorbar(
+                x_early, mean_expression_array_early_pop_mins1, yerr=sem_expression_array_early_pop_mins1,
+                fmt='none', ecolor=colors_dict["Least_1"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+            ax1.errorbar(
+                x_late, mean_expression_array_late_pop_mins1, yerr=sem_expression_array_late_pop_mins1,
+                fmt='none', ecolor=colors_dict["Least_1"], elinewidth=1.5, capsize=4, linestyle='--')
+            
+
+
+
+            # ---- cosmetics ----
+            ax0.set_xticks([0.1, 0.9])
+            ax0.set_xlim([0., 1.])
+            ax0.set_xticklabels(['Early', 'Late'])
+            ax0.set_ylabel("Fraction of Trials")
+            ax0.set_ylim(ymin_most,ymax_most)
+            ax0.set_title("Most Expressed Trial Types")
+            ax0.legend(frameon=False)
+
+            # ---- cosmetics ----
+            ax1.set_xticks([0.1, 0.9])
+            ax1.set_xlim([0., 1.])
+            ax1.set_xticklabels(['Early', 'Late'])
+            ax1.set_ylabel("Fraction of Trials")
+            ax1.set_ylim(ymin_least,ymax_least)
+            ax1.set_title("Least Expressed Trial Types")
+            ax1.legend(frameon=False)
+
+
+        axs_expression_list = [axs[0,2], axs[1,2]]
+
+        eval_proportion_two_groups_new(everything_dict0, everything_dict1, axs_expression_list, colors_dict, ymin_most=0.5, ymax_most=0.7, ymin_least=0.05, ymax_least=0.15)
+
+        # eval_proportion_two_groups(title_fs,
+        # least_expressed_label_dict_animal_early_group0,
+        # least_expressed_label_dict_animal_late_group0,
+        # least_expressed_label_dict_animal_early_group1,
+        # least_expressed_label_dict_animal_late_group1, ymin=0.0, ymax=0.55,
+        # group_labels=("Cell Type 0", "Cell Type 1"),
+        # colors=(colors_dict["Least_0"], colors_dict["Least_1"]),
+        # ax=axs[1,2],
+        # title="Least expressed: Early vs Late", Most=False)
+
+        ax=axs[2,2]
+        ax.hist(np.array(elbow_kmeans_per_cell_list_group_0_list), bins=[2.5,3.5,4.5,5.5], color='red')
+        ax.set_xticks([3,4,5])
+        ax.set_xlim(2.5,5.5)
+        ax.set_title("Cell Type 0", fontsize=title_fs)
+        ax.set_xlabel("Number of Trial Type Clusters", fontsize=title_fs-1)
+        ax.set_ylabel("Number of Cells", fontsize=title_fs-1)
+
+        ax=axs[3,2]
+        ax.hist(np.array(elbow_kmeans_per_cell_list_group_1_list), bins=[2.5,3.5,4.5,5.5], color='purple')
+        ax.set_xticks([3,4,5])
+        ax.set_xlim(2.5,5.5)
+        ax.set_title("Cell Type 1")
+        ax.set_xlabel("Number of Trial Type Clusters")
+        ax.set_ylabel("Number of Cells")
+
         
-        ax0.errorbar(
-            x_late, mean_expression_array_late_pop_maxs0, yerr=sem_expression_array_late_pop_maxs0,
-            fmt='none', ecolor=colors_dict["Most_0"], elinewidth=1.5, capsize=4, linestyle='--')
+        means_list_early_0 = np.mean(argmax_amp_list_early_0)
+        sems_list_early_0 = sem(argmax_amp_list_early_0)
+
+        means_list_late_0 = np.mean(argmax_amp_list_late_0)
+        sems_list_late_0 = sem(argmax_amp_list_late_0)
+
+
+        means_list_early_0min = np.mean(argmin_amp_list_early_0)
+        sems_list_early_0min = sem(argmin_amp_list_early_0)
+
+        means_list_late_0min = np.mean(argmin_amp_list_late_0)
+        sems_list_late_0min = sem(argmin_amp_list_late_0)
+
+        means_list_early_1 = np.mean(argmax_amp_list_early_1)
+        sems_list_early_1 = sem(argmax_amp_list_early_1)
+
+        means_list_late_1 = np.mean(argmax_amp_list_late_1)
+        sems_list_late_1 = sem(argmax_amp_list_late_1)
+
+
+        means_list_early_1min = np.mean(argmin_amp_list_early_1)
+        sems_list_early_1min = sem(argmin_amp_list_early_1)
+
+        means_list_late_1min = np.mean(argmin_amp_list_late_1)
+        sems_list_late_1min = sem(argmin_amp_list_late_1)
+
+        def amps_by_pos(locs, amps, n_pos=50):
+            """
+            locs: array-like of ints in [0, n_pos-1]
+            amps: same length floats
+            returns:
+            means[n_pos], sems[n_pos], counts[n_pos]
+            """
+            locs = np.asarray(locs, int)
+            amps = np.asarray(amps, float)
+
+            means = np.full(n_pos, np.nan)
+            sems  = np.full(n_pos, np.nan)
+            counts = np.zeros(n_pos, int)
+
+            for b in range(n_pos):
+                vals = amps[locs == b]
+                counts[b] = len(vals)
+                if counts[b] > 0:
+                    means[b] = np.nanmean(vals)
+                    if counts[b] > 1:
+                        sems[b] = np.nanstd(vals, ddof=1) / np.sqrt(counts[b])
+                    else:
+                        sems[b] = 0.0  # or np.nan if you prefer
+
+            return means, sems, counts
         
 
-        ax0.plot([x_early, x_late],[mean_expression_array_early_pop_maxs1, mean_expression_array_late_pop_maxs1],
-            color=colors_dict["Most_1"],
-            marker='o',
-            linewidth=2,
-            label=f"{group_labels[1]} (p={p1_most:.3f})"
-        )
-        ax0.errorbar(
-            x_early, mean_expression_array_early_pop_maxs1, yerr=sem_expression_array_early_pop_maxs1,
-            fmt='none', ecolor=colors_dict["Most_1"], elinewidth=1.5, capsize=4, linestyle='--')
-        
-        ax0.errorbar(
-            x_late, mean_expression_array_late_pop_maxs1, yerr=sem_expression_array_late_pop_maxs1,
-            fmt='none', ecolor=colors_dict["Most_1"], elinewidth=1.5, capsize=4, linestyle='--')
-        
-
-
-        _, p0_least = ttest_rel(expression_array_early_pop_mins0, expression_array_late_pop_mins0)
-        _, p1_least = ttest_rel(expression_array_early_pop_mins1, expression_array_late_pop_mins1)
-
-        ax1.plot([x_early, x_late],[mean_expression_array_early_pop_mins0, mean_expression_array_late_pop_mins0],
-            color=colors_dict["Least_0"],
-            marker='o',
-            linewidth=2,
-            label=f"{group_labels[2]} (p={p0_least:.3f})"
-        )
-        ax1.errorbar(
-            x_early, mean_expression_array_early_pop_mins0, yerr=sem_expression_array_early_pop_mins0,
-            fmt='none', ecolor=colors_dict["Least_0"], elinewidth=1.5, capsize=4, linestyle='--')
-        
-        ax1.errorbar(
-            x_late, mean_expression_array_late_pop_mins0, yerr=sem_expression_array_late_pop_mins0,
-            fmt='none', ecolor=colors_dict["Least_0"], elinewidth=1.5, capsize=4, linestyle='--')
-        
-
-        ax1.plot([x_early, x_late],[mean_expression_array_early_pop_mins1, mean_expression_array_late_pop_mins1],
-            color=colors_dict["Least_1"],
-            marker='o',
-            linewidth=2,
-            label=f"{group_labels[3]} (p={p1_least:.3f})"
-        )
-        ax1.errorbar(
-            x_early, mean_expression_array_early_pop_mins1, yerr=sem_expression_array_early_pop_mins1,
-            fmt='none', ecolor=colors_dict["Least_1"], elinewidth=1.5, capsize=4, linestyle='--')
-        
-        ax1.errorbar(
-            x_late, mean_expression_array_late_pop_mins1, yerr=sem_expression_array_late_pop_mins1,
-            fmt='none', ecolor=colors_dict["Least_1"], elinewidth=1.5, capsize=4, linestyle='--')
-        
+        # Example: Cell type 0, max early amplitude by position
+        means_list_early_0, sems_list_early_0, n0 = amps_by_pos(everything_dict0["argmax_array_early"],everything_dict0["max_amp_array_early"])
+        means_list_late_0, sems_list_late_0, n0 = amps_by_pos(everything_dict0["argmax_array_late"],everything_dict0["max_amp_array_late"])
+        means_list_early_0, sems_list_early_0, n0 = amps_by_pos(everything_dict0["argmax_array_early"],everything_dict0["max_amp_array_early"])
+        means_list_late_0, sems_list_late_0, n0 = amps_by_pos(everything_dict0["argmax_array_late"],everything_dict0["max_amp_array_late"])
+        means_list_early_1, sems_list_early_1, n1 = amps_by_pos(everything_dict1["argmax_array_early"],everything_dict1["max_amp_array_early"])
+        means_list_late_1, sems_list_late_1, n1 = amps_by_pos(everything_dict1["argmax_array_late"],everything_dict1["max_amp_array_late"])
+        means_list_early_1, sems_list_early_1, n1 = amps_by_pos(everything_dict1["argmax_array_early"],everything_dict1["max_amp_array_early"])
+        means_list_late_1, sems_list_late_1, n1 = amps_by_pos(everything_dict1["argmax_array_late"],everything_dict1["max_amp_array_late"])
 
 
 
-        # ---- cosmetics ----
-        ax0.set_xticks([0.1, 0.9])
-        ax0.set_xlim([0., 1.])
-        ax0.set_xticklabels(['Early', 'Late'])
-        ax0.set_ylabel("Fraction of Trials")
-        ax0.set_ylim(ymin_most,ymax_most)
-        ax0.set_title("Most Expressed Trial Types")
-        ax0.legend(frameon=False)
-
-         # ---- cosmetics ----
-        ax1.set_xticks([0.1, 0.9])
-        ax1.set_xlim([0., 1.])
-        ax1.set_xticklabels(['Early', 'Late'])
-        ax1.set_ylabel("Fraction of Trials")
-        ax1.set_ylim(ymin_least,ymax_least)
-        ax1.set_title("Least Expressed Trial Types")
-        ax1.legend(frameon=False)
+        means_list_early_0min, sems_list_early_0min, n0 = amps_by_pos(everything_dict0["argmin_array_early"],everything_dict0["min_amp_array_early"])
+        means_list_late_0min, sems_list_late_0min, n0 = amps_by_pos(everything_dict0["argmin_array_late"],everything_dict0["min_amp_array_late"])
+        means_list_early_0min, sems_list_early_0min, n0 = amps_by_pos(everything_dict0["argmin_array_early"],everything_dict0["min_amp_array_early"])
+        means_list_late_0min, sems_list_late_0min, n0 = amps_by_pos(everything_dict0["argmin_array_late"],everything_dict0["min_amp_array_late"])
+        means_list_early_1min, sems_list_early_1min, n1 = amps_by_pos(everything_dict1["argmin_array_early"],everything_dict1["min_amp_array_early"])
+        means_list_late_1min, sems_list_late_1min, n1 = amps_by_pos(everything_dict1["argmin_array_late"],everything_dict1["min_amp_array_late"])
+        means_list_early_1min, sems_list_early_1min, n1 = amps_by_pos(everything_dict1["argmin_array_early"],everything_dict1["min_amp_array_early"])
+        means_list_late_1min, sems_list_late_1min, n1 = amps_by_pos(everything_dict1["argmin_array_late"],everything_dict1["min_amp_array_late"])
 
 
-    axs_expression_list = [axs[0,2], axs[1,2]]
+            # --- rebin to 10 coarse pos bins (5 original bins per coarse bin) ---
+        x10_0_e_max, m10_0_e_max, s10_0_e_max = rebin_means_sems(means_list_early_0,  sems_list_early_0)
+        _,         m10_0_l_max, s10_0_l_max   = rebin_means_sems(means_list_late_0,   sems_list_late_0)
 
-    eval_proportion_two_groups_new(everything_dict0, everything_dict1, axs_expression_list, colors_dict, ymin_most=0.5, ymax_most=0.7, ymin_least=0.05, ymax_least=0.15)
+        _,         m10_0_e_min, s10_0_e_min   = rebin_means_sems(means_list_early_0min, sems_list_early_0min)
+        _,         m10_0_l_min, s10_0_l_min   = rebin_means_sems(means_list_late_0min,  sems_list_late_0min)
 
-    # eval_proportion_two_groups(title_fs,
-    # least_expressed_label_dict_animal_early_group0,
-    # least_expressed_label_dict_animal_late_group0,
-    # least_expressed_label_dict_animal_early_group1,
-    # least_expressed_label_dict_animal_late_group1, ymin=0.0, ymax=0.55,
-    # group_labels=("Cell Type 0", "Cell Type 1"),
-    # colors=(colors_dict["Least_0"], colors_dict["Least_1"]),
-    # ax=axs[1,2],
-    # title="Least expressed: Early vs Late", Most=False)
+        x10_1_e_max, m10_1_e_max, s10_1_e_max = rebin_means_sems(means_list_early_1,  sems_list_early_1)
+        _,         m10_1_l_max, s10_1_l_max   = rebin_means_sems(means_list_late_1,   sems_list_late_1)
 
-    ax=axs[2,2]
-    ax.hist(np.array(elbow_kmeans_per_cell_list_group_0_list), bins=[2.5,3.5,4.5,5.5], color='red')
-    ax.set_xticks([3,4,5])
-    ax.set_xlim(2.5,5.5)
-    ax.set_title("Cell Type 0", fontsize=title_fs)
-    ax.set_xlabel("Number of Trial Type Clusters", fontsize=title_fs-1)
-    ax.set_ylabel("Number of Cells", fontsize=title_fs-1)
+        _,         m10_1_e_min, s10_1_e_min   = rebin_means_sems(means_list_early_1min, sems_list_early_1min)
+        _,         m10_1_l_min, s10_1_l_min   = rebin_means_sems(means_list_late_1min,  sems_list_late_1min)
 
-    ax=axs[3,2]
-    ax.hist(np.array(elbow_kmeans_per_cell_list_group_1_list), bins=[2.5,3.5,4.5,5.5], color='purple')
-    ax.set_xticks([3,4,5])
-    ax.set_xlim(2.5,5.5)
-    ax.set_title("Cell Type 1")
-    ax.set_xlabel("Number of Trial Type Clusters")
-    ax.set_ylabel("Number of Cells")
+
+        axs[1,3].errorbar(x10_0_e_max, m10_0_e_max, yerr=s10_0_e_max,
+                        label='Early Max', capsize=3, marker='o')
+        axs[1,3].errorbar(x10_0_e_max, m10_0_l_max, yerr=s10_0_l_max,
+                        label='Late Max', capsize=3, marker='o')
+        axs[1,3].errorbar(x10_0_e_max, m10_0_e_min, yerr=s10_0_e_min,
+                        label='Early Min', capsize=3, marker='o')
+        axs[1,3].errorbar(x10_0_e_max, m10_0_l_min, yerr=s10_0_l_min,
+                        label='Late Min', capsize=3, marker='o')
+        axs[1,3].set_xlabel("Coarse position bin")
+        axs[1,3].set_ylabel("dF/F amplitude")
+        axs[1,3].set_title("Cell Type 0 Max/Min Amplitude")
+        axs[1,3].legend()
 
     
-    means_list_early_0 = np.mean(argmax_amp_list_early_0)
-    sems_list_early_0 = sem(argmax_amp_list_early_0)
-
-    means_list_late_0 = np.mean(argmax_amp_list_late_0)
-    sems_list_late_0 = sem(argmax_amp_list_late_0)
-
-
-    means_list_early_0min = np.mean(argmin_amp_list_early_0)
-    sems_list_early_0min = sem(argmin_amp_list_early_0)
-
-    means_list_late_0min = np.mean(argmin_amp_list_late_0)
-    sems_list_late_0min = sem(argmin_amp_list_late_0)
-
-    means_list_early_1 = np.mean(argmax_amp_list_early_1)
-    sems_list_early_1 = sem(argmax_amp_list_early_1)
-
-    means_list_late_1 = np.mean(argmax_amp_list_late_1)
-    sems_list_late_1 = sem(argmax_amp_list_late_1)
+        axs[3,3].errorbar(x10_1_e_max, m10_1_e_max, yerr=s10_1_e_max,
+                        label='Early Max', capsize=3, marker='o')
+        axs[3,3].errorbar(x10_1_e_max, m10_1_l_max, yerr=s10_1_l_max,
+                        label='Late Max', capsize=3, marker='o')
+        axs[3,3].errorbar(x10_1_e_max, m10_1_e_min, yerr=s10_1_e_min,
+                        label='Early Min', capsize=3, marker='o')
+        axs[3,3].errorbar(x10_1_e_max, m10_1_l_min, yerr=s10_1_l_min,
+                        label='Late Min', capsize=3, marker='o')
+        axs[3,3].set_xlabel("Coarse position bin")
+        axs[3,3].set_ylabel("dF/F amplitude")
+        axs[3,3].set_title("Cell Type 1 Max/Min Amplitude")
+        axs[3,3].legend() 
 
 
-    means_list_early_1min = np.mean(argmin_amp_list_early_1)
-    sems_list_early_1min = sem(argmin_amp_list_early_1)
+                    
+        # save_path = "/Users/michaelfinch/CA1_interneuron_model/misc/some_things_dict.pkl"
 
-    means_list_late_1min = np.mean(argmin_amp_list_late_1)
-    sems_list_late_1min = sem(argmin_amp_list_late_1)
+        # with open(save_path, 'wb') as f:
+        #     pickle.dump(some_things_dict, f)
 
-    def amps_by_pos(locs, amps, n_pos=50):
-        """
-        locs: array-like of ints in [0, n_pos-1]
-        amps: same length floats
-        returns:
-        means[n_pos], sems[n_pos], counts[n_pos]
-        """
-        locs = np.asarray(locs, int)
-        amps = np.asarray(amps, float)
+        plt.tight_layout()
+        plt.show()
 
-        means = np.full(n_pos, np.nan)
-        sems  = np.full(n_pos, np.nan)
-        counts = np.zeros(n_pos, int)
-
-        for b in range(n_pos):
-            vals = amps[locs == b]
-            counts[b] = len(vals)
-            if counts[b] > 0:
-                means[b] = np.nanmean(vals)
-                if counts[b] > 1:
-                    sems[b] = np.nanstd(vals, ddof=1) / np.sqrt(counts[b])
-                else:
-                    sems[b] = 0.0  # or np.nan if you prefer
-
-        return means, sems, counts
-    
-
-    # Example: Cell type 0, max early amplitude by position
-    means_list_early_0, sems_list_early_0, n0 = amps_by_pos(everything_dict0["argmax_array_early"],everything_dict0["max_amp_array_early"])
-    means_list_late_0, sems_list_late_0, n0 = amps_by_pos(everything_dict0["argmax_array_late"],everything_dict0["max_amp_array_late"])
-    means_list_early_0, sems_list_early_0, n0 = amps_by_pos(everything_dict0["argmax_array_early"],everything_dict0["max_amp_array_early"])
-    means_list_late_0, sems_list_late_0, n0 = amps_by_pos(everything_dict0["argmax_array_late"],everything_dict0["max_amp_array_late"])
-    means_list_early_1, sems_list_early_1, n1 = amps_by_pos(everything_dict1["argmax_array_early"],everything_dict1["max_amp_array_early"])
-    means_list_late_1, sems_list_late_1, n1 = amps_by_pos(everything_dict1["argmax_array_late"],everything_dict1["max_amp_array_late"])
-    means_list_early_1, sems_list_early_1, n1 = amps_by_pos(everything_dict1["argmax_array_early"],everything_dict1["max_amp_array_early"])
-    means_list_late_1, sems_list_late_1, n1 = amps_by_pos(everything_dict1["argmax_array_late"],everything_dict1["max_amp_array_late"])
-
-
-
-    means_list_early_0min, sems_list_early_0min, n0 = amps_by_pos(everything_dict0["argmin_array_early"],everything_dict0["min_amp_array_early"])
-    means_list_late_0min, sems_list_late_0min, n0 = amps_by_pos(everything_dict0["argmin_array_late"],everything_dict0["min_amp_array_late"])
-    means_list_early_0min, sems_list_early_0min, n0 = amps_by_pos(everything_dict0["argmin_array_early"],everything_dict0["min_amp_array_early"])
-    means_list_late_0min, sems_list_late_0min, n0 = amps_by_pos(everything_dict0["argmin_array_late"],everything_dict0["min_amp_array_late"])
-    means_list_early_1min, sems_list_early_1min, n1 = amps_by_pos(everything_dict1["argmin_array_early"],everything_dict1["min_amp_array_early"])
-    means_list_late_1min, sems_list_late_1min, n1 = amps_by_pos(everything_dict1["argmin_array_late"],everything_dict1["min_amp_array_late"])
-    means_list_early_1min, sems_list_early_1min, n1 = amps_by_pos(everything_dict1["argmin_array_early"],everything_dict1["min_amp_array_early"])
-    means_list_late_1min, sems_list_late_1min, n1 = amps_by_pos(everything_dict1["argmin_array_late"],everything_dict1["min_amp_array_late"])
-
-
-        # --- rebin to 10 coarse pos bins (5 original bins per coarse bin) ---
-    x10_0_e_max, m10_0_e_max, s10_0_e_max = rebin_means_sems(means_list_early_0,  sems_list_early_0)
-    _,         m10_0_l_max, s10_0_l_max   = rebin_means_sems(means_list_late_0,   sems_list_late_0)
-
-    _,         m10_0_e_min, s10_0_e_min   = rebin_means_sems(means_list_early_0min, sems_list_early_0min)
-    _,         m10_0_l_min, s10_0_l_min   = rebin_means_sems(means_list_late_0min,  sems_list_late_0min)
-
-    x10_1_e_max, m10_1_e_max, s10_1_e_max = rebin_means_sems(means_list_early_1,  sems_list_early_1)
-    _,         m10_1_l_max, s10_1_l_max   = rebin_means_sems(means_list_late_1,   sems_list_late_1)
-
-    _,         m10_1_e_min, s10_1_e_min   = rebin_means_sems(means_list_early_1min, sems_list_early_1min)
-    _,         m10_1_l_min, s10_1_l_min   = rebin_means_sems(means_list_late_1min,  sems_list_late_1min)
-
-
-    axs[1,3].errorbar(x10_0_e_max, m10_0_e_max, yerr=s10_0_e_max,
-                    label='Early Max', capsize=3, marker='o')
-    axs[1,3].errorbar(x10_0_e_max, m10_0_l_max, yerr=s10_0_l_max,
-                    label='Late Max', capsize=3, marker='o')
-    axs[1,3].errorbar(x10_0_e_max, m10_0_e_min, yerr=s10_0_e_min,
-                    label='Early Min', capsize=3, marker='o')
-    axs[1,3].errorbar(x10_0_e_max, m10_0_l_min, yerr=s10_0_l_min,
-                    label='Late Min', capsize=3, marker='o')
-    axs[1,3].set_xlabel("Coarse position bin")
-    axs[1,3].set_ylabel("dF/F amplitude")
-    axs[1,3].set_title("Cell Type 0 Max/Min Amplitude")
-    axs[1,3].legend()
-
-   
-    axs[3,3].errorbar(x10_1_e_max, m10_1_e_max, yerr=s10_1_e_max,
-                    label='Early Max', capsize=3, marker='o')
-    axs[3,3].errorbar(x10_1_e_max, m10_1_l_max, yerr=s10_1_l_max,
-                    label='Late Max', capsize=3, marker='o')
-    axs[3,3].errorbar(x10_1_e_max, m10_1_e_min, yerr=s10_1_e_min,
-                    label='Early Min', capsize=3, marker='o')
-    axs[3,3].errorbar(x10_1_e_max, m10_1_l_min, yerr=s10_1_l_min,
-                    label='Late Min', capsize=3, marker='o')
-    axs[3,3].set_xlabel("Coarse position bin")
-    axs[3,3].set_ylabel("dF/F amplitude")
-    axs[3,3].set_title("Cell Type 1 Max/Min Amplitude")
-    axs[3,3].legend() 
-
-
-                 
-    # save_path = "/Users/michaelfinch/CA1_interneuron_model/misc/some_things_dict.pkl"
-
-    # with open(save_path, 'wb') as f:
-    #     pickle.dump(some_things_dict, f)
-
-    plt.tight_layout()
-    plt.show()
-
-    some_things_dict0 = {"overall_activity_list_all":everything_dict0["overall_activity_list_all"],
-                    "cells_for_cluster_list":everything_dict0["cells_for_cluster_list"],
-                    "expression_list_early_overall" :everything_dict0["expression_list_early_overall"],
-                        "expression_list_late_overall" :everything_dict0["expression_list_late_overall"],
-                        "activity_list_early_overall" :everything_dict0["activity_list_early_overall"],
-                        "activity_list_late_overall" :everything_dict0["activity_list_late_overall"],
+        some_things_dict0 = {"overall_activity_list_all":everything_dict0["overall_activity_list_all"],
+                        "cells_for_cluster_list":everything_dict0["cells_for_cluster_list"],
+                        "expression_list_early_overall" :everything_dict0["expression_list_early_overall"],
+                            "expression_list_late_overall" :everything_dict0["expression_list_late_overall"],
+                            "activity_list_early_overall" :everything_dict0["activity_list_early_overall"],
+                            "activity_list_late_overall" :everything_dict0["activity_list_late_overall"],
+                        
+                        }
+        
+        some_things_dict1 = {"overall_activity_list_all":everything_dict1["overall_activity_list_all"],
+                    "cells_for_cluster_list":everything_dict1["cells_for_cluster_list"],
+                    "expression_list_early_overall" :everything_dict1["expression_list_early_overall"],
+                        "expression_list_late_overall" :everything_dict1["expression_list_late_overall"],
+                        "activity_list_early_overall" :everything_dict1["activity_list_early_overall"],
+                        "activity_list_late_overall" :everything_dict1["activity_list_late_overall"],
                     
                     }
-    
-    some_things_dict1 = {"overall_activity_list_all":everything_dict1["overall_activity_list_all"],
-                "cells_for_cluster_list":everything_dict1["cells_for_cluster_list"],
-                "expression_list_early_overall" :everything_dict1["expression_list_early_overall"],
-                    "expression_list_late_overall" :everything_dict1["expression_list_late_overall"],
-                    "activity_list_early_overall" :everything_dict1["activity_list_early_overall"],
-                    "activity_list_late_overall" :everything_dict1["activity_list_late_overall"],
-                
-                }
 
+        print(f"use_first_or_only {use_first_or_only}")
 
-    mse_list0 = trial_types_for_given_k(some_things_dict0, k=4, title="Cell Type 0", ymin_act=-0.75, ymax_act=3.75, ymin_percent=0, ymax_percent=0.425)
-    mse_list1 = trial_types_for_given_k(some_things_dict1, k=3, title="Cell Type 1", ymin_act=-1.0, ymax_act=7.0, ymin_percent=-0.025, ymax_percent=0.45)
-    
+        print(f"len(everything_dict0['overall_activity_list_all']) {len(everything_dict0['overall_activity_list_all'])}")
+        print(f"len(everything_dict1['overall_activity_list_all']) {len(everything_dict1['overall_activity_list_all'])}")
+
+        color_list = ["orchid", "purple"]
+        mse_list0 = trial_types_for_given_k(some_things_dict0, k=3, title="Cell Type 0", ymin_act=-1., ymax_act=2, ymin_percent=0, ymax_percent=0.425, color_list=color_list, overall_color='magenta')
+        color_list = ["orange", "Crimson"]
+        mse_list1 = trial_types_for_given_k(some_things_dict1, k=3, title="Cell Type 1", ymin_act=-1., ymax_act=4.5, ymin_percent=-0.025, ymax_percent=0.45, color_list=color_list, overall_color='r')
+        
+        fig, axs = plt.subplots(1,2, sharey=True)
+
+        axs[0].plot(mean_early, label="Early", color="cyan")
+        axs[0].fill_between(range(len(mean_early)), mean_early-sem_early, mean_early+sem_early, alpha=0.2, color='cyan')
+
+        axs[0].plot(mean_late, label="Late", color='b')
+        axs[0].fill_between(range(len(mean_late)), mean_late-sem_late, mean_late+sem_late, alpha=0.2, color='b')
+        axs[0].set_ylabel("Z-Scored DF/F")
+        axs[0].set_xlabel("Position Bins")
+        axs[1].set_xlabel("Position Bins")
+
+        axs[1].set_title("Late - Early Activity per Cell")
+        axs[0].set_title("Average Activity Early vs Late")
+
+        # axs[0].set_ylim(np.min(overall_min), np.max(overall_max))
+
+        axs[0].legend()
+
+        axs[1].plot(mean_difference_array)
+        axs[1].fill_between(range(len(mean_difference_array)), mean_difference_array-sem_difference_array, mean_difference_array+sem_difference_array, alpha=0.2)
+        plt.tight_layout()
+        plt.show()
 
 
     
