@@ -2,12 +2,22 @@ import sys
 from scipy.stats import sem
 sys.path.append('/Users/michaelfinch/CA1-interneuron-GLM')
 
+
+
 from utils_TCA_clustering_scratchpad import *
 from GLM_regression_plotting import *
 
 
 from modelling_to_date_utils import *
 from SliceTCA_example import *
+
+plt.rcParams['axes.titlesize'] = 20       # all titles
+plt.rcParams['axes.labelsize'] = 16      # x and y labels
+plt.rcParams['xtick.labelsize'] = 16      # tick labels
+plt.rcParams['ytick.labelsize'] = 16
+plt.rcParams["legend.fontsize"] = 12
+plt.rcParams['savefig.dpi'] = 600
+plt.rcParams['axes.titlepad'] = 8.0
 
 def plot_synthetic_sliceTCA_ex(model, ideal_cell):
     weights = torch.abs(model.vectors[0][0].detach().T).cpu().numpy()

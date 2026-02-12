@@ -7,6 +7,14 @@ import h5py
 from sklearn.linear_model import LinearRegression, LassoCV, RidgeCV, ElasticNetCV
 import re
 
+plt.rcParams['axes.titlesize'] = 20       # all titles
+plt.rcParams['axes.labelsize'] = 16      # x and y labels
+plt.rcParams['xtick.labelsize'] = 16      # tick labels
+plt.rcParams['ytick.labelsize'] = 16
+plt.rcParams["legend.fontsize"] = 14
+plt.rcParams['savefig.dpi'] = 600
+plt.rcParams['axes.titlepad'] = 12.0
+
 
 def flatten_data(neuron_dict):
     flattened_data = {}
@@ -459,7 +467,7 @@ def run():
 
     axs[0].set_xlabel("Number of latents x00 Animal")
     axs[0].set_ylabel("Reconstruction MSE")
-    axs[0].set_title("x00 Animal SliceTCA reconstruction error")
+    axs[0].set_title("Animal SliceTCA")
 
 
     MSE_an_av_per_latent_NDNF_0x0_animal, MSE_an_sem_per_latent_NDNF_0x0_animal, k_values_NDNF_0x0_animal = get_mse_from_model_filepath("./per_k_pickles_ndnf_0x0", tensor_per_animal_list_NDNF, use_animal=True)
@@ -473,7 +481,7 @@ def run():
 
     axs[1].set_xlabel("Number of latents 0x0 Animal")
     axs[1].set_ylabel("Reconstruction MSE")
-    axs[1].set_title("0x0 Animal SliceTCA reconstruction error")
+    axs[1].set_title("Animal SliceTCA")
 
 
     ################# per cell --IF WE WANTED TO RUN IT FROM SCRATCH 
@@ -554,9 +562,9 @@ def run():
 
 
     axs[2].set_xlabel("Number of latents x00 Cell")
-    axs[2].set_ylabel("Reconstruction MSE (animal av)")
-    axs[2].set_title("x00 Cell SliceTCA reconstruction error")
-
+    axs[2].set_ylabel("Reconstruction MSE")
+    axs[2].set_title("Cell SliceTCA")
+    axs[2].axvline(20, color='r', linewidth=2, linestyle='--', label='Elbow=20')
 
     plt.tight_layout()
     plt.show()

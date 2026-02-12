@@ -18,12 +18,13 @@ import os
 from matplotlib.lines import Line2D
 
 
-plt.rcParams['axes.titlesize'] = 8       # all titles
-plt.rcParams['axes.labelsize'] = 7       # x and y labels
-plt.rcParams['xtick.labelsize'] = 6      # tick labels
-plt.rcParams['ytick.labelsize'] = 6
-plt.rcParams["legend.fontsize"] = 6
+plt.rcParams['axes.titlesize'] = 20       # all titles
+plt.rcParams['axes.labelsize'] = 16      # x and y labels
+plt.rcParams['xtick.labelsize'] = 16      # tick labels
+plt.rcParams['ytick.labelsize'] = 16
+plt.rcParams["legend.fontsize"] = 12
 plt.rcParams['savefig.dpi'] = 600
+plt.rcParams['axes.titlepad'] = 8.0
 
 
 
@@ -98,20 +99,26 @@ def get_activity_cut_learn(fixed_residual_activity_dict_NDNF_newest, cp_dict_NDN
     activity_list_early = []
     activity_list_late = []
 
+    cp_early_as_fraction = []
+    cp_late_as_fraction = []
+
     for idx, animal in enumerate(fixed_residual_activity_dict_NDNF_newest):
         for idt, cell in enumerate(fixed_residual_activity_dict_NDNF_newest[animal]):
             data = fixed_residual_activity_dict_NDNF_newest[animal][cell]
             # print(f"animal {animal} cp_dict_NDNF.keys() {cp_dict_NDNF.keys()}")
             cp_early = cp_dict_NDNF[animal][cell][0]
-            cp_late = cp_dict_NDNF[animal][cell][0]
+            cp_late = cp_dict_NDNF[animal][cell][1]
 
             early_data = data[:,:cp_early]
-            late_data = data[:,-cp_late:]
+            late_data = data[:,cp_late:]
 
             mean_early_data = np.mean(early_data, axis=1)
             activity_list_early.append(mean_early_data)
             mean_late_data = np.mean(late_data, axis=1)
             activity_list_late.append(mean_late_data)
+
+            cp_early_as_fraction.append(cp_early/data.shape[1])
+            cp_late_as_fraction.append(cp_late/data.shape[1])
 
 
 
@@ -119,7 +126,7 @@ def get_activity_cut_learn(fixed_residual_activity_dict_NDNF_newest, cp_dict_NDN
     activity_early_array = np.array(activity_list_early)
     activity_array_late = np.array(activity_list_late)
 
-    return activity_early_array, activity_array_late
+    return activity_early_array, activity_array_late, cp_early_as_fraction, cp_late_as_fraction
 
 
 # def plot_reconstructions(labels_list, fixed_activity_dict_NDNF_newest, prefix="", plot=False):
@@ -1429,7 +1436,7 @@ def plot_cluster_traces_by_animal_labels(
     animals = list(animal_to_color.keys())
     # cmap = plt.get_cmap("tab20", len(animals))
     # animal_to_color = {a: cmap(i) for i, a in enumerate(animals)}
-
+    colors_list = ["purple", 'r']
     # --- 5) Plot each cluster ---
     for j, lab in enumerate(uniq_clusters):
         ax = ax_list[j]
@@ -1449,7 +1456,7 @@ def plot_cluster_traces_by_animal_labels(
         # mean ± SEM
         m = traces.mean(axis=0)
         s = sem(traces, axis=0) if traces.shape[0] > 1 else np.zeros_like(m)
-        ax.plot(m, lw=2.0, color="k")
+        ax.plot(m, lw=2.0, color=colors_list[j])
         ax.fill_between(np.arange(n_pos), m - s, m + s, alpha=0.15, color="k")
 
         ax.set_title(f"{title_prefix}Cluster {lab} (n={len(idx)})")
@@ -1751,7 +1758,7 @@ def plot_lick_vel_data_clust(
         # plot
         ax.plot(
             mean_over_cells,
-            label=f"Cluster {clab} (n={vel_array.shape[0]})",
+            label=f"Cluster {clab}", #(n={vel_array.shape[0]})",
             color=color_list[i_idx],
         )
         ax.fill_between(
@@ -2114,13 +2121,19 @@ def plot_selectivity_over_trials(group_0_selectivity, group_1_selectivity, color
 
     x = np.arange(1, 11) 
 
-    ax.plot(x, mean_selectivity_0, color=color_list[0], label='Cell Type 0')
+    ax.plot(x, mean_selectivity_0, color=color_list[0], label='Cluster 0')
     ax.fill_between(x, mean_selectivity_0 - sem_selectivity_0, mean_selectivity_0 + sem_selectivity_0, alpha=0.2, color=color_list[0])
-    ax.plot(x, mean_selectivity_1, color=color_list[1], label='Cell Type 1')
+    ax.plot(x, mean_selectivity_1, color=color_list[1], label='Cluster 1')
     ax.fill_between(x, mean_selectivity_1 - sem_selectivity_1, mean_selectivity_1 + sem_selectivity_1, alpha=0.2, color=color_list[1])
-    ax.set_xticks(ticks=x, labels=[f"{int(p)}%" for p in np.linspace(0, 100, 10)])
+    
+    tick_pos = [1, 5, 10]
+    tick_lab = ["0%", "50%", "100%"]
+    ax.set_xticks(tick_pos)
+    ax.set_xticklabels(tick_lab)
+    
+    # ax.set_xticks(ticks=x, labels=[f"{int(p)}%" for p in np.linspace(0, 100, 10)])
     ax.set_xlabel("Percentile of Trials")
-    ax.set_ylabel("Average Selectivity Across Cells")
+    ax.set_ylabel("Selectivity")
     ax.set_title("Selectivity Across Trials")
     ax.legend()
 
@@ -2355,204 +2368,6 @@ def debug_lda_orth_geometry(X, y, title=""):
     return X2, w, orth, X_perp
 
 
-# def plot_butterfly_hist(
-#     argmax_list_early_0, argmax_list_late_0,
-#     argmin_list_early_0, argmin_list_late_0,
-#     ax=None, colors_list=None, title=None):
-
-#     bins = np.arange(0, 11)  # 50 position bins
-
-#     # ---- ARGMAX histograms (top) ----
-#     ax.hist(np.array(argmax_list_early_0),
-#             bins=bins, alpha=0.4,
-#             color=colors_list[0])
-
-#     ax.hist(np.array(argmax_list_late_0),
-#             bins=bins, alpha=0.4,
-#             color=colors_list[1])
-
-#     # ---- ARGMIN histograms (bottom, mirrored) ----
-#     weights_early_min = -np.ones_like(argmin_list_early_0, dtype=float)
-#     weights_late_min  = -np.ones_like(argmin_list_late_0, dtype=float)
-
-#     ax.hist(np.array(argmin_list_early_0),
-#             bins=bins, alpha=0.4, weights=weights_early_min,
-#             color=colors_list[2])
-
-#     ax.hist(np.array(argmin_list_late_0),
-#             bins=bins, alpha=0.4, weights=weights_late_min,
-#             color=colors_list[3])
-
-#     # Zero line
-#     ax.axhline(0, color="k", linewidth=1)
-
-#     # Axis labels & title
-#     ax.set_xlabel("Position bin")
-#     ax.set_ylabel("Cluster Count")
-#     ax.set_title(f"{title} Cluster Count per Pos Bin")
-
-#     # ---- Symmetric y-limits and custom ticks (25 → 0 → 25 style) ----
-#     y_min, y_max = ax.get_ylim()
-#     max_val = max(abs(y_min), abs(y_max))
-#     ax.set_ylim(-max_val, max_val)
-
-#     # Hard-code symmetric ticks (e.g., -25..0..25, labeled as 25..0..25)
-#     n_ticks = 5  # per side
-#     pos_ticks = np.linspace(0, max_val, n_ticks+1)     # 0..26
-#     neg_ticks = -pos_ticks[1:][::-1]              # -26..-small
-#     ticks = np.concatenate([neg_ticks, [0.0], pos_ticks[1:]])
-#     tick_labels = [f"{int(abs(t))}" for t in ticks]
-
-#     ax.set_yticks(ticks)
-#     ax.set_yticklabels(tick_labels)
-
-#     # ---- Separate legends: upper right for Max, lower right for Min ----
-#     # Proxy handles for legend (so we don't depend on hist's internal patches)
-#     handles_max = [
-#         Line2D([0], [0], color=colors_list[0], lw=3, label="Max Early"),
-#         Line2D([0], [0], color=colors_list[1], lw=3, label="Max Late"),
-#     ]
-#     legend_max = ax.legend(handles=handles_max,
-#                         loc="upper right",
-#                         title="Max Loc")
-#     ax.add_artist(legend_max)  # keep this one when adding second legend
-
-#     handles_min = [
-#         Line2D([0], [0], color=colors_list[2], lw=3, linestyle="--", label="Min Early"),
-#         Line2D([0], [0], color=colors_list[3], lw=3, linestyle="--", label="Min Late"),
-#     ]
-#     legend_min = ax.legend(handles=handles_min,
-#                         loc="lower right",
-#                         title="Min Loc")
-
-#     return ax
-
-
-
-import numpy as np
-from matplotlib.lines import Line2D
-
-# def plot_butterfly_hist(
-#     argmax_list_early, argmax_list_late,
-#     argmin_list_early, argmin_list_late,
-#     ax=None,
-#     colors_list=None,
-#     title=None,
-#     bins=None,          # either int (#bins) or array-like edges
-#     n_bins=None,        # convenience: if bins is None, use this
-#     mirror_weight=-1.0, # keep negative to mirror
-#     alpha=0.4,
-#     legend=True,
-# ):
-#     """
-#     Butterfly histogram:
-#       - argmax lists plotted upward
-#       - argmin lists plotted downward (mirrored)
-
-#     Binning:
-#       - If `bins` is an int: that many equal-width bins over the data range (matplotlib behavior)
-#       - If `bins` is array-like: treated as bin edges
-#       - If `bins` is None:
-#           - If n_bins is provided: uses integer edges 0..n_bins (bin indices)
-#           - Else: defaults to integer edges 0..(max_bin_seen+1)
-#     """
-
-#     if ax is None:
-#         import matplotlib.pyplot as plt
-#         fig, ax = plt.subplots()
-
-#     if colors_list is None:
-#         colors_list = ["C0", "C1", "C2", "C3"]
-
-#     # ---- Determine bins ----
-#     if bins is None:
-#         if n_bins is None:
-#             # infer integer bin edges from max value in any list
-#             all_vals = np.concatenate([
-#                 np.asarray(argmax_list_early, dtype=float).ravel(),
-#                 np.asarray(argmax_list_late,  dtype=float).ravel(),
-#                 np.asarray(argmin_list_early, dtype=float).ravel(),
-#                 np.asarray(argmin_list_late,  dtype=float).ravel(),
-#             ])
-#             # handle empty input safely
-#             if all_vals.size == 0:
-#                 inferred_max = 0
-#             else:
-#                 inferred_max = int(np.nanmax(all_vals))
-#             bins = np.arange(0, inferred_max + 2)  # edges [0, 1, ..., max+1]
-#         else:
-#             bins = np.arange(0, int(n_bins) + 1)   # edges [0..n_bins]
-#     else:
-#         # allow `bins` to be an int or edges array
-#         if isinstance(bins, (int, np.integer)):
-#             bins = int(bins)
-
-#     # ---- ARGMAX histograms (top) ----
-#     ax.hist(np.asarray(argmax_list_early),
-#             bins=bins, alpha=alpha,
-#             color=colors_list[0])
-
-#     ax.hist(np.asarray(argmax_list_late),
-#             bins=bins, alpha=alpha,
-#             color=colors_list[1])
-
-#     # ---- ARGMIN histograms (bottom, mirrored) ----
-#     weights_early_min = mirror_weight * np.ones(len(argmin_list_early), dtype=float)
-#     weights_late_min  = mirror_weight * np.ones(len(argmin_list_late),  dtype=float)
-
-#     ax.hist(np.asarray(argmin_list_early),
-#             bins=bins, alpha=alpha, weights=weights_early_min,
-#             color=colors_list[2])
-
-#     ax.hist(np.asarray(argmin_list_late),
-#             bins=bins, alpha=alpha, weights=weights_late_min,
-#             color=colors_list[3])
-
-#     # Zero line
-#     ax.axhline(0, color="k", linewidth=1)
-
-#     # Labels & title
-#     ax.set_xlabel("Position bin")
-#     ax.set_ylabel("Cluster Count")
-#     if title is not None:
-#         ax.set_title(f"{title} Cluster Count per Pos Bin")
-
-#     # ---- Symmetric y-limits and custom ticks ----
-#     y_min, y_max = ax.get_ylim()
-#     max_val = max(abs(y_min), abs(y_max))
-#     if max_val == 0:
-#         max_val = 1
-#     ax.set_ylim(-max_val, max_val)
-
-#     # choose a reasonable number of ticks from the current scale
-#     n_ticks = 5
-#     pos_ticks = np.linspace(0, max_val, n_ticks + 1)
-#     neg_ticks = -pos_ticks[1:][::-1]
-#     ticks = np.concatenate([neg_ticks, [0.0], pos_ticks[1:]])
-#     ax.set_yticks(ticks)
-#     ax.set_yticklabels([f"{int(abs(t))}" for t in ticks])
-
-#     # ---- Separate legends ----
-#     if legend:
-#         handles_max = [
-#             Line2D([0], [0], color=colors_list[0], lw=3, label="Max Early"),
-#             Line2D([0], [0], color=colors_list[1], lw=3, label="Max Late"),
-#         ]
-#         legend_max = ax.legend(handles=handles_max,
-#                                loc="upper right",
-#                                title="Max Loc")
-#         ax.add_artist(legend_max)
-
-#         handles_min = [
-#             Line2D([0], [0], color=colors_list[2], lw=3, linestyle="--", label="Min Early"),
-#             Line2D([0], [0], color=colors_list[3], lw=3, linestyle="--", label="Min Late"),
-#         ]
-#         ax.legend(handles=handles_min,
-#                   loc="lower right",
-#                   title="Min Loc")
-
-#     return ax
-
 import numpy as np
 from matplotlib.lines import Line2D
 
@@ -2661,15 +2476,15 @@ def plot_butterfly_hist(
 
     # legends (proxy handles)
     handles_max = [
-        Line2D([0], [0], color=colors_list[0], lw=lw, label="Early Max Loc"),
-        Line2D([0], [0], color=colors_list[1], lw=lw, label="Late Max Loc"),
+        Line2D([0], [0], color=colors_list[0], lw=lw, label="Early Peak"),
+        Line2D([0], [0], color=colors_list[1], lw=lw, label="Late Peak"),
     ]
     legend_max = ax.legend(handles=handles_max, loc="upper right") #, title="Max Loc")
     ax.add_artist(legend_max)
 
     handles_min = [
-        Line2D([0], [0], color=colors_list[2], lw=lw, linestyle="--", label="Early Min Loc"),
-        Line2D([0], [0], color=colors_list[3], lw=lw, linestyle="--", label="Late Min Loc"),
+        Line2D([0], [0], color=colors_list[2], lw=lw, linestyle="--", label="Early Trough"),
+        Line2D([0], [0], color=colors_list[3], lw=lw, linestyle="--", label="Late Trough"),
     ]
     ax.legend(handles=handles_min, loc="lower right") # title="Min Loc")
 
@@ -2757,6 +2572,9 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     fig.subplots_adjust(hspace=0.9)
 
     if which_celltype=="NDNF":
+
+        icolore = 'orange'
+
         filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/NDNF_E0A1B1_251107.mat'
 
         animal_clean_dict_activity, animal_vel_dict, animal_trials_original, animal_trials_clean, trials_to_remove_local, animal_lick_dict = get_animal_clean_dict_activity(filepath)
@@ -2876,7 +2694,7 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
 
                                 animal_included_list = np.array(animal_id_per_session_list)[total_idx]
 
-                                fig.suptitle(f"All Fixed Sessions {animal_included_list}")
+                                fig.suptitle(f"All Fixed Sessions") #{animal_included_list}")
                     else:
                         if use_first_or_only:
                             if idx in gospel_labels_dict["A1_first_or_only"]:
@@ -3055,6 +2873,8 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
 
     elif which_celltype=="EC":
 
+        icolore = 'green'
+
         filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/EC_GLM.mat'
 
         animal_clean_dict_activity, clean_velocity_dict_NDNF_newest, animal_trials_original, animal_trials_clean, trials_to_remove_local, clean_lick_dict_NDNF_newest = get_animal_clean_dict_activity(filepath, use_final=False)
@@ -3062,6 +2882,7 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
         GLM_params, predicted_activity_dict = fit_GLM_population(clean_velocity_dict_NDNF_newest, animal_clean_dict_activity, quintile=None, regression='ridge', alphas=None)
 
         clean_resid_activity_dict_NDNF_newest = get_residual_activity_dict(animal_clean_dict_activity, predicted_activity_dict)
+
 
 
         with open('/Users/michaelfinch/CA1-interneuron-GLM/datasets/EC_model_dict_clean.pkl', 'rb') as f:
@@ -3072,6 +2893,8 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
         with open(save_path, 'rb') as f:
             sliceTCA_model = pickle.load(f)
 
+
+        
 
         labels_dict = get_labels_all_different_Ks_single(sliceTCA_model, which_vectors=1)
         labels = labels_dict[2]
@@ -3088,6 +2911,8 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
 
 
     elif which_celltype=="SST":
+
+        icolore = 'blue'
 
         filepath = '/Users/michaelfinch/CA1-interneuron-GLM/datasets/SSTindivsomata_GLM.mat'
 
@@ -3119,6 +2944,115 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
         idx_of_interest = np.arange(cell_count)
 
         fig.suptitle(f"SST All Fixed Track Cells")
+
+
+
+
+    def paired_r_plot(
+        ax,
+        r_raw_arr,
+        r_resid_arr,
+        title="",
+        left_label="Activity \n vs Velocity",
+        right_label="Spatial \n Component \n vs Velocity",
+        seed=0,
+
+        # points/jitter
+        jitter_scale=0.06,        # <-- smaller jitter keeps points tighter
+        color="green",
+
+        # mean/sem bars
+        show_mean=True,
+        show_sem=True,
+        mean_offset=0.42,         # <-- move mean bars farther OUTSIDE
+        mean_bar_width=0.18,
+        mean_lw=3.0,
+        sem_cap_width=0.09,
+        sem_lw=2.0,
+
+        # extra safety padding
+        bar_gap=0.10,             # <-- additional push outward
+    ):
+        rng = np.random.default_rng(seed)
+        x0, x1 = 0.0, 2.0
+
+        r_raw_arr   = np.asarray(r_raw_arr, dtype=float)
+        r_resid_arr = np.asarray(r_resid_arr, dtype=float)
+
+        # jitter around centers
+        j0 = rng.normal(0, jitter_scale, size=len(r_raw_arr))
+        j1 = rng.normal(0, jitter_scale, size=len(r_resid_arr))
+
+        # paired lines
+        for i in range(len(r_raw_arr)):
+            ax.plot([x0 + j0[i], x1 + j1[i]],
+                    [r_raw_arr[i], r_resid_arr[i]],
+                    color="0.75", lw=0.6, alpha=0.6, zorder=1)
+
+        # points
+        ax.scatter(x0 + j0, r_raw_arr,
+                s=18, color="k", alpha=0.85, edgecolors="none", zorder=2)
+        ax.scatter(x1 + j1, r_resid_arr,
+                s=18, color=color, alpha=0.85, edgecolors="none", zorder=3)
+
+        if show_mean:
+            def _mean_sem(y):
+                y = np.asarray(y, float)
+                y = y[np.isfinite(y)]
+                if len(y) == 0:
+                    return np.nan, np.nan
+                mu = y.mean()
+                sem = 0.0 if len(y) < 2 else y.std(ddof=1) / np.sqrt(len(y))
+                return mu, sem
+
+            mu0, sem0 = _mean_sem(r_raw_arr)
+            mu1, sem1 = _mean_sem(r_resid_arr)
+
+            # outside x positions (with extra gap)
+            xm0 = x0 - (mean_offset + bar_gap)
+            xm1 = x1 + (mean_offset + bar_gap)
+
+            # mean bars
+            ax.plot([xm0 - mean_bar_width/2, xm0 + mean_bar_width/2], [mu0, mu0],
+                    color="k", lw=mean_lw, solid_capstyle="round", zorder=6)
+            ax.plot([xm1 - mean_bar_width/2, xm1 + mean_bar_width/2], [mu1, mu1],
+                    color=color, lw=mean_lw, solid_capstyle="round", zorder=7)
+
+            # SEM whiskers
+            if show_sem:
+                # left
+                ax.plot([xm0, xm0], [mu0 - sem0, mu0 + sem0], color="k", lw=sem_lw, zorder=6)
+                ax.plot([xm0 - sem_cap_width/2, xm0 + sem_cap_width/2], [mu0 - sem0, mu0 - sem0],
+                        color="k", lw=sem_lw, zorder=6)
+                ax.plot([xm0 - sem_cap_width/2, xm0 + sem_cap_width/2], [mu0 + sem0, mu0 + sem0],
+                        color="k", lw=sem_lw, zorder=6)
+
+                # right
+                ax.plot([xm1, xm1], [mu1 - sem1, mu1 + sem1], color=color, lw=sem_lw, zorder=7)
+                ax.plot([xm1 - sem_cap_width/2, xm1 + sem_cap_width/2], [mu1 - sem1, mu1 - sem1],
+                        color=color, lw=sem_lw, zorder=7)
+                ax.plot([xm1 - sem_cap_width/2, xm1 + sem_cap_width/2], [mu1 + sem1, mu1 + sem1],
+                        color=color, lw=sem_lw, zorder=7)
+
+        # formatting
+        ax.set_xticks([x0, x1])
+        ax.set_xticklabels([left_label, right_label])
+        ax.set_ylabel("R Value")
+        ax.axhline(0, color="0.6", lw=1, alpha=0.6)
+        ax.grid(axis="y", alpha=0.25)
+        ax.set_title(title)
+
+        # widen x-limits enough to show the outside summary bars
+        pad = mean_offset + bar_gap + 0.35
+        ax.set_xlim(x0 - pad, x1 + pad)
+
+        lo = np.nanmin([np.nanmin(r_raw_arr), np.nanmin(r_resid_arr)])
+        hi = np.nanmax([np.nanmax(r_raw_arr), np.nanmax(r_resid_arr)])
+        ax.set_ylim(lo - 0.05, hi + 0.05)
+
+
+
+
 
 
 
@@ -3181,8 +3115,42 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
                                 ncol=5, spacing=0.2,
                                 title_prefix="", ax_list=[axs[0,0], axs[0,1]])
     
+    # plt.figure()
+    activity_early_array, activity_array_late, cp_early_as_fraction, cp_late_as_fraction = get_activity_cut_learn(clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
 
-    activity_early_array, activity_array_late = get_activity_cut_learn(clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    data = [cp_early_as_fraction, cp_late_as_fraction]
+    labels = ["Early", "Late"]
+
+    bp = ax.boxplot(data, labels=labels, showmeans=True, showfliers=False)
+
+    for i, y in enumerate(data, start=1):
+        y = np.asarray(y)
+        x = np.random.normal(i, 0.04, size=len(y))  # small jitter
+        ax.plot(x, y, marker="o", linestyle="", alpha=0.6)
+
+    ax.set_ylabel("CP (fraction)")
+    ax.set_title("CP fraction: Early vs Late")
+    plt.tight_layout()
+    plt.show()
+
+
+    # mean_activity_early_array = np.mean(activity_early_array, axis=0)
+    # mean_activity_array_late = np.mean(activity_array_late, axis=0)
+
+    # sem_activity_early_array = sem(activity_early_array, axis=0)
+    # sem_activity_array_late = sem(activity_array_late, axis=0)
+
+    # plt.plot(mean_activity_early_array, label='Early', color='cyan')
+    # plt.fill_between(range(len(mean_activity_early_array)), mean_activity_early_array-sem_activity_early_array, mean_activity_early_array+sem_activity_early_array, alpha=0.2, color='cyan')
+    # plt.plot(mean_activity_array_late, label='Late', color='blue')
+    # plt.fill_between(range(len(mean_activity_array_late)), mean_activity_array_late-sem_activity_array_late, mean_activity_array_late+sem_activity_array_late, alpha=0.2, color='blue')
+    # plt.ylabel("Z-Scored DF/F")
+    # plt.xlabel("Position Bins")
+    # plt.legend()
+    # plt.show()
+
 
     color_list0 = ["orchid", "purple"]
     color_list1 = ["orange", "Crimson"]
@@ -3294,7 +3262,7 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     binned_data_NDNF_1_late = get_binned_data_for_CDF(animal_average_selectivity_dict_NDNF_1_late, n_bins=10)
 
 
-    plot_the_CDF_early_late(binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="Selectivity Distribution Early Late Learn", n_bins = 10, ax=axs[2,3])
+    plot_the_CDF_early_late(binned_data_NDNF_0_early, binned_data_NDNF_1_early, binned_data_NDNF_0_late, binned_data_NDNF_1_late, title="", n_bins = 10, ax=axs[2,3])
 
 
 
@@ -3321,9 +3289,9 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     
     early_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmax_list_1, late_cp_argmin_list_1, argmax_amp_list_early_1, argmin_amp_list_early_1, argmax_amp_list_late_1, argmin_amp_list_late_1 = get_argmin_argmax_list_learning_celltype(cells_list_1, clean_resid_activity_dict_NDNF_newest, cp_dict_NDNF)
     
-    plot_butterfly_hist(early_cp_argmax_list_0, late_cp_argmax_list_0, early_cp_argmin_list_0, late_cp_argmin_list_0, ax=axs[3,0], n_bins=10, old_n_bins=50, remap=True, colors_list = ["orchid", "purple", "orchid", "purple"], title="Cell Type 0")
+    plot_butterfly_hist(early_cp_argmax_list_0, late_cp_argmax_list_0, early_cp_argmin_list_0, late_cp_argmin_list_0, ax=axs[3,0], n_bins=10, old_n_bins=50, remap=True, colors_list = ["orchid", "purple", "orchid", "purple"], title="Cluster 0")
 
-    plot_butterfly_hist(early_cp_argmax_list_1, late_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmin_list_1, ax=axs[3,2], n_bins=10, old_n_bins=50, remap=True, colors_list = ["orange", "red", "orange", "red"], title="Cell Type 1")
+    plot_butterfly_hist(early_cp_argmax_list_1, late_cp_argmax_list_1, early_cp_argmin_list_1, late_cp_argmin_list_1, ax=axs[3,2], n_bins=10, old_n_bins=50, remap=True, colors_list = ["orange", "red", "orange", "red"], title="Cluster 1")
 
     bins_per_group=5
 
@@ -3423,6 +3391,274 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
     plt.tight_layout()
 
     plt.show()
+
+
+    animal_for_each_cell_list = []
+
+    for animal in clean_resid_activity_dict_NDNF_newest:
+        for cell in clean_resid_activity_dict_NDNF_newest[animal]:
+            animal_for_each_cell_list.append(animal)
+            
+
+    p = np.ones(50)
+    z = np.zeros((10,20))
+
+    print(f"sliceTCA_model.vectors[1][0].shape {sliceTCA_model.vectors[1][0].shape}")
+
+    
+    W = sliceTCA_model.vectors[1][0]              # torch.Size([20, 792])
+
+    X = W.detach().cpu().numpy().T                # (792, 20) -> rows=cells, cols=components
+
+    pca = PCA(n_components=3, random_state=0)
+    Z = pca.fit_transform(X)  
+
+    # # np.concatentate([p,z])
+
+    # fig = plt.figure(figsize=(6, 5))
+    # ax = fig.add_subplot(111, projection='3d')
+    # # ax.scatter(Z[:, 0], Z[:, 1], Z[:, 2], s=10, alpha=0.8)
+
+    # m0 = labels == 0
+    # m1 = labels == 1
+
+    # color_dict = {"EC":['green', 'black'],
+    # "SST":['cyan', 'blue'],
+    # "NDNF":['orange', 'red']}
+
+    # ax.scatter(Z[m0, 0], Z[m0, 1], Z[m0, 2], s=12, alpha=0.8, label="Cluster 0", color=color_dict[which_celltype][0])
+    # ax.scatter(Z[m1, 0], Z[m1, 1], Z[m1, 2], s=12, alpha=0.8, label="Cluster 1", color=color_dict[which_celltype][1])
+
+    # ax.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)")
+    # ax.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)")
+    # ax.set_zlabel(f"PC3 ({pca.explained_variance_ratio_[2]*100:.1f}%)")
+    # ax.tick_params(axis='x', labelsize=10)
+    # ax.tick_params(axis='y', labelsize=10)
+    # ax.tick_params(axis='z', labelsize=10)   # optional but usually needed too
+    # ax.set_title(which_celltype)
+    # ax.legend()
+    # plt.tight_layout()
+    # plt.show()
+
+
+
+    labels = np.asarray(labels).astype(int)
+    animals = np.asarray(animal_for_each_cell_list)
+
+    assert len(labels) == len(animals) == Z.shape[0]
+
+    # --- map each animal -> color (categorical colormap) ---
+    uniq_animals = np.unique(animals)
+    cmap = plt.get_cmap("tab20")  # good categorical map (up to ~20 distinct colors)
+    animal_to_color = {a: cmap(i % cmap.N) for i, a in enumerate(uniq_animals)}
+    colors = np.array([animal_to_color[a] for a in animals], dtype=object)
+
+    m0 = labels == 0
+    m1 = labels == 1
+
+    animals_celltype0_mask = animals[m0]
+    animals_celltype1_mask = animals[m1]
+
+    print(f"animals_celltype0_mask {animals_celltype0_mask}")
+    print(f"animals_celltype1_mask {animals_celltype1_mask}")
+
+    unique_animals_celltype0_mask = np.unique(animals_celltype0_mask)
+    unique_animals_celltype1_mask = np.unique(animals_celltype1_mask)
+
+    overall_num_animals = len(uniq_animals)
+
+    print(f"len(unique_animals_celltype0_mask) {len(unique_animals_celltype0_mask)} len(unique_animals_celltype1_mask) {len(unique_animals_celltype1_mask)}")
+
+    fig = plt.figure(figsize=(7, 6))
+    ax = fig.add_subplot(111, projection="3d")
+
+    # cluster 0 = circles, colored by animal
+    # ax.scatter(
+    #     Z[m0, 0], Z[m0, 1], Z[m0, 2],
+    #     c=colors[m0].tolist(), marker="o", s=30, alpha=0.85,
+    #     edgecolors="none"
+    # )
+
+    # # cluster 1 = triangles, colored by animal
+    # ax.scatter(
+    #     Z[m1, 0], Z[m1, 1], Z[m1, 2],
+    #     c=colors[m1].tolist(), marker="^", s=43, alpha=0.85,
+    #     edgecolors="none"
+    # )
+
+    colors_dict = {"EC":["k", 'green'],
+    "SST":["cyan", 'blue'],
+    "NDNF":["purple", 'red']}
+
+    ax.scatter(
+        Z[m0, 0], Z[m0, 1], Z[m0, 2],
+        c=colors_dict[which_celltype][0], marker="o", s=30, alpha=0.85,
+        edgecolors="none", label=f"Cluster 0: Animals Included {len(unique_animals_celltype0_mask)} / {overall_num_animals}"
+    )
+
+    # cluster 1 = triangles, colored by animal
+    ax.scatter(
+        Z[m1, 0], Z[m1, 1], Z[m1, 2],
+        c=colors_dict[which_celltype][1], marker="^", s=43, alpha=0.85,
+        edgecolors="none", label=f"Cluster 1: Animals Included {len(unique_animals_celltype1_mask)} / {overall_num_animals}"
+    )
+
+
+    ax.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)", labelpad=10)
+    ax.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)", labelpad=10)
+    ax.set_zlabel(f"PC3 ({pca.explained_variance_ratio_[2]*100:.1f}%)", labelpad=10)
+    ax.tick_params(labelsize=10, pad=2)
+    ax.set_title(which_celltype)
+    ax.legend()
+
+    plt.show()
+
+
+
+
+
+    fig, axs = plt.subplots(2,3, figsize=(10,7))
+    fig.suptitle(which_celltype)
+
+    residual_list = []
+    vel_prediction_list = []
+    raw_activity_list = []
+
+    r_residual_list = []
+    r_raw_list = []
+
+    for animal in clean_resid_activity_dict_NDNF_newest:
+        for cell in clean_resid_activity_dict_NDNF_newest[animal]:
+            residual_list.append(np.mean(clean_resid_activity_dict_NDNF_newest[animal][cell], axis=1))
+            vel_prediction_list.append(np.mean(predicted_activity_dict[animal][cell], axis=1))
+            raw_activity_list.append(np.mean(animal_clean_dict_activity[animal][cell], axis=1))
+
+            residual_flat = clean_resid_activity_dict_NDNF_newest[animal][cell].flatten()
+            vel_flat = clean_velocity_dict_NDNF_newest[animal]["Velocity"].flatten()
+            raw_flat = animal_clean_dict_activity[animal][cell].flatten()
+
+            # r_residual, _ = pearsonr(residual_flat,vel_flat)
+            # r_residual_list.append(r_residual)
+            # r_raw, _ = pearsonr(raw_flat,vel_flat)
+            # r_raw_list.append(r_raw)
+
+
+    r_residual_list = []
+    r_raw_list = []
+    real_vel_list = []
+
+    for animal in clean_resid_activity_dict_NDNF_newest:
+        vel_flat_full = np.asarray(clean_velocity_dict_NDNF_newest[animal]["Velocity"]).flatten()
+        real_vel_list.append(np.mean(clean_velocity_dict_NDNF_newest[animal]["Velocity"], axis=1))
+
+        for cell in clean_resid_activity_dict_NDNF_newest[animal]:
+            residual_flat_full = np.asarray(clean_resid_activity_dict_NDNF_newest[animal][cell]).flatten()
+            raw_flat_full      = np.asarray(animal_clean_dict_activity[animal][cell]).flatten()
+
+            L = min(len(vel_flat_full), len(residual_flat_full), len(raw_flat_full))
+            v  = vel_flat_full[:L]
+            rr = residual_flat_full[:L]
+            rw = raw_flat_full[:L]
+
+            # require BOTH to be valid so they stay paired
+            m = np.isfinite(v) & np.isfinite(rw) & np.isfinite(rr)
+            if m.sum() < 3:
+                continue
+
+            r_raw, _   = pearsonr(rw[m], v[m])
+            r_resid, _ = pearsonr(rr[m], v[m])
+
+            r_raw_list.append(r_raw)
+            r_residual_list.append(r_resid)
+
+
+
+    paired_r_plot(
+    axs[1,0],
+    r_raw_list,
+    r_residual_list,
+    title=None,
+    color=icolore,
+    show_mean=True,
+    show_sem=True,      # or False if you only want a mean bar
+)
+
+
+
+    residual_array = np.array(residual_list)
+    vel_prediction_array = np.array(vel_prediction_list)
+    raw_activity_array = np.array(raw_activity_list)
+
+    im = axs[0,0].imshow(raw_activity_array, aspect='auto')
+    axs[0,0].set_title("Raw")
+    axs[0,0].set_ylabel("Cell ID")
+    axs[0,0].set_xlabel("Position Bins")
+    fig.colorbar(im, ax=axs[0,0], label="Z-Scored DF/F")
+
+    im = axs[0,1].imshow(vel_prediction_array, aspect='auto')
+    axs[0,1].set_title("Velocity Contribution")
+    axs[0,1].set_ylabel("Cell ID")
+    axs[0,1].set_xlabel("Position Bins")
+    fig.colorbar(im, ax=axs[0,1], label="Z-Scored DF/F")
+
+    im = axs[0,2].imshow(residual_array, aspect='auto')
+    axs[0,2].set_title("Spatial Component")
+    axs[0,2].set_ylabel("Cell ID")
+    axs[0,2].set_xlabel("Position Bins")
+    fig.colorbar(im, ax=axs[0,2], label="Z-Scored DF/F")
+
+    mean_residual_array = np.mean(residual_array, axis=0)
+    mean_vel_prediction_array = np.mean(vel_prediction_array, axis=0)
+    mean_raw_activity_array = np.mean(raw_activity_array, axis=0)
+
+    sem_residual_array = sem(residual_array, axis=0)
+    sem_vel_prediction_array = sem(vel_prediction_array, axis=0)
+    sem_raw_activity_array = sem(raw_activity_array, axis=0)
+
+    axs[1,2].plot(mean_raw_activity_array, color='k', label="Raw")
+    axs[1,2].fill_between(range(len(mean_raw_activity_array)), mean_raw_activity_array-sem_raw_activity_array, mean_raw_activity_array+sem_raw_activity_array, alpha=0.2, color='k')
+    axs[1,2].set_title("Raw Activity")
+    axs[1,2].set_ylabel("Z-Scored DF/F")
+    axs[1,2].set_xlabel("Position Bins")
+
+    axs[1,2].plot(mean_residual_array, color=icolore, label="Spatial Component")
+    axs[1,2].fill_between(range(len(mean_residual_array)), mean_residual_array-sem_residual_array, mean_residual_array+sem_residual_array, alpha=0.2, color=icolore)
+    axs[1,2].set_title("Spatial Component")
+    axs[1,2].set_ylabel("Z-Scored DF/F")
+    axs[1,2].set_xlabel("Position Bins")
+    axs[1,2].set_ylim(-0.4, 0.4)
+    axs[1,2].legend()
+
+    # axs[1,1].plot(mean_vel_prediction_array, color='r')
+    # axs[1,1].fill_between(range(len(mean_vel_prediction_array)), mean_vel_prediction_array-sem_vel_prediction_array, mean_vel_prediction_array+sem_vel_prediction_array, alpha=0.2, color='r')
+    # axs[1,1].set_title("Velocity Contribution")
+    # axs[1,1].set_ylabel("Z-Scored DF/F")
+    # axs[1,1].set_xlabel("Position Bins")
+    # axs[1,1].set_ylim(-0.5, 0.25)
+
+    real_vel_array = np.array(real_vel_list)
+    mean_real_vel_array = np.mean(real_vel_array, axis=0)
+    sem_real_vel_array = sem(real_vel_array, axis=0)
+
+    # for i in range(len(real_vel_list)):
+    axs[1,1].plot(mean_real_vel_array, color='r', linewidth=2)
+    axs[1,1].fill_between(range(len(mean_real_vel_array)), mean_real_vel_array+sem_real_vel_array, mean_real_vel_array-sem_real_vel_array, alpha=0.2, color='r')
+    axs[1,1].set_xlabel("Position Bins")
+    axs[1,1].set_ylabel("Meters / Sec")
+    axs[1,1].set_title("Velocity")
+
+
+
+
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
 
 
 

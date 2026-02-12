@@ -19,12 +19,14 @@ from scipy.spatial.distance import cdist
 from scipy.stats import ttest_rel
 
 
-plt.rcParams['axes.titlesize'] = 8       # all titles
-plt.rcParams['axes.labelsize'] = 7       # x and y labels
-plt.rcParams['xtick.labelsize'] = 6      # tick labels
-plt.rcParams['ytick.labelsize'] = 6
-plt.rcParams["legend.fontsize"] = 7
+
+plt.rcParams['axes.titlesize'] = 20       # all titles
+plt.rcParams['axes.labelsize'] = 16      # x and y labels
+plt.rcParams['xtick.labelsize'] = 16      # tick labels
+plt.rcParams['ytick.labelsize'] = 16
+plt.rcParams["legend.fontsize"] = 14
 plt.rcParams['savefig.dpi'] = 600
+plt.rcParams['axes.titlepad'] = 12.0
 
 
 
@@ -2793,33 +2795,33 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
         color_list = ["cyan", "b"]
         
 
-        mse_list0 = trial_types_for_given_k(some_things_dict0, k=3, title="Cell Type 0", ymin_act=-1., ymax_act=2, ymin_percent=0, ymax_percent=0.425, color_list=color_list, overall_color='royalblue')
+        # mse_list0 = trial_types_for_given_k(some_things_dict0, k=3, title="Cell Type 0", ymin_act=-1., ymax_act=2, ymin_percent=0, ymax_percent=0.425, color_list=color_list, overall_color='royalblue')
 
         # color_list = ["orange", "Crimson"]
         # mse_list1 = trial_types_for_given_k(some_things_dict1, k=3, title="Cell Type 1", ymin_act=-1.0, ymax_act=7.0, ymin_percent=-0.025, ymax_percent=0.45, color_list=color_list, overall_color='r')
         
-        # fig, axs = plt.subplots(1,2, sharey=True)
+        fig, axs = plt.subplots(1,2, sharey=True)
 
-        # axs[0].plot(mean_early, label="Early", color="cyan")
-        # axs[0].fill_between(range(len(mean_early)), mean_early-sem_early, mean_early+sem_early, alpha=0.2, color='cyan')
+        axs[0].plot(mean_early, label="Early", color="cyan")
+        axs[0].fill_between(range(len(mean_early)), mean_early-sem_early, mean_early+sem_early, alpha=0.2, color='cyan')
 
-        # axs[0].plot(mean_late, label="Late", color='b')
-        # axs[0].fill_between(range(len(mean_late)), mean_late-sem_late, mean_late+sem_late, alpha=0.2, color='b')
-        # axs[0].set_ylabel("Z-Scored DF/F")
-        # axs[0].set_xlabel("Position Bins")
-        # axs[1].set_xlabel("Position Bins")
+        axs[0].plot(mean_late, label="Late", color='b')
+        axs[0].fill_between(range(len(mean_late)), mean_late-sem_late, mean_late+sem_late, alpha=0.2, color='b')
+        axs[0].set_ylabel("Z-Scored DF/F")
+        axs[0].set_xlabel("Position Bins")
+        axs[1].set_xlabel("Position Bins")
 
-        # axs[1].set_title("Late - Early Activity per Cell")
-        # axs[0].set_title("Average Activity Early vs Late")
+        axs[1].set_title("Late - Early Activity per Cell")
+        axs[0].set_title("Average Activity Early vs Late")
 
-        # # axs[0].set_ylim(np.min(overall_min), np.max(overall_max))
+        # axs[0].set_ylim(np.min(overall_min), np.max(overall_max))
 
-        # axs[0].legend()
+        axs[0].legend()
 
-        # axs[1].plot(mean_difference_array)
-        # axs[1].fill_between(range(len(mean_difference_array)), mean_difference_array-sem_difference_array, mean_difference_array+sem_difference_array, alpha=0.2)
-        # plt.tight_layout()
-        # plt.show()
+        axs[1].plot(mean_difference_array)
+        axs[1].fill_between(range(len(mean_difference_array)), mean_difference_array-sem_difference_array, mean_difference_array+sem_difference_array, alpha=0.2)
+        plt.tight_layout()
+        plt.show()
 
 
 
@@ -3230,7 +3232,7 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype):
 @click.option('--use_all/--use_some', default=True, help="Use the Final NDNF data")
 
 def cli(use_fixed_track, use_first_or_only, use_all):
-    run(use_fixed_track, use_first_or_only, use_all, which_celltype="NDNF")
+    run(use_fixed_track, use_first_or_only, use_all, which_celltype="SST")
 
 if __name__ == "__main__":
     cli()

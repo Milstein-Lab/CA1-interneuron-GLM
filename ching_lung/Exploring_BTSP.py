@@ -417,7 +417,348 @@ def plot_jeff(context, params):
     plt.xticks(np.arange(4), ["10Hz", "20Hz", "40Hz", "100Hz"])
     plt.show()
 
-    # print(tau_results)  # dict: {hz: {'tau_back_exp':..., 'tau_fwd_exp':..., ...}, ...}
+   
+
+
+def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
+
+    # ---- FALSE path: test the model at 10/20/40/100 on Jeff's 20Hz x-grid ----
+    plot_full_intermediates = str_true_false_to_bool(plot_full_intermediates)
+
+    hz_tested_list = [10, 20, 40, 100]
+
+    # Reuse the same x time grid (ms) for ALL test frequencies
+    x_20 = jeffs_data_dict[20]['x']          # <-- single grid
+    y_20_exp = jeffs_data_dict[20]['y']      # experimental only exists for 20 Hz
+
+    products_dict_jeff = {}
+    et_by_hz = {}
+
+    for hz_used in hz_tested_list:
+        delta_w_list, et_time_1000, IS = get_W(
+            x_20,
+            post_ms=10000, pre_ms=10000,
+            hz_used=hz_used,               # <-- only this changes
+            plateau_length=300,
+            tau_et=params["tau_et"], tau_is=params["tau_is"],
+            lam_et=params["lam_et"], lam_is=params["lam_is"],
+            dt_ms=1.0, eta_ms=params["eta_ms"],
+            plot_intermediates=False
+        )
+        print(f"delta_w_list (hz={hz_used}): {delta_w_list}")
+
+        products_dict_jeff[hz_used] = {
+            "x": x_20,
+            "y": np.array(delta_w_list),
+            "params_dict": params,
+        }
+        et_by_hz[hz_used] = et_time_1000  # optional: keep ET if you want to inspect it
+
+
+    def split_back_fwd(x_s, y):
+        """Split at 0 s: backward (x<=0), forward (x>=0). Returns sorted splits."""
+        x_s = np.asarray(x_s, float); y = np.asarray(y, float)
+        m = np.isfinite(x_s) & np.isfinite(y)
+        x_s, y = x_s[m], y[m]
+        # sort by time
+        o = np.argsort(x_s); x_s, y = x_s[o], y[o]
+        mb = x_s <= 0
+        mf = x_s >= 0
+        xb, yb = x_s[mb], y[mb]
+        xf, yf = x_s[mf], y[mf]
+        return xb, yb, xf, yf
+
+    def fit_back_fwd_with_c0(xb, yb, xf, yf):
+        """Fit c=0. Forward is fit in z=-x so it’s an increasing exponential."""
+        tau_b = tau_f = np.nan
+        A_b = A_f = np.nan
+        # backward
+        if (yb > 0).sum() >= 2:
+            A_b, tau_b = fit_exp_fixed_c(xb, yb, c_fixed=0.0)
+        # forward (fit in z = -x for positive slope)
+        if (yf > 0).sum() >= 2:
+            zf = -xf
+            A_f, tau_f = fit_exp_fixed_c(zf, yf, c_fixed=0.0)
+        return (A_b, tau_b), (A_f, tau_f)
+    
+    # Toggle this ON to use paper taus for experimental curves; OFF to fit them
+    FORCE_PAPER_TAU = True
+    TAU_BACK_PAPER  = 1.31  # s
+    TAU_FWD_PAPER   = 0.69  # s
+
+    def _apex_value(x_s, y):
+        x_s = np.asarray(x_s, float); y = np.asarray(y, float)
+        m = np.isfinite(x_s) & np.isfinite(y)
+        x_s, y = x_s[m], y[m]
+        o = np.argsort(x_s); x_s, y = x_s[o], y[o]
+        if np.any(x_s == 0.0):
+            return float(y[x_s == 0.0][0])
+        return float(np.interp(0.0, x_s, y))
+    
+
+
+
+    # --- Plot: model predictions for all; overlay experimental points only for 20 Hz ---
+    fig, axs = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True)
+    axs = axs.flat
+
+    # # --- Plot + tau fits with c=0 for back/fwd, model vs experimental (20 Hz only) ---
+    # fig, axs = plt.subplots(2, 2, figsize=(10, 7), sharex=True, sharey=True)
+    # axs = axs.flat
+
+    
+
+    ymod_list = []
+
+    backwards_model_per_hz_dict = {}
+    backwards_experiment_per_hz_dict = {}
+
+    for i, hz in enumerate(hz_tested_list):
+        ax = axs[i]
+        x_ms = np.asarray(products_dict_jeff[hz]["x"], float)
+        y_mod = np.asarray(products_dict_jeff[hz]["y"], float)
+
+        # seconds from plateau (negative = backward)
+        x_s = -x_ms / 1000.0
+
+        # MODEL points
+        ax.plot(x_s, y_mod, 'o', label="Model", color='tab:blue')
+
+        print(f"y_mod {y_mod}")
+        ymod_list.append(y_mod[4])
+
+        # MODEL fits (c=0), back & fwd
+        xb_m, yb_m, xf_m, yf_m = split_back_fwd(x_s, y_mod)
+        (Amb, taumb), (Amf, taumf) = fit_back_fwd_with_c0(xb_m, yb_m, xf_m, yf_m)
+
+
+        
+        
+
+
+        if np.isfinite(taumb):
+            xx_b = np.linspace(xb_m.min(), xb_m.max(), 400)
+            model_backwards_line = exp_with_fixed_c(xx_b, Amb, taumb, c_fixed=0.0)
+            ax.plot(xx_b, model_backwards_line,
+                    '--', lw=2.0, color='purple', label=f"Model back (τ={taumb:.2f}s)")
+        if np.isfinite(taumf):
+            xx_f = np.linspace(xf_m.min(), xf_m.max(), 400)
+            model_forwards_line = exp_with_fixed_c(-xx_f, Amf, taumf, c_fixed=0.0)
+            ax.plot(xx_f, model_forwards_line,
+                    '--', lw=2.0, color='purple', label=f"Model fwd (τ={taumf:.2f}s)")
+            
+
+        model_backwards_dict = {"xx_f":xx_f,
+                                "xx_b":xx_b,
+                                "model_backwards_line":model_backwards_line,
+                                "model_forwards_line":model_forwards_line,
+                                "Amb":Amb,
+                                "taumb":taumb,
+                                "taumf":taumf,
+                                "x_s":x_s,
+                                "y_mod":y_mod}
+        
+
+        backwards_model_per_hz_dict[hz] = model_backwards_dict
+
+        # EXPERIMENTAL points (from 20 Hz dataset)
+        x_exp_s  = -x_20 / 1000.0
+        y_exp_dw = y_20_exp
+        
+        
+        x_exp_s_backward = x_exp_s
+        y_exp_s_backward = y_exp_dw
+
+
+
+        ax.plot(x_exp_s, y_exp_dw, 'o', color='k', label="Experimental")
+
+        # EXPERIMENTAL curves
+        xb_e, yb_e, xf_e, yf_e = split_back_fwd(x_exp_s, y_exp_dw)
+        if FORCE_PAPER_TAU:
+            # Anchor both arms at the experimental apex at x=0
+            y0 = _apex_value(x_exp_s, y_exp_dw)
+
+            if xb_e.size:
+                xx_b = np.linspace(xb_e.min(), 0.0, 400)
+                yy_b = y0 * np.exp(xx_b / TAU_BACK_PAPER)
+                ax.plot(xx_b, yy_b, '-', lw=2.0, color='red',
+                        label=f'Exp back (τ={TAU_BACK_PAPER:.2f}s)')
+
+            if xf_e.size:
+                xx_f = np.linspace(0.0, xf_e.max(), 400)
+                yy_f = y0 * np.exp(-xx_f / TAU_FWD_PAPER)
+                ax.plot(xx_f, yy_f, '-', lw=2.0, color='red',
+                        label=f'Exp fwd (τ={TAU_FWD_PAPER:.2f}s)')
+        else:
+            (Aeb, taueb), (Aef, tauef) = fit_back_fwd_with_c0(xb_e, yb_e, xf_e, yf_e)
+            if np.isfinite(taueb):
+                xx = np.linspace(xb_e.min(), xb_e.max(), 400)
+                ax.plot(xx, exp_with_fixed_c(xx, Aeb, taueb, c_fixed=0.0),
+                        '-', lw=2.0, color='red', label=f"Exp back (τ={taueb:.2f}s)")
+            if np.isfinite(tauef):
+                xx = np.linspace(xf_e.min(), xf_e.max(), 400)
+                ax.plot(xx, exp_with_fixed_c(-xx, Aef, tauef, c_fixed=0.0),
+                        '-', lw=2.0, color='red', label=f"Exp fwd (τ={tauef:.2f}s)")
+                
+
+        experiment_backwards_dict = {"xx_b":xx_b,
+                                     "xx_f":xx_f,
+                                "yy_b":yy_b,
+                                "yy_f":yy_f,
+                                # "Amb":Amb,
+                                "TAU_BACK_PAPER":TAU_BACK_PAPER,
+                                "TAU_FWD_PAPER":TAU_FWD_PAPER,
+                                "x_exp_s_backward":x_exp_s_backward,
+                                "y_exp_s_backward":y_exp_s_backward}
+        
+        backwards_experiment_per_hz_dict[hz] = experiment_backwards_dict
+
+        ax.set_title(f"{hz} Hz Pre Stim Simulated Model")
+        ax.set_xlabel("Time from plateau (s)")
+        ax.set_ylabel("EPSP Amplitude (relative %)") #("ΔW")
+        ax.set_ylim(0, 2.50)
+        custom_tick_locations = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
+        custom_labels = ['100', '150', '200', '250', '300', '350']
+        ax.set_yticks(custom_tick_locations)
+        ax.set_yticklabels(custom_labels)
+        ax.legend(fontsize=7, loc="upper left")
+
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure()
+    plt.plot(ymod_list, marker="o")
+    plt.xlabel("Frequencies of Presynaptic Stimulation - Model")
+    plt.ylabel("% LTP at 0ms from Plateau")
+    plt.xticks(np.arange(4), ["10Hz", "20Hz", "40Hz", "100Hz"])
+    plt.ylim(100, 350)
+    plt.title("Model Fit to 2017 Kernel Imposed Presynaptic Spiking @ Diff Freq.")
+    plt.show()
+
+    ymod_list = []
+
+    for i, hz in enumerate(hz_tested_list):
+        ax = axs[i]
+        x_ms = np.asarray(products_dict_jeff[hz]["x"], float)
+        y_mod = np.asarray(products_dict_jeff[hz]["y"], float)
+
+        # seconds from plateau (negative = backward)
+        x_s = -x_ms / 1000.0
+
+        # MODEL points
+        ax.plot(x_s, y_mod, 'o', label="Model", color='tab:blue')
+
+        print(f"y_mod {y_mod}")
+        ymod_list.append(y_mod[4])
+
+        # MODEL fits (c=0), back & fwd
+        xb_m, yb_m, xf_m, yf_m = split_back_fwd(x_s, y_mod)
+        (Amb, taumb), (Amf, taumf) = fit_back_fwd_with_c0(xb_m, yb_m, xf_m, yf_m)
+
+        if np.isfinite(taumb):
+            xx = np.linspace(xb_m.min(), xb_m.max(), 400)
+            ax.plot(xx, exp_with_fixed_c(xx, Amb, taumb, c_fixed=0.0),
+                    '--', lw=2.0, color='purple', label=f"Model back (τ={taumb:.2f}s)")
+        if np.isfinite(taumf):
+            xx = np.linspace(xf_m.min(), xf_m.max(), 400)
+            ax.plot(xx, exp_with_fixed_c(-xx, Amf, taumf, c_fixed=0.0),
+                    '--', lw=2.0, color='purple', label=f"Model fwd (τ={taumf:.2f}s)")
+
+        # EXPERIMENTAL points (from 20 Hz dataset)
+        x_exp_s  = -x_20 / 1000.0
+        y_exp_dw = y_20_exp
+        
+        
+        x_exp_s_backward = x_exp_s
+        y_exp_s_backward = y_exp_dw
+
+
+
+        ax.plot(x_exp_s_backward, y_exp_s_backward, 'o', color='k', label="Experimental")
+
+        # EXPERIMENTAL curves
+        xb_e, yb_e, xf_e, yf_e = split_back_fwd(x_exp_s, y_exp_dw)
+        if FORCE_PAPER_TAU:
+            # Anchor both arms at the experimental apex at x=0
+            y0 = _apex_value(x_exp_s, y_exp_dw)
+
+            if xb_e.size:
+                xx_b = np.linspace(xb_e.min(), 0.0, 400)
+                yy_b = y0 * np.exp(xx_b / TAU_BACK_PAPER)
+                ax.plot(xx_b, yy_b, '-', lw=2.0, color='red',
+                        label=f'Exp back (τ={TAU_BACK_PAPER:.2f}s)')
+
+            if xf_e.size:
+                xx_f = np.linspace(0.0, xf_e.max(), 400)
+                yy_f = y0 * np.exp(-xx_f / TAU_FWD_PAPER)
+                ax.plot(xx_f, yy_f, '-', lw=2.0, color='red',
+                        label=f'Exp fwd (τ={TAU_FWD_PAPER:.2f}s)')
+        else:
+            (Aeb, taueb), (Aef, tauef) = fit_back_fwd_with_c0(xb_e, yb_e, xf_e, yf_e)
+            if np.isfinite(taueb):
+                xx = np.linspace(xb_e.min(), xb_e.max(), 400)
+                ax.plot(xx[:5], exp_with_fixed_c(xx, Aeb, taueb, c_fixed=0.0)[:5],
+                        '-', lw=2.0, color='red', label=f"Exp back (τ={taueb:.2f}s)")
+            if np.isfinite(tauef):
+                xx = np.linspace(xf_e.min(), xf_e.max(), 400)
+                ax.plot(xx[:5], exp_with_fixed_c(-xx, Aef, tauef, c_fixed=0.0)[:5],
+                        '-', lw=2.0, color='red', label=f"Exp fwd (τ={tauef:.2f}s)")
+                
+        
+        print(f"xx {xx}")
+
+        ax.set_title(f"{hz} Hz Pre Stim Simulated Model")
+        ax.set_xlabel("Time from plateau (s)")
+        ax.set_ylabel("EPSP Amplitude (relative %)") #("ΔW")
+        ax.set_ylim(0, 2.50)
+        custom_tick_locations = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
+        custom_labels = ['100', '150', '200', '250', '300', '350']
+        ax.set_yticks(custom_tick_locations)
+        ax.set_yticklabels(custom_labels)
+        ax.legend(fontsize=7, loc="upper left")
+
+    plt.tight_layout()
+    plt.show()
+
+
+    # loss, products_dict_jeff, _, _ = objective(context.jeffs_data_dict, params, export=True, plot=plot_full_intermediates)
+
+    # print(f"products_dict_jeff {products_dict_jeff}")
+
+
+
+    # tau_backward_model, tau_forward_model = plot_full_kernel_bidirectional(context.jeffs_data_dict, products_dict_jeff,taus_bidirectional,label=20,title="20 Hz (full kernel)")
+    # plot_full_kernel_bidirectional(context.jeffs_data_dict, products_dict_jeff, label=20, title="20 Hz (full kernel - 2017)", c_fixed=0.0, tau_bounds_back=(0.6, 2.5), tau_bounds_fwd=(0.4, 1.5), n_grid=600, align_model="none",color_model="blue",color_fit_exp="red", color_fit_model="purple")
+
+    # build products_dict_* for all Hz (your code already does this)
+    # products_dict_jeff[hz] = {"x": x_arr_int, "y": np.array(delta_w_list), "params_dict": params}
+
+
+
+    tau_results, max_value_list = plot_kernels_grid(
+        jeffs_data_dict,          # cleaned (experiment)
+        products_dict_jeff,               # model output you computed
+        hz_list=hz_tested_list,
+        c_fixed=0.0,                      # or 1.0 if plotting normalized EPSP
+        tau_bounds_back=(0.6, 2.5),
+        tau_bounds_fwd=(0.4, 1.5),
+        n_grid=600,
+        align_model="none"                # or "lsq" if you want visual alignment
+    )
+
+    plt.figure()
+    plt.plot(max_value_list, marker='o', color='k', linestyle="None")
+    plt.plot(max_value_list, color='r')
+    plt.ylabel("Max Potentiation %")
+    plt.ylim(175,225)
+    plt.xticks(np.arange(4), ["10Hz", "20Hz", "40Hz", "100Hz"])
+    plt.show()
+
+    return backwards_experiment_per_hz_dict, backwards_model_per_hz_dict
+
+
+
 
 
 def spike_train_by_rate(rate_hz=20, n=10, t0_ms=0.0, jitter_ms=0.0, min_isi_ms=0.0,
