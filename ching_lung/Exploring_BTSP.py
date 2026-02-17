@@ -32,13 +32,6 @@ def plot_ching_lung(context, params):
 
     print(f"context.cleaned_data_dict {context.cleaned_data_dict}")
 
-    # fig, axs = plt.subplots(1, len(et_time_1000_dict))
-    # for idx, key in enumerate(et_time_1000_dict):
-    #     axs[idx].plot(et_time_1000_dict[key])
-    #     axs[idx].set_title(key)
-    # plt.tight_layout()
-    # plt.show()
-
     order = [10, 20, 40, 100, "20Hz_full_kernel"]
 
     fig, axs = plt.subplots(1, 4, figsize=(15,3))
@@ -109,23 +102,12 @@ def plot_ching_lung(context, params):
     plt.tight_layout()
     plt.show()
 
-    # tau_experimental_calculated, tau_dict_model = plot_btsp_overlay_products_cleaned_mixed(cleaned=context.cleaned_data_dict,products_dict=products_dict, titles=titles, align_model="none")
-
-    # taus_bidirectional = [1.39, 0.73] 
-    # tau_backward_model, tau_forward_model = plot_full_kernel_bidirectional(context.cleaned_data_dict, products_dict,taus_bidirectional,label="20Hz_full_kernel",title="20 Hz (full kernel)")
-
 
     print(f"products_dict.keys {products_dict.keys} products_dict {products_dict}")
 
     ### c=1 search over tau
 
     print(f"context.cleaned_data_dict.keys() {context.cleaned_data_dict.keys()}")
-
-    # tau_est = fit_and_plot_btsp_paper_style_from_cleaned(context.cleaned_data_dict, tau_mode="fit", c_mode="fixed", c_value=0.0)
-
-    # #fix tau fit c
-    # tau_est = fit_and_plot_btsp_paper_style_from_cleaned(context.cleaned_data_dict, products_dict, tau_mode_exp="fixed", tau_mode_model="fixed", tau_fixed_experiment={10:1.44, 40:1.80, 20:1.75, 100:1.03}, tau_fixed_model={10:1.39, 40:1.71, 20:1.93, 100:1.19}, c_mode="fit")
-    
 
 
     results = fit_and_plot_btsp_paper_style_from_cleaned(
@@ -149,28 +131,7 @@ def plot_ching_lung(context, params):
     y_max_map={10:2.0, 40:2.2, 20:2.7, 100:1.7},
 )
 
-    # tau_est = fit_and_plot_btsp_paper_style_from_cleaned(context.cleaned_data_dict, products_dict, tau_mode_exp="fit", tau_mode_model="fit", c_mode="fixed", c_value=0.01)
 
-
-
-
-
-    # # backward-only panels
-    # taus_est = fit_and_plot_btsp_paper_style_from_cleaned(
-    #     cleaned=context.cleaned_data_dict,
-    #     titles=("10 Hz","20 Hz","40 Hz","100 Hz"),
-    #     tau_bounds = {
-    #     10:  (1.30, 1.60),
-    #     20:  (1.60, 1.90),
-    #     40:  (1.60, 2.00),
-    #     100: (0.95, 1.15)},
-    #     exclude_window_s=0.0,
-    #     weight_half_life=0.5,
-    #     n_grid=600
-    # )
-    # print("Backward τ (paper-style):", taus_est)
-
-    # full kernel (both sides)
     tau_b, tau_f = fit_and_plot_full_kernel_paper_style(
         cleaned=context.cleaned_data_dict,
         label="20Hz_full_kernel",
@@ -185,35 +146,131 @@ def plot_ching_lung(context, params):
     print("Full-kernel τ (paper-style): backward=", tau_b, " forward=", tau_f)
 
 
-    # taus_experimental = {10: [1.44],
-    #                      20: [1.75, 1.39],
-    #                      40: [1.80],
-    #                      100: [1.03],
-    #                      "forward": [0.73]}
-    
-    # taus_model = {10: [tau_dict_model[10]],
-    #                      20: [tau_dict_model[20], tau_backward_model],
-    #                      40: [tau_dict_model[40]],
-    #                      100: [tau_dict_model[100]],
-    #                      "forward": [tau_forward_model]}
-    
-    # plot_tau_buckets(taus_experimental, taus_model)
-    
-    # for key in taus_experimental:
-    #     for i in range(len(taus_experimental[key])):
-    #         thing_to_plot = taus_experimental[key][i]
-    #         plt.plot(thing_to_plot)
-    # plt.xticks(range(5), ['10Hz Backward','20Hz Backward','40Hz Backward','100Hz Backward','20Hz Forward',])
 
-    # plt.figure()
-    # plt.show()
 
-# important_dict = {"loss": loss,
-#                   "products_dict":products_dict}
+def plot_ching_lung2(cleaned_data_dict, params, plot_full_intermediates=False, special_case=True):
 
-# with open(context.save_path, 'wb') as f:
-#     pickle.dump(important_dict, f)
-# print(f"saved loss and metrics to {context.save_path}")
+    # plot_full_intermediates = str_true_false_to_bool(context.plot_full_intermediates)
+    # special_case = str_true_false_to_bool(context.special_case)
+
+    loss, products_dict, et_time_1000_dict, IS = objective(cleaned_data_dict, params, export=True, plot=plot_full_intermediates, special_case=special_case)
+
+    # print(f"context.cleaned_data_dict {context.cleaned_data_dict}")
+
+    order = [10, 20, 40, 100, "20Hz_full_kernel"]
+
+    fig, axs = plt.subplots(1, 4, figsize=(15,3))
+
+    # pick keys that actually exist, in the desired order, cap at 5
+    keys = [k for k in order if k in et_time_1000_dict][:5]
+
+    pre_ms = 10000
+    post_ms = 10000
+
+    T_ms = int(pre_ms + post_ms)
+    t_ms = np.arange(-pre_ms, post_ms, dtype=int)
+
+    dw_per_hz_special_0 = []
+
+    for i, k in enumerate(keys):
+        print(f"k {k}")
+        if k!="20Hz_full_kernel":
+            y = np.asarray(et_time_1000_dict[k], float)   # y-only series is fine
+            W = np.trapz(y*IS, dx=1.0)
+            dW = params["eta_ms"] * W
+            dW_scaled = (dW+1) *100
+            dw_per_hz_special_0.append(dW_scaled)
+            # ax = axs[i]
+            axs[i].plot(t_ms[5000:15000], y[5000:15000], lw=2, label="ET")
+            axs[i].plot(t_ms[5000:15000], IS[5000:15000], label="IS")
+            axs[i].set_title(f"{k} Hz dT(ET to IS)=0.0s, dW={dW:.3f}")
+            axs[i].set_xlabel("Time (ms)")
+            axs[i].set_ylabel("A.U.")
+            axs[i].legend()
+
+    # # hide the 6th (unused) panel to match the 5-panel layout
+    # axs[5].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    
+
+    plt.figure(figsize=(5.2, 3.2))
+    plt.plot(dw_per_hz_special_0, marker='o', lw=2)
+    plt.xticks(range(len(dw_per_hz_special_0)), ["10Hz", "20Hz", "40Hz", "100Hz"])
+    plt.xlabel('Stimulation Frequency Model Fit to Fig 2D')
+    plt.ylabel('EPSP Normalized (relative %)')
+    plt.ylim(100, 350)
+    plt.tight_layout()
+    plt.show()
+
+
+    
+    # taus   = [1.44, 1.75, 1.80, 1.03]        # seconds
+    # titles = ("10 Hz", "20 Hz", "40 Hz", "100 Hz")
+
+    max_dict = plot_fixed_data(cleaned_data_dict, products_dict, fixed_c=0.00)
+
+    order_keys = [10, 20, 40, 100, '20 forward']
+    labels = ["10Hz", "20Hz Backward", "40Hz", "100Hz", "20Hz Forward"]
+
+    # Pull in that order and convert to %
+    max_values_pct = [max_dict[k] * 100.0 for k in order_keys]
+
+    plt.figure()
+    plt.plot(max_values_pct, marker='o', color='k', linestyle="None")
+    plt.plot(max_values_pct, color='r')
+    plt.ylabel("Max Potentiation %")
+    plt.ylim(100, 250)  # same as your original style
+    plt.xticks(np.arange(len(labels)), labels, rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+
+    print(f"products_dict.keys {products_dict.keys} products_dict {products_dict}")
+
+    ### c=1 search over tau
+
+
+    results = fit_and_plot_btsp_paper_style_from_cleaned(
+    cleaned=cleaned_data_dict,
+    products_dict=products_dict,
+    titles=("10 Hz","40 Hz","20 Hz (merged)","100 Hz"),
+    panels=(10, 40, 20, 100),
+
+    tau_mode_exp="fit",
+    tau_mode_model="fit",
+    tau_bounds_exp={10:(1.1,1.9), 40:(1.4,2.3), 20:(1.3,2.2), 100:(0.8,1.3)},
+    tau_bounds_model={10:(1.1,1.9), 40:(1.4,2.3), 20:(1.3,2.2), 100:(0.8,1.3)},
+    n_grid=600,
+
+    c_mode="fixed",
+    c_value=0.00,          # match fixed_c
+
+    exclude_window_s=0.0,  # match trimming
+    weight_half_life=None, # disable weights to match plain LS
+    xlim=(-4.5, 0.5),
+    y_max_map={10:2.0, 40:2.2, 20:2.7, 100:1.7},
+)
+
+
+    tau_b, tau_f = fit_and_plot_full_kernel_paper_style(
+        cleaned=cleaned_data_dict,
+        label="20Hz_full_kernel",
+        title="20 Hz (full kernel)",
+        tau_bounds_back=(1.2,1.7),
+        tau_bounds_fwd=(0.55,0.95),
+        exclude_window_s=0.0,
+        weight_half_life=0.5,
+        n_grid=600
+    )
+
+    print("Full-kernel τ (paper-style): backward=", tau_b, " forward=", tau_f)
+
+
+
+
 
 
 def plot_jeff(context, params):
@@ -420,21 +477,33 @@ def plot_jeff(context, params):
    
 
 
-def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
+def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates, handin_hz=20):
 
     # ---- FALSE path: test the model at 10/20/40/100 on Jeff's 20Hz x-grid ----
     plot_full_intermediates = str_true_false_to_bool(plot_full_intermediates)
 
     hz_tested_list = [10, 20, 40, 100]
 
-    # Reuse the same x time grid (ms) for ALL test frequencies
-    x_20 = jeffs_data_dict[20]['x']          # <-- single grid
-    y_20_exp = jeffs_data_dict[20]['y']      # experimental only exists for 20 Hz
+    
+
 
     products_dict_jeff = {}
     et_by_hz = {}
 
+    x_20 = jeffs_data_dict[handin_hz]['x']          # <-- single grid
+    y_20_exp = jeffs_data_dict[handin_hz]['y']      # experimental only exists for 20 Hz
+
     for hz_used in hz_tested_list:
+            
+    #     if actually_jeff:
+    #         x_20 = jeffs_data_dict[20]['x']          # <-- single grid
+    #         y_20_exp = jeffs_data_dict[20]['y']      # experimental only exists for 20 Hz
+
+    #     else:
+    #         x_20 = jeffs_data_dict[hz_used]['x']          # <-- single grid
+    #         y_20_exp = jeffs_data_dict[hz_used]['y']      # experimental only exists for 20 Hz
+
+
         delta_w_list, et_time_1000, IS = get_W(
             x_20,
             post_ms=10000, pre_ms=10000,
@@ -529,7 +598,9 @@ def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
 
         # MODEL fits (c=0), back & fwd
         xb_m, yb_m, xf_m, yf_m = split_back_fwd(x_s, y_mod)
-        (Amb, taumb), (Amf, taumf) = fit_back_fwd_with_c0(xb_m, yb_m, xf_m, yf_m)
+        # (Amb, taumb), (Amf, taumf) = fit_back_fwd_with_c0(xb_m, yb_m, xf_m, yf_m)
+
+        [A_alt, tau_alt], _ = scipy.optimize.curve_fit(exp_with_fixed_c, x, y, p0=[1., -1000.])
 
 
         
@@ -546,6 +617,10 @@ def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
             model_forwards_line = exp_with_fixed_c(-xx_f, Amf, taumf, c_fixed=0.0)
             ax.plot(xx_f, model_forwards_line,
                     '--', lw=2.0, color='purple', label=f"Model fwd (τ={taumf:.2f}s)")
+        else:
+            xx_f=0
+            model_forwards_line=0
+            taumf=0
             
 
         model_backwards_dict = {"xx_f":xx_f,
@@ -553,6 +628,7 @@ def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
                                 "model_backwards_line":model_backwards_line,
                                 "model_forwards_line":model_forwards_line,
                                 "Amb":Amb,
+                                "Amf":Amf,
                                 "taumb":taumb,
                                 "taumf":taumf,
                                 "x_s":x_s,
@@ -590,8 +666,13 @@ def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
                 yy_f = y0 * np.exp(-xx_f / TAU_FWD_PAPER)
                 ax.plot(xx_f, yy_f, '-', lw=2.0, color='red',
                         label=f'Exp fwd (τ={TAU_FWD_PAPER:.2f}s)')
+            else:
+                xx_f=0
+                yy_f=0
+                TAU_FWD_PAPER=0
         else:
-            (Aeb, taueb), (Aef, tauef) = fit_back_fwd_with_c0(xb_e, yb_e, xf_e, yf_e)
+            # (Aeb, taueb), (Aef, tauef) = fit_back_fwd_with_c0(xb_e, yb_e, xf_e, yf_e)
+            [A_alt, tau_alt], _ = scipy.optimize.curve_fit(exp_with_fixed_c, x, y, p0=[1., -1000.])
             if np.isfinite(taueb):
                 xx = np.linspace(xb_e.min(), xb_e.max(), 400)
                 ax.plot(xx, exp_with_fixed_c(xx, Aeb, taueb, c_fixed=0.0),
@@ -736,28 +817,231 @@ def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates):
 
 
 
-    tau_results, max_value_list = plot_kernels_grid(
-        jeffs_data_dict,          # cleaned (experiment)
-        products_dict_jeff,               # model output you computed
-        hz_list=hz_tested_list,
-        c_fixed=0.0,                      # or 1.0 if plotting normalized EPSP
-        tau_bounds_back=(0.6, 2.5),
-        tau_bounds_fwd=(0.4, 1.5),
-        n_grid=600,
-        align_model="none"                # or "lsq" if you want visual alignment
-    )
+    # tau_results, max_value_list = plot_kernels_grid(
+    #     jeffs_data_dict,          # cleaned (experiment)
+    #     products_dict_jeff,               # model output you computed
+    #     hz_list=hz_tested_list,
+    #     c_fixed=0.0,                      # or 1.0 if plotting normalized EPSP
+    #     tau_bounds_back=(0.6, 2.5),
+    #     tau_bounds_fwd=(0.4, 1.5),
+    #     n_grid=600,
+    #     align_model="none"                # or "lsq" if you want visual alignment
+    # )
 
-    plt.figure()
-    plt.plot(max_value_list, marker='o', color='k', linestyle="None")
-    plt.plot(max_value_list, color='r')
-    plt.ylabel("Max Potentiation %")
-    plt.ylim(175,225)
-    plt.xticks(np.arange(4), ["10Hz", "20Hz", "40Hz", "100Hz"])
-    plt.show()
+    # plt.figure()
+    # plt.plot(max_value_list, marker='o', color='k', linestyle="None")
+    # plt.plot(max_value_list, color='r')
+    # plt.ylabel("Max Potentiation %")
+    # plt.ylim(175,225)
+    # plt.xticks(np.arange(4), ["10Hz", "20Hz", "40Hz", "100Hz"])
+    # plt.show()
 
     return backwards_experiment_per_hz_dict, backwards_model_per_hz_dict
 
 
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_jeff3(
+    params,
+    jeffs_data_dict,
+    plot_full_intermediates=False,
+    hz_tested_list=(10, 20, 40, 100),
+    exp_key=None,                 # <-- any key in jeffs_data_dict (e.g. 20, "20Hz_full_kernel", etc.)
+    x_units="s",
+    force_paper_tau=True,
+    tau_back_paper=1.31,
+    tau_fwd_paper=0.69,
+    actually_jeff=True,          # kept for compatibility; exp_key controls which exp dataset is shown
+):
+    """
+    Plots model predictions for hz_tested_list on the SAME x-grid (from exp_key),
+    and overlays experimental points/curves from that same exp_key.
+
+    Requirements:
+      - jeffs_data_dict[exp_key] must have {'x': array(ms), 'y': array(values)}
+      - get_W, fit_exp_fixed_c, exp_with_fixed_c, str_true_false_to_bool must exist in your namespace
+    """
+
+    plot_full_intermediates = str_true_false_to_bool(plot_full_intermediates)
+
+    # -----------------------
+    # pick experimental dataset key
+    # -----------------------
+    if exp_key is None:
+        # default: use 20 if it exists, else first key
+        exp_key = 20 if 20 in jeffs_data_dict else list(jeffs_data_dict.keys())[0]
+
+    if exp_key not in jeffs_data_dict:
+        raise KeyError(f"exp_key={exp_key!r} not found in jeffs_data_dict keys: {list(jeffs_data_dict.keys())}")
+
+    x_exp_ms = np.asarray(jeffs_data_dict[exp_key]["x"], float)
+    y_exp    = np.asarray(jeffs_data_dict[exp_key]["y"], float)
+
+    # this is the SINGLE grid used for ALL model runs
+    x_grid_ms = x_exp_ms.copy()
+
+    # -----------------------
+    # helpers
+    # -----------------------
+    def split_back_fwd(x_s, y):
+        x_s = np.asarray(x_s, float); y = np.asarray(y, float)
+        m = np.isfinite(x_s) & np.isfinite(y)
+        x_s, y = x_s[m], y[m]
+        o = np.argsort(x_s); x_s, y = x_s[o], y[o]
+        mb = x_s <= 0
+        mf = x_s >= 0
+        return x_s[mb], y[mb], x_s[mf], y[mf]
+
+    def fit_back_fwd_with_c0(xb, yb, xf, yf):
+        tau_b = tau_f = np.nan
+        A_b = A_f = np.nan
+        if (np.isfinite(yb) & (yb > 0)).sum() >= 2:
+            A_b, tau_b = fit_exp_fixed_c(xb, yb, c_fixed=0.0)
+        if (np.isfinite(yf) & (yf > 0)).sum() >= 2:
+            zf = -xf
+            A_f, tau_f = fit_exp_fixed_c(zf, yf, c_fixed=0.0)
+        return (A_b, tau_b), (A_f, tau_f)
+
+    def apex_value_at_zero(x_s, y):
+        x_s = np.asarray(x_s, float); y = np.asarray(y, float)
+        m = np.isfinite(x_s) & np.isfinite(y)
+        x_s, y = x_s[m], y[m]
+        o = np.argsort(x_s); x_s, y = x_s[o], y[o]
+        if x_s.size == 0:
+            return np.nan
+        if np.any(x_s == 0.0):
+            return float(y[x_s == 0.0][0])
+        return float(np.interp(0.0, x_s, y))
+
+    # seconds from plateau (negative = backward)
+    if x_units == "s":
+        x_grid_s = -x_grid_ms / 1000.0
+        xlabel = "Time from plateau (s)"
+    else:
+        x_grid_s = -x_grid_ms
+        xlabel = "Time from plateau (ms)"
+
+    # -----------------------
+    # run model on shared grid for each hz
+    # -----------------------
+    products_dict = {}
+    for hz_used in hz_tested_list:
+        delta_w_list, et_time_1000, IS = get_W(
+            x_grid_ms,
+            post_ms=10000, pre_ms=10000,
+            hz_used=hz_used,
+            plateau_length=300,
+            tau_et=params["tau_et"], tau_is=params["tau_is"],
+            lam_et=params["lam_et"], lam_is=params["lam_is"],
+            dt_ms=1.0, eta_ms=params["eta_ms"],
+            plot_intermediates=False
+        )
+        products_dict[hz_used] = {
+            "x_ms": x_grid_ms,
+            "y": np.asarray(delta_w_list, float),
+        }
+
+    # -----------------------
+    # plot
+    # -----------------------
+    fig, axs = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True)
+    axs = np.array(axs).ravel()
+
+    backwards_model_per_hz_dict = {}
+    backwards_experiment_per_hz_dict = {}
+
+    # precompute experimental split / apex once (since it's shared)
+    xb_e, yb_e, xf_e, yf_e = split_back_fwd(x_grid_s, y_exp)
+    y0_exp = apex_value_at_zero(x_grid_s, y_exp)
+
+    for i, hz in enumerate(hz_tested_list):
+        ax = axs[i]
+        y_mod = products_dict[hz]["y"]
+
+        # model points
+        ax.plot(x_grid_s, y_mod, "o", label="Model", color="tab:blue")
+
+        # model fits
+        xb_m, yb_m, xf_m, yf_m = split_back_fwd(x_grid_s, y_mod)
+        (Amb, taumb), (Amf, taumf) = fit_back_fwd_with_c0(xb_m, yb_m, xf_m, yf_m)
+
+        xx_b = np.array([])
+        model_backwards_line = np.array([])
+        if np.isfinite(taumb) and xb_m.size:
+            xx_b = np.linspace(xb_m.min(), 0.0, 400)
+            model_backwards_line = exp_with_fixed_c(xx_b, Amb, taumb, c_fixed=0.0)
+            ax.plot(xx_b, model_backwards_line, "--", lw=2.0, color="purple",
+                    label=f"Model back (τ={taumb:.2f}s)")
+
+        xx_f = np.array([])
+        model_forwards_line = np.array([])
+        if np.isfinite(taumf) and xf_m.size:
+            xx_f = np.linspace(0.0, xf_m.max(), 400)
+            model_forwards_line = exp_with_fixed_c(-xx_f, Amf, taumf, c_fixed=0.0)
+            ax.plot(xx_f, model_forwards_line, "--", lw=2.0, color="purple",
+                    label=f"Model fwd (τ={taumf:.2f}s)")
+
+        backwards_model_per_hz_dict[hz] = dict(
+            xx_b=xx_b, xx_f=xx_f,
+            model_backwards_line=model_backwards_line,
+            model_forwards_line=model_forwards_line,
+            Amb=Amb, Amf=Amf, taumb=taumb, taumf=taumf,
+            x_s=x_grid_s, y_mod=y_mod
+        )
+
+        # experimental points (same for every panel)
+        ax.plot(x_grid_s, y_exp, "o", color="k", label=f"Experimental ({exp_key})")
+
+        # experimental curves (same for every panel)
+        if force_paper_tau:
+            if xb_e.size:
+                xx = np.linspace(xb_e.min(), 0.0, 400)
+                yy = y0_exp * np.exp(xx / tau_back_paper)
+                ax.plot(xx, yy, "-", lw=2.0, color="red",
+                        label=f"Exp back (τ={tau_back_paper:.2f}s)")
+            if xf_e.size:
+                xx = np.linspace(0.0, xf_e.max(), 400)
+                yy = y0_exp * np.exp(-xx / tau_fwd_paper)
+                ax.plot(xx, yy, "-", lw=2.0, color="red",
+                        label=f"Exp fwd (τ={tau_fwd_paper:.2f}s)")
+            exp_tau_back = tau_back_paper
+            exp_tau_fwd  = tau_fwd_paper
+        else:
+            (Aeb, taueb), (Aef, tauef) = fit_back_fwd_with_c0(xb_e, yb_e, xf_e, yf_e)
+            exp_tau_back, exp_tau_fwd = taueb, tauef
+            if np.isfinite(taueb) and xb_e.size:
+                xx = np.linspace(xb_e.min(), 0.0, 400)
+                ax.plot(xx, exp_with_fixed_c(xx, Aeb, taueb, c_fixed=0.0),
+                        "-", lw=2.0, color="red", label=f"Exp back (τ={taueb:.2f}s)")
+            if np.isfinite(tauef) and xf_e.size:
+                xx = np.linspace(0.0, xf_e.max(), 400)
+                ax.plot(xx, exp_with_fixed_c(-xx, Aef, tauef, c_fixed=0.0),
+                        "-", lw=2.0, color="red", label=f"Exp fwd (τ={tauef:.2f}s)")
+
+        backwards_experiment_per_hz_dict[hz] = dict(
+            x_exp_s=x_grid_s, y_exp=y_exp,
+            y0_exp=y0_exp,
+            exp_tau_back=exp_tau_back,
+            exp_tau_fwd=exp_tau_fwd
+        )
+
+        ax.set_title(f"{hz} Hz Pre Stim Simulated Model")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("EPSP Amplitude (relative %)")
+        ax.axvline(0, color="0.7", lw=1)
+        ax.legend(fontsize=7, loc="upper left")
+
+    plt.tight_layout()
+    plt.show()
+
+    return products_dict, backwards_model_per_hz_dict, backwards_experiment_per_hz_dict
+
+
+# Example usage:
+# plot_jeff3(params, jeffs_data_dict, exp_key="20Hz_full_kernel", hz_tested_list=(10,20,40,100))
+# plot_jeff3(params, jeffs_data_dict, exp_key=20, hz_tested_list=(10,20,40,100), force_paper_tau=True)
 
 
 
@@ -2131,6 +2415,7 @@ def exp_with_fixed_c(x, A, tau, c_fixed):
     return float(c_fixed) + A*np.exp(x/float(tau))
 
 
+
 def fit_exp_fixed_c_grid(x, y, c_fixed, tau_min=0.5, tau_max=2.5, n_grid=2000):
     """
     Fit y ≈ c_fixed + A * exp(x/τ) with c fixed by grid-searching τ in y-space
@@ -2165,7 +2450,7 @@ def fit_exp_fixed_c_grid(x, y, c_fixed, tau_min=0.5, tau_max=2.5, n_grid=2000):
 
 
 
-def plot_fixed_data(context, products_dict, fixed_c=0.01, fit_grid=True):
+def plot_fixed_data(cleaned_data_dict, products_dict, fixed_c=0.01, fit_grid=True):
 
     # === your plotting ===
     fig, axs = plt.subplots(2, 3, figsize=(11, 6))
@@ -2179,7 +2464,7 @@ def plot_fixed_data(context, products_dict, fixed_c=0.01, fit_grid=True):
 
     # ---- 10 / 40 / 100 Hz (backward; x ≤ 0) ----
     for hz in [10, 40, 100]:
-        d  = context.cleaned_data_dict[hz]
+        d  = cleaned_data_dict[hz]
         dm = products_dict[hz]
 
         x  = np.asarray(d['x'],  float) / -1000.0
@@ -2231,8 +2516,8 @@ def plot_fixed_data(context, products_dict, fixed_c=0.01, fit_grid=True):
         ax.legend(fontsize=7, loc='upper left')
 
     # ---- 20 Hz backward (merge) ----
-    x20  = np.asarray(context.cleaned_data_dict[20]['x'], float) / -1000.0
-    y20  = np.asarray(context.cleaned_data_dict[20]['y'], float)
+    x20  = np.asarray(cleaned_data_dict[20]['x'], float) / -1000.0
+    y20  = np.asarray(cleaned_data_dict[20]['y'], float)
     xm20 = np.asarray(products_dict[20]['x'], float) / -1000.0
     ym20 = np.asarray(products_dict[20]['y'], float)
     max_dict[20] = np.max(ym20)
@@ -2244,8 +2529,8 @@ def plot_fixed_data(context, products_dict, fixed_c=0.01, fit_grid=True):
     o  = np.argsort(xs20);  xs20,  ys20  = xs20[o],  ys20[o]
     om = np.argsort(xms20); xms20, yms20 = xms20[om], yms20[om]
 
-    xfk = np.asarray(context.cleaned_data_dict["20Hz_full_kernel"]['x'], float) / -1000.0
-    yfk = np.asarray(context.cleaned_data_dict["20Hz_full_kernel"]['y'], float)
+    xfk = np.asarray(cleaned_data_dict["20Hz_full_kernel"]['x'], float) / -1000.0
+    yfk = np.asarray(cleaned_data_dict["20Hz_full_kernel"]['y'], float)
     xm_fk = np.asarray(products_dict["20Hz_full_kernel"]['x'], float) / -1000.0
     ym_fk = np.asarray(products_dict["20Hz_full_kernel"]['y'], float)
 
