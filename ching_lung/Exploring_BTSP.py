@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pickle
 from scipy.optimize import curve_fit
+import scipy
 
 def str_true_false_to_bool(s):
     """
@@ -600,37 +601,61 @@ def plot_jeff2(params, jeffs_data_dict, plot_full_intermediates, handin_hz=20):
         xb_m, yb_m, xf_m, yf_m = split_back_fwd(x_s, y_mod)
         # (Amb, taumb), (Amf, taumf) = fit_back_fwd_with_c0(xb_m, yb_m, xf_m, yf_m)
 
-        [A_alt, tau_alt], _ = scipy.optimize.curve_fit(exp_with_fixed_c, x, y, p0=[1., -1000.])
+
+
+        p0b = [yb_m.max(), 1000.0]
+        (A_b, tau_b), _ = curve_fit(exp_back_c0, xb_m, yb_m, p0=p0b,
+                                    bounds=([-np.inf, 1e-6], [np.inf, np.inf]),
+                                    maxfev=20000)
+        xx_b = np.linspace(xb_m.min(), 0.0, 400)
+        yy_b = exp_back_c0(xx_b, A_b, tau_b)
+
+        # fit forward (x >= 0)
+        p0f = [yf_m.max(), 1000.0]
+        (A_f, tau_f), _ = curve_fit(exp_fwd_c0, xf_m, yf_m, p0=p0f,
+                                    bounds=([-np.inf, 1e-6], [np.inf, np.inf]),
+                                    maxfev=20000)
+        xx_f = np.linspace(0.0, xf_m.max(), 400)
+        yy_f = exp_fwd_c0(xx_f, A_f, tau_f)
+
+        ax.plot(x_ms*-1, (y_mod*100)+100, 'o', color='k', label='Exp.')
+        ax.plot(xx_b*-1, (yy_b*100)+100, '-', color='r', label=f'Tau Exp Fwd={tau_b/1000:.2f}s')
+        ax.plot(xx_f*-1, (yy_f*100)+100, '-', color='r', label=f'Tau Exp Bwd={tau_f/1000:.2f}s')
+
+
+
+
+        # [A_alt, tau_alt], _ = scipy.optimize.curve_fit(exp_with_fixed_c, x, y, p0=[1., -1000.])
 
 
         
         
 
 
-        if np.isfinite(taumb):
-            xx_b = np.linspace(xb_m.min(), xb_m.max(), 400)
-            model_backwards_line = exp_with_fixed_c(xx_b, Amb, taumb, c_fixed=0.0)
-            ax.plot(xx_b, model_backwards_line,
-                    '--', lw=2.0, color='purple', label=f"Model back (τ={taumb:.2f}s)")
-        if np.isfinite(taumf):
-            xx_f = np.linspace(xf_m.min(), xf_m.max(), 400)
-            model_forwards_line = exp_with_fixed_c(-xx_f, Amf, taumf, c_fixed=0.0)
-            ax.plot(xx_f, model_forwards_line,
-                    '--', lw=2.0, color='purple', label=f"Model fwd (τ={taumf:.2f}s)")
-        else:
-            xx_f=0
-            model_forwards_line=0
-            taumf=0
+        # if np.isfinite(taumb):
+        #     xx_b = np.linspace(xb_m.min(), xb_m.max(), 400)
+        #     model_backwards_line = exp_with_fixed_c(xx_b, Amb, taumb, c_fixed=0.0)
+        #     ax.plot(xx_b, model_backwards_line,
+        #             '--', lw=2.0, color='purple', label=f"Model back (τ={taumb:.2f}s)")
+        # if np.isfinite(taumf):
+        #     xx_f = np.linspace(xf_m.min(), xf_m.max(), 400)
+        #     model_forwards_line = exp_with_fixed_c(-xx_f, Amf, taumf, c_fixed=0.0)
+        #     ax.plot(xx_f, model_forwards_line,
+        #             '--', lw=2.0, color='purple', label=f"Model fwd (τ={taumf:.2f}s)")
+        # else:
+        #     xx_f=0
+        #     model_forwards_line=0
+        #     taumf=0
             
 
         model_backwards_dict = {"xx_f":xx_f,
                                 "xx_b":xx_b,
-                                "model_backwards_line":model_backwards_line,
-                                "model_forwards_line":model_forwards_line,
-                                "Amb":Amb,
-                                "Amf":Amf,
-                                "taumb":taumb,
-                                "taumf":taumf,
+                                "model_backwards_line":yy_b,
+                                "model_forwards_line":yy_f,
+                                "Amb":A_b,
+                                "Amf":A_f,
+                                "taumb":tau_b,
+                                "taumf":tau_f,
                                 "x_s":x_s,
                                 "y_mod":y_mod}
         
@@ -2413,6 +2438,25 @@ def fit_exp_fixed_c(x, y, c_fixed):
 
 def exp_with_fixed_c(x, A, tau, c_fixed):
     return float(c_fixed) + A*np.exp(x/float(tau))
+
+
+
+
+def exp_with_fixed_c(x, A, tau, c_fixed):
+    x = np.asarray(x, float)
+    return float(c_fixed) + A*np.exp(x/float(tau))
+
+def exp_c0(x, A, tau):
+    return exp_with_fixed_c(x, A, tau, c_fixed=0.0)
+
+def exp_back_c0(x, A, tau):   # for x <= 0
+    return A*np.exp(x/tau)
+
+def exp_fwd_c0(x, A, tau):    # for x >= 0
+    return A*np.exp(-x/tau)
+
+
+
 
 
 

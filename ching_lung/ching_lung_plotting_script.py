@@ -3,6 +3,7 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
+import scipy
 
 plt.rcParams.update({
     # overall defaults
@@ -66,7 +67,7 @@ def plot_summary(backwards_experiment_per_hz_dict, backwards_model_per_hz_dict, 
             ax.plot(back_dict["xx_b"], back_dict["yy_b"], '-', lw=2.0, color='red', label=label_tau if hz ==20 else None)
             ax.plot(back_dict["xx_f"], back_dict["yy_f"], '-', lw=2.0, color='red', label=f'Exp fwd (τ={back_dict["TAU_FWD_PAPER"]:.2f}s)')
 
-        ax.plot(model_dict["x_s"], model_dict["y_mod"], marker='o', label=f"Model Pred. @ {hz}Hz", color='tab:blue', linewidth=0.5, alpha=0.5)
+        ax.plot(model_dict["x_s"], model_dict["y_mod"], 'o', label=f"Model Pred. @ {hz}Hz", color='blue')
         ax.plot(model_dict["xx_b"], model_dict["model_backwards_line"], '--', lw=2.0, color='purple', label=f"Model back (τ={model_dict['taumb']:.2f}s)")
         ax.plot(model_dict["xx_f"], model_dict["model_forwards_line"], '--', lw=2.0, color='purple', label=f"Model fwd (τ={model_dict['taumf']:.2f}s)")
 
@@ -81,7 +82,13 @@ def plot_summary(backwards_experiment_per_hz_dict, backwards_model_per_hz_dict, 
         custom_labels = ['100', '150', '200', '250', '300', '350']
         ax.set_yticks(custom_tick_locations)
         ax.set_yticklabels(custom_labels)
-        ax.legend(loc="upper left")
+        # ax.legend(loc="upper left")
+        ax.legend(
+    loc="upper center",
+    bbox_to_anchor=(0.5, -0.28),
+    ncol=2,
+    frameon=False
+)
 
     model_t0_array = np.array(model_t0_list)
     model_t0_array_scaled = (model_t0_array*100) + 100
@@ -115,7 +122,12 @@ def plot_summary(backwards_experiment_per_hz_dict, backwards_model_per_hz_dict, 
     axs[1,3].set_xlabel("Presynaptic frequency (Hz)")
 
 
-    plt.tight_layout()
+    # plt.tight_layout()
+
+    fig.tight_layout(rect=[0., 0.01, 0.96,0.98])  # leave 12% of figure height at bottom
+    fig.subplots_adjust(hspace=0.8)          # ↑ increase this to add more vertical gap
+    # plt.tight_layout()
+    # plt.show()
     
     plt.show()
 
@@ -156,7 +168,7 @@ def plot_summary_ching_lung_data_jeff_model(ching_lung_data, backwards_model_per
         #     ax.plot(back_dict["xx_b"], back_dict["yy_b"], '-', lw=2.0, color='red', label=label_tau if hz ==20 else None)
         #     ax.plot(back_dict["xx_f"], back_dict["yy_f"], '-', lw=2.0, color='red', label=f'Exp fwd (τ={back_dict["TAU_FWD_PAPER"]:.2f}s)')
 
-        ax.plot(model_dict["x_s"], model_dict["y_mod"], marker='o', label=f"Model Pred. @ {hz}Hz", color='tab:blue', linewidth=0.5, alpha=0.5)
+        ax.plot(model_dict["x_s"], model_dict["y_mod"], 'o', label=f"Model Pred. @ {hz}Hz", color='blue')
         ax.plot(model_dict["xx_b"], model_dict["model_backwards_line"], '--', lw=2.0, color='purple', label=f"Model back (τ={model_dict['taumb']:.2f}s)")
         ax.plot(model_dict["xx_f"], model_dict["model_forwards_line"], '--', lw=2.0, color='purple', label=f"Model fwd (τ={model_dict['taumf']:.2f}s)")
 
@@ -661,11 +673,11 @@ def data_over_experiment(cleaned_data_dict, params, title=None):
 
     for key, value in fwd_tau_model_dict.items():
         if key == "20Hzfull_fwd":
-            ax.plot(
-                1.1, value, 'o',  # or pick a specific x you want
-                color='magenta',
-                label="20Hz Full Kernel Model" if not kernel_labeled else None
-            )
+            # ax.plot(
+            #     1.1, value, 'o',  # or pick a specific x you want
+            #     color='magenta',
+            #     label="20Hz Full Kernel Model" if not kernel_labeled else None
+            # )
             kernel_labeled = True
             continue
 
@@ -716,7 +728,7 @@ def data_over_experiment(cleaned_data_dict, params, title=None):
             base_x = xpos[20]
 
             # small jitter so both points are visible
-            x = base_x + (-0.16 if key == "20Hzfull_fwd" else 0.08)
+            x = base_x + (-0.1) #if key == "20Hzfull_fwd" else 0.08)
 
             if key == "20Hzfull_fwd":
                 # key_list[i+2].plot(
@@ -728,7 +740,7 @@ def data_over_experiment(cleaned_data_dict, params, title=None):
             elif key == "20Hzfull_back":
                 ax.plot(
                     0.9, model_apparent_taus_dict[key], 'o',
-                    color='k',
+                    color='blue',
                     label="Full Kernel Back. Model" if not kernel_back_model_labeled else None
                 )
                 kernel_back_model_labeled = True
@@ -738,16 +750,16 @@ def data_over_experiment(cleaned_data_dict, params, title=None):
                 kernel_fwd_labeled = True
                 color="orange"
 
-                key_list[i+2].plot(x, value, 'o', color=color, label=label)
+                key_list[i+2].plot(base_x+0.1, value, 'o', color=color, label=label)
                 key_list[i+2].legend()
 
                 # ax.plot(xpos[20], model_apparent_taus_dict[key], 'o',color='green', label="Full Kernel Fwd. Model" if not model_labeled else None)
             else:
                 label = "Full Kernel Back. Experiment" if not kernel_back_labeled else None
                 kernel_back_labeled = True
-                color="magenta"
+                color="orange"
 
-                ax.plot(x, value, 'o', color=color, label=label)
+                ax.plot(base_x+0.1, value, 'o', color=color, label=label)
 
                 # ax.plot(xpos[20], model_apparent_taus_dict[key], 'o',color='orchid', label="Full Kernel Back. Model" if not model_labeled else None)
 
@@ -823,7 +835,7 @@ def main():
         jeffs_params, jeffs_data_dict, plot_full_intermediates
     )
 
-    plot_summary(backwards_experiment_per_hz_dict, backwards_model_per_hz_dict, title="Jeff Model Fit Jeff Data")
+    plot_summary(backwards_experiment_per_hz_dict, backwards_model_per_hz_dict, title="Simple Model Trained on Science Data")
 
     # you had hz + params undefined here; keep minimal but make it run:
     hz = 20
