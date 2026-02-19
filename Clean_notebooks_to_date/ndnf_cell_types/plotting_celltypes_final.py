@@ -408,27 +408,6 @@ def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict,
     return internals_per_animal_dict_EC_animal_x00_regkmean
 
 
-# def preprocess_animal(NDNF_fixed_model_dict, residual_activity_dict, num_clusters=8, reassign_clusters=False, x00=True, umap=True, contiguous=True, ranks=20):
-
-#     internals_per_animal_dict_EC_animal_x00_regkmean = {}
-    
-#     for idx, animal in enumerate(residual_activity_dict):
-#         internals_per_animal_dict_EC_animal_x00_regkmean_cell = {}
-#         for idt, cell in enumerate(residual_activity_dict[animal]):
-
-#             cell_data = residual_activity_dict[animal][cell].T
-#             cell_data = ((cell_data-np.min(cell_data)) / np.max(cell_data) - np.min(cell_data))
-#             cell_data_3d = np.expand_dims(cell_data, axis=1)
-#             cell_data_3d = torch.from_numpy(cell_data_3d)
-#             cell_model = NDNF_fixed_model_dict[idx][idt]
-
-#             internals_dict = get_animal_model_reconstruction_dict_mod(cell_model, cell_data_3d, max_clusters=num_clusters, display=False, reassign_small_clusters=reassign_clusters, x00=x00, use_umap=umap, use_breakpoints=contiguous)
-
-#             internals_per_animal_dict_EC_animal_x00_regkmean_cell[idt] = internals_dict
-        
-#         internals_per_animal_dict_EC_animal_x00_regkmean[idx] = internals_per_animal_dict_EC_animal_x00_regkmean_cell
-
-#     return internals_per_animal_dict_EC_animal_x00_regkmean
 
 
 def get_animal_model_reconstruction_dict_mod(animal_model, tensor_for_animal, max_clusters=12, display=False, reassign_small_clusters=True, x00=True, use_umap=False, use_breakpoints=False):
@@ -3102,6 +3081,10 @@ def run(use_fixed_track, use_first_or_only, use_all, which_celltype=None):
 
 
     cp_dict_NDNF = get_cp_dict(contig_dict)
+
+    save_path = f"/Users/michaelfinch/CA1_interneuron_model/misc/{which_celltype}_EC_dict.pkl"
+    with open(save_path, 'wb') as f:
+        pickle.dump(cp_dict_NDNF,f)
 
  
     # data_truncated_array_NDNF, min_num_trials = get_truncated_to_min_data_array(clean_resid_activity_dict_NDNF_newest)

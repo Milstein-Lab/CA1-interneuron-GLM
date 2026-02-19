@@ -1151,9 +1151,6 @@ def get_W(x_arr_int, post_ms=10000, pre_ms=10000, hz_used=10, plateau_length = 3
     spike_train = np.zeros(T_ms)
     spike_train[spike_idx] = 1.0
 
-    # valid = (spike_idx >= 0) & (spike_idx < T_ms)
-    # spike_train[spike_idx[valid]] = 1.0
-
     is_pre_conv = np.zeros(T_ms)
     is_pre_conv[center_idx:center_idx+plateau_length] =1
 

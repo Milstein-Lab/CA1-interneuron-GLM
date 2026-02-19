@@ -163,13 +163,12 @@ def run_slice_tca_ideal_ex(ideal_cell):
   return model 
 
 
-def get_ideal_random_cell(num_trials=None, num_timebins=None):
+def get_ideal_random_cell(num_trials=None, num_timebins=None, prob_field_1=None, prob_field_2=None):
     rng = np.random.default_rng(seed=42)
     num_trials = num_trials
     num_timebins = num_timebins
     ideal_cell = torch.zeros(num_trials, 1, num_timebins)
 
-    # Add gaussian place field
     def place_field(x, mu, sigma):
         return torch.exp(-(x - mu)**2 / (2 * sigma**2))
 
@@ -179,8 +178,8 @@ def get_ideal_random_cell(num_trials=None, num_timebins=None):
     x = np.linspace(-6, 6, num_trials)
 
     for i in range(num_trials):
-        express_field1 = rng.choice([0, 1])
-        express_field2 = rng.choice([0, 1])
+        express_field1 = rng.choice([0, 1], p=[1 - prob_field_1, prob_field_1])
+        express_field2 = rng.choice([0, 1], p=[1 - prob_field_2, prob_field_2])
         ideal_cell[i] += express_field1*field1 + express_field2*field2
 
 
